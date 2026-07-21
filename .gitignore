@@ -1,0 +1,15 @@
+# 库实例数据 (用户跑 seed 后生成, 大, 不进 git)
+data/
+data.bak/
+
+# 全量生产源注册表 (62 源) — 不随公开发布; 公开默认是 sources.yaml (demo)
+sources.full.yaml
+
+# 内部一次性迁移脚本 — 不随公开发布 (对外部用户无用)
+scripts/_archive/
+
+# 缓存
+_cache/
+*.pyc
+__pycache__/
+.pytest_cache/
