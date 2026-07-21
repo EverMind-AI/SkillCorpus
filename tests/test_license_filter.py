@@ -1,5 +1,5 @@
 """License filter consistency test — the JSON whitelist's green_categories must exactly
-match the code's GREEN_LICENSES (guards against the iter3 drift where the 0BSD category went missing)."""
+match the code's GREEN_LICENSES (guards against a past drift where the 0BSD category went missing)."""
 
 from __future__ import annotations
 

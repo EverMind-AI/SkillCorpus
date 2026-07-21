@@ -1,4 +1,4 @@
-"""iter3 upgrade end-to-end smoke test — covers several integration-boundary regressions in one pass.
+"""Upgrade end-to-end smoke test — covers several integration-boundary regressions in one pass.
 
 These pitfalls (migration path / recompute scripts / producer<->consumer label handshake) all live
 at **integration boundaries** that ordinary unit tests don't reach. This file uses a fully

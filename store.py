@@ -19,7 +19,6 @@ from typing import Any
 class Category(str, Enum):
     """Primary LLM category — 16 classes (including the OTHER fallback).
 
-    Design doc: ../docs/16_classification.md
     History: the old 15+1 classes (CODING/BACKEND/AUTOMATION/...) were replaced on 2026-05-20.
     """
     # software development stack, 5 classes

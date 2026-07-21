@@ -1,6 +1,6 @@
 """V5-2: HTTP trigger for refresh_loop.
 
-Producer-side FastAPI service. Consumer (everclaw CLI) hits this to
+Producer-side FastAPI service. Consumer (Raven CLI) hits this to
 trigger an immediate refresh of one source without waiting for cron.
 
 The actual ingest still runs producer-side (single writer to SQLite,

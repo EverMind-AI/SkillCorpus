@@ -34,8 +34,8 @@ def _strip_frontmatter(body: str) -> str:
 # ---------------------------------------------------------------------
 # Canonical embedding-text formula.
 #
-# This is the single function both PRODUCER (skill_library/ingest.py)
-# and CONSUMER (everclaw/memory_engine/skill/retrieval.py
+# This is the single function both PRODUCER (this package)
+# and CONSUMER (Raven's skill_forge
 # ``_format_skill_text``) MUST agree on, otherwise mass-pool embeddings
 # stored at ingest time cannot be matched against query embeddings
 # computed at retrieval time (cosine drops to ~0.6-0.9 due to text-shape

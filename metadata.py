@@ -786,7 +786,6 @@ class LLMQualityJudge:
 The sole implementation of producer-side classification. Replaces the deprecated
 classify.py (rules) / classify_llm.py (old 15-class LLM) / classify_facets.py (4-facet).
 
-Design docs: ../docs/16_classification.md
 Measured on 1000 samples with Qwen3.5-397B-A17B-GPTQ-Int4:
     100% succ / 0 OOV / 0 fail / average confidence 0.95
 
@@ -804,7 +803,7 @@ Failure fallback:
 
 
 
-# 16-class vocabulary — single source = store.CATEGORIES (avoid drift from the enum, see docs/16_classification.md §2)
+# 16-class vocabulary — single source = store.CATEGORIES (avoid drift from the enum)
 VOCAB: frozenset[str] = frozenset(CATEGORIES)
 
 
