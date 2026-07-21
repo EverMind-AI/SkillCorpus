@@ -1,12 +1,12 @@
-"""skill_library — 通用 skill 库构建管线 (build pipeline).
+"""skill_library — general-purpose skill library build pipeline.
 
-核心能力:
+Core capabilities:
 - CRUD (add/get/update/delete/list)
-- 入库筛选: 去重 + 质量过滤 + 自动分类
-- 多源聚合 + 增量 refresh
-- 导出 mass_library.db 供 consumer 检索
+- Ingest filtering: deduplication + quality filtering + automatic classification
+- Multi-source aggregation + incremental refresh
+- Export mass_library.db for consumer retrieval
 
-定位是入库/构建管线 — runtime 检索 (BM25+embedding 搜库) 由 consumer 端负责。
+Positioned as an ingest/build pipeline — runtime retrieval (BM25+embedding search over the library) is handled by the consumer side.
 """
 
 from .store import SkillRecord, Category, CATEGORIES

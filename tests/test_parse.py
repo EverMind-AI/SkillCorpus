@@ -1,4 +1,4 @@
-"""Parse / validate 测试 — 纯函数, 无 DB 依赖."""
+"""Parse / validate tests — pure functions, no DB dependency."""
 
 from __future__ import annotations
 
@@ -75,11 +75,11 @@ def test_validate_missing_description():
 
 
 def test_validate_overlong_description_tolerated():
-    """description > 1024 不抛异常 (Round C: 改为 warning); 实际告警在 ingest 流程."""
+    """description > 1024 does not raise (Round C: changed to a warning); the actual warning fires in the ingest flow."""
     validate_skill(
         {"name": "demo", "description": "x" * 1500},
         "body body body",
-    )  # 不 raise
+    )  # does not raise
 
 
 if __name__ == "__main__":

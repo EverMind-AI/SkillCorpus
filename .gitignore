@@ -1,14 +1,14 @@
-# 库实例数据 (用户跑 seed 后生成, 大, 不进 git)
+# Library instance data (generated after the user runs seed; large, not committed to git)
 data/
 data.bak/
 
-# 全量生产源注册表 (62 源) — 不随公开发布; 公开默认是 sources.yaml (demo)
+# Full production source registry (62 sources) — not part of the public release; the public default is sources.yaml (demo)
 sources.full.yaml
 
-# 内部一次性迁移脚本 — 不随公开发布 (对外部用户无用)
+# Internal one-off migration scripts — not part of the public release (of no use to external users)
 scripts/_archive/
 
-# 缓存
+# Caches
 _cache/
 *.pyc
 __pycache__/

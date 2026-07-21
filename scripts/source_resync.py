@@ -1,15 +1,16 @@
-"""Round C-3 — 增量 source re-sync, 避免 unchanged skill 重复调 LLM.
+"""Round C-3 — incremental source re-sync, avoiding repeated LLM calls for unchanged skills.
 
-与 add-batch 的区别:
-  add-batch:        每个 SKILL.md 走完整 pipeline (parse + LLM classify + embed +
-                    LLM quality); unchanged 靠 content_hash DUPLICATE 在 ingest
-                    最后才 skip, 前面的 LLM 调用已经浪费了.
-  source_resync:    先读 content_hash, 库里已存在 + 同 source → 直接 SKIP_UNCHANGED,
-                    不跑 LLM / 不计 duplicate 到 LLM quota. 能变的或新的才走完整 pipeline.
+Difference from add-batch:
+  add-batch:        every SKILL.md runs the full pipeline (parse + LLM classify + embed +
+                    LLM quality); unchanged ones are only skipped via content_hash DUPLICATE
+                    at the very end of ingest, after the earlier LLM calls have been wasted.
+  source_resync:    reads content_hash first; already in the library + same source → SKIP_UNCHANGED
+                    directly, without running the LLM / without counting a duplicate against the
+                    LLM quota. Only changed or new ones run the full pipeline.
 
-对 1,933 awesome skill 的重跑, unchanged 率 ~ 99%, 可节省 99% 的 LLM 调用.
+For a re-run over 1,933 awesome skills, the unchanged rate is ~99%, saving 99% of LLM calls.
 
-用法:
+Usage:
     python -m skill_library.scripts.source_resync \
         experiment-results/_reference_skills/_fetched/anthropics/skills \
         --source anthropics [--lib PATH] [--dry-run]
@@ -43,7 +44,7 @@ def main():
     ap.add_argument("--source", required=True)
     ap.add_argument("--lib", default=None)
     ap.add_argument("--dry-run", action="store_true",
-                    help="只报告变化, 不调 lib.add")
+                    help="only report changes, do not call lib.add")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
@@ -60,13 +61,13 @@ def main():
     print(f"source: {args.source}")
     print(f"scanning: {root} → {len(md_paths)} SKILL.md")
 
-    unchanged: list[str] = []        # content_hash 命中, 同 source
-    dup_other_source: list[str] = [] # content_hash 命中但 source 不同 (冲突)
-    updates: list[str] = []          # 新 content_hash, 同 source 已有同 canonical name
+    unchanged: list[str] = []        # content_hash hit, same source
+    dup_other_source: list[str] = [] # content_hash hit but different source (conflict)
+    updates: list[str] = []          # new content_hash, same source already has the same canonical name
     new_adds: list[str] = []
     parse_errors: list[tuple[str, str]] = []
 
-    # 先一次性扫 hash 归类 (不调 ingest)
+    # first scan and categorize by hash in one pass (without calling ingest)
     for md in md_paths:
         skill_dir = md.parent
         try:
@@ -77,8 +78,8 @@ def main():
             continue
 
         c_hash = content_hash(body)
-        # 含 deleted records — 之前被 supersede 的同一 skill 视为 unchanged,
-        # 避免循环 re-ingest + 被再次合并
+        # include deleted records — the same skill previously superseded is treated as unchanged,
+        # to avoid a re-ingest loop + being merged again
         row = conn.execute(
             "SELECT skill_id, source, deleted, superseded_by "
             "FROM skills WHERE content_hash = ?",
@@ -91,7 +92,7 @@ def main():
                 dup_other_source.append(f"{skill_dir}  (already in {row['source']})")
             continue
 
-        # content 新. 查同 source + 同 canonical name 是否存在 (→ update 路径)
+        # content is new. check whether same source + same canonical name exists (→ update path)
         from skill_library.dedup import name_hash
         n_hash = name_hash(str(fm["name"]))
         same = conn.execute(
@@ -112,7 +113,7 @@ def main():
     print(f"  parse errors:                             {len(parse_errors)}")
 
     if args.dry_run:
-        print("\ndry-run — 不 ingest")
+        print("\ndry-run — no ingest")
     else:
         print(f"\n== ingesting {len(updates) + len(new_adds)} changed/new skills ==")
         t0 = time.time()

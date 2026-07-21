@@ -1,6 +1,6 @@
-"""端到端集成测试 — CRUD 流程 / quality rejection / export_bundle.
+"""End-to-end integration tests — CRUD flow / quality rejection / export_bundle.
 
-纯函数 (parse/safety/classify/dedup) 测试拆到各自文件:
+Pure-function (parse/safety/classify/dedup) tests are split into their own files:
     test_parse.py, test_safety.py, test_classify.py,
     test_dedup_round_a.py, test_quality_round_b.py
 """
@@ -66,7 +66,7 @@ def test_e2e_crud():
         sid = r.record.skill_id
         assert sid.startswith("custom__")
 
-        # 2. Dedup (re-add 同一内容)
+        # 2. Dedup (re-add the same content)
         r2 = lib.add(skill_dir, source="custom")
         assert r2.status == IngestStatus.DUPLICATE
 
@@ -74,8 +74,8 @@ def test_e2e_crud():
         got = lib.get(sid)
         assert got is not None
         assert got.name == "my-demo-skill"
-        # 分类器产出合法分类即可 (LLM 不可用时走规则兜底; 具体命中由
-        # test_classify.py 覆盖). DOC-PROC/DEV 都是合理结果.
+        # Any valid category from the classifier is fine (falls back to rules when the
+        # LLM is unavailable; the specific match is covered by test_classify.py). DOC-PROC/DEV are both reasonable.
         assert got.category in CATEGORIES
         assert got.has_scripts is False
         assert got.quality_score > 0
@@ -88,7 +88,7 @@ def test_e2e_crud():
         lib.retag(sid, ["pdf", "reportlab", "demo"])
         assert "reportlab" in lib.get(sid).tags
 
-        # 7. Reclassify (用当前 16-class taxonomy 的合法类名)
+        # 7. Reclassify (use a valid class name from the current 16-class taxonomy)
         lib.reclassify(sid, "DOC-PROC")
         assert lib.get(sid).category == "DOC-PROC"
 
@@ -121,20 +121,20 @@ def test_quality_rejection_short_body():
 
 
 def test_export_bundle_roundtrip():
-    """export → 解压 zip 检查 manifest.json + skill 目录."""
+    """export → unzip and check manifest.json + skill directories."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_p = Path(tmp)
         lib = SkillLibrary(tmp_p / "lib").open()
-        # 测试里禁用近似去重, 避免两个内容相似的 sample 被合并
+        # Disable near-duplicate detection in the test to avoid merging two content-similar samples
         lib.ingester._dedup_enabled = False
         lib.ingester.dup_judge = None
 
-        # 加两个 skill
+        # Add two skills
         s1 = _write_sample(tmp_p / "src1", "s1")
         r1 = lib.add(s1, source="custom")
         assert r1.status == IngestStatus.ADDED
 
-        # 第二个用完全不同 body 避免 content 相似
+        # Use a completely different body for the second to avoid content similarity
         (tmp_p / "src2" / "s2").mkdir(parents=True)
         (tmp_p / "src2" / "s2" / "SKILL.md").write_text(
             "---\nname: other-demo\ndescription: Totally different skill about network monitoring and alerting.\n---\n\n"
@@ -144,7 +144,7 @@ def test_export_bundle_roundtrip():
         r2 = lib.add(tmp_p / "src2" / "s2", source="anthropics")
         assert r2.status == IngestStatus.ADDED, f"got {r2.status}: {r2.reason}"
 
-        # Export 全部
+        # Export everything
         out = tmp_p / "bundle.zip"
         stats = lib.export_bundle(out_path=out)
         assert stats["count"] == 2
@@ -156,13 +156,13 @@ def test_export_bundle_roundtrip():
             manifest = json.loads(zf.read("manifest.json"))
             assert manifest["count"] == 2
             assert len(manifest["skills"]) == 2
-            # 每个 skill 至少一个文件被打包
+            # Each skill has at least one file packaged
             for s in manifest["skills"]:
                 sp = s["stored_path"]
                 has_file = any(n.startswith(sp + "/") for n in names)
                 assert has_file, f"no files for {sp} in bundle"
 
-        # 按 source 过滤导出
+        # Export filtered by source
         out_anth = tmp_p / "anth.zip"
         stats_a = lib.export_bundle(out_path=out_anth, source="anthropics")
         assert stats_a["count"] == 1

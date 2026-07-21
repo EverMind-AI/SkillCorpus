@@ -1,7 +1,7 @@
-"""metadata.py — LLM 元数据阶段: quality judge + 分类 + tag + source prior。
+"""metadata.py — LLM metadata stage: quality judge + classification + tag + source prior.
 
-含规则评分 + LLM judge (3-facet/19-flag) + source_weights 融合, 以及
-16-class 分类器 (内置 prompt) 与规则 tag 抽取。
+Includes rule-based scoring + LLM judge (3-facet/19-flag) + source_weights fusion,
+plus a 16-class classifier (built-in prompt) and rule-based tag extraction.
 """
 from __future__ import annotations
 
@@ -18,16 +18,16 @@ from .store import CATEGORIES, SkillRecord
 
 
 # ════════════════════ from quality/rule.py ════════════════════
-"""质量评分 — 加权组合多种信号, 结果落在 [0.0, 1.0].
+"""Quality scoring — weighted combination of multiple signals, result in [0.0, 1.0].
 
 v2 (3-dim LLM judge):
-  数字分主导, flag 只做 hard gate + audit, 不做累加扣分.
-  → LLM 内部已经在数字分里反映了具体问题, flag 罚会重复惩罚.
+  the numeric scores dominate; flags only act as a hard gate + audit, no additive penalty.
+  → the LLM already reflects the specific issues in the numeric scores, so a flag penalty would double-punish.
 
   Step 1: regex hard gate (blocked_* → 0)
   Step 2: content_q
     a. LLM safety < 3   → 0    (LLM hard gate)
-    b. HARD_GATE_FLAGS  → 0    (主动伤害类 flag, 兜底)
+    b. HARD_GATE_FLAGS  → 0    (active-harm flags, fallback)
     c. content = 0.50*u + 0.35*r + 0.15*s
     d. safety 3-7 → multiplicative degrade
   Step 3: base = 0.85*content + 0.15*source_prior
@@ -40,9 +40,9 @@ v2 (3-dim LLM judge):
 """
 
 
-# 主动伤害类 flag — 命中直接 quality=0 (无论 safety 数字分多少)
-# 作为 LLM safety 数字分的兜底安全网:若 LLM 数字分宽容但已命中具体威胁,
-# 仍然拦下.
+# active-harm flags — a hit forces quality=0 (regardless of the safety numeric score)
+# acts as a fallback safety net for the LLM safety numeric score: if the LLM score is
+# lenient but a specific threat is already matched, it is still blocked.
 HARD_GATE_FLAGS = frozenset({
     "prompt_injection",
     "cmd_injection",
@@ -53,14 +53,14 @@ HARD_GATE_FLAGS = frozenset({
 
 
 def _body_len_score(n: int) -> float:
-    """合理长度区间得高分, 太短/太长扣分.
+    """A reasonable length range scores high; too short/too long is penalized.
 
-    < 300   -> 0.0 (会被 filter 拒)
-    300-1k  -> 线性 0.3 -> 0.7
-    1k-10k  -> 1.0 (理想)
-    10k-30k -> 线性 1.0 -> 0.6
-    30k-50k -> 线性 0.6 -> 0.3
-    > 50k   -> 0.0 (会被 filter 拒)
+    < 300   -> 0.0 (rejected by the filter)
+    300-1k  -> linear 0.3 -> 0.7
+    1k-10k  -> 1.0 (ideal)
+    10k-30k -> linear 1.0 -> 0.6
+    30k-50k -> linear 0.6 -> 0.3
+    > 50k   -> 0.0 (rejected by the filter)
     """
     if n < 300:
         return 0.0
@@ -82,11 +82,11 @@ def _desc_len_score(n: int) -> float:
         return 0.5
     if n <= 1024:
         return 1.0
-    return 0.8  # 超长 (>1024) 扣一点但不致命
+    return 0.8  # overlong (>1024) loses a little but is not fatal
 
 
 def _frontmatter_richness(fm: dict) -> float:
-    # 仅数必填外的有意义字段
+    # count only the meaningful fields beyond the required ones
     meaningful = {"license", "version", "tags", "metadata", "allowed-tools",
                   "compatibility", "homepage", "emoji", "category", "source",
                   "risk"}
@@ -112,9 +112,9 @@ def compute_quality(
     llm_score: float | None = None,
     source_prior: float | None = None,
 ) -> float:
-    """综合 quality, [0.0, 1.0].
+    """Composite quality, [0.0, 1.0].
 
-    v2 公式:
+    v2 formula:
         Step 1: regex hard gate (any `blocked_*` flag → 0)
         Step 2: content_q
             with LLM:  content = llm_score (0-1) — synthesize_score's composite,
@@ -168,21 +168,21 @@ def compute_quality(
 
 
 # ════════════════════ from quality/llm.py ════════════════════
-"""LLM 质量判 — 给 skill 内容打 0-10 分 + 简要理由.
+"""LLM quality judge — scores skill content 0-10 + a brief rationale.
 
-流程:
+Flow:
     LLMQualityJudge.score(rec)
-        cache hit (content_hash) → 直接返回
-        cache miss → 调 LLM → 写 cache
+        cache hit (content_hash) → return directly
+        cache miss → call the LLM → write cache
 
-结果 normalize 到 [0.0, 1.0] 供 quality.compute_quality 使用.
+The result is normalized to [0.0, 1.0] for use by quality.compute_quality.
 
-LLM 评分维度 (在 prompt 里说明):
-    clarity         description 是否清晰
-    specificity     是否针对具体任务 (非泛泛而谈)
-    actionability   是否有可执行步骤/代码示例
-    correctness     技术细节是否看起来合理
-    reusability     是否对多数用户有价值
+LLM scoring dimensions (explained in the prompt):
+    clarity         whether the description is clear
+    specificity     whether it targets a concrete task (not vague generalities)
+    actionability   whether there are executable steps/code examples
+    correctness     whether the technical details look reasonable
+    reusability     whether it is valuable to most users
 """
 
 
@@ -194,10 +194,10 @@ logger = logging.getLogger("skill_library.metadata")
 QUALITY_JUDGMENT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS quality_judgments (
     content_hash TEXT PRIMARY KEY,
-    score REAL NOT NULL,             -- 合成 0-10 (历史字段, 兼容旧 cache)
+    score REAL NOT NULL,             -- synthesized 0-10 (legacy field, compatible with old cache)
     reason TEXT NOT NULL DEFAULT '',
     judged_at TEXT NOT NULL,
-    subscores TEXT NOT NULL DEFAULT '{}'  -- JSON: {utility,robustness,safety,flags}, 0-10 子分
+    subscores TEXT NOT NULL DEFAULT '{}'  -- JSON: {utility,robustness,safety,flags}, 0-10 sub-scores
 );
 """
 
@@ -209,15 +209,15 @@ CREATE TABLE IF NOT EXISTS quality_judgments (
 
 @dataclass
 class QualityJudgment:
-    score: float                    # 合成 0-10 分(向后兼容)
+    score: float                    # synthesized 0-10 score (backward compatible)
     normalized: float               # score / 10.0
     reason: str
     cached: bool = False
-    # 三维子分 (0-10 每维), 若用老 v1 prompt 则三项为 None
+    # three-dim sub-scores (0-10 each); all three are None when the old v1 prompt is used
     utility:    int | None = None
     robustness: int | None = None
     safety:     int | None = None
-    flags: list[str] | None = None   # LLM 标注的 anti-signal
+    flags: list[str] | None = None   # anti-signals labeled by the LLM
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -328,7 +328,7 @@ Example H (factual fabrication — robustness flag, NOT safety):
 
 
 def _build_prompt(rec: SkillRecord) -> list[dict[str, str]]:
-    # _slice 见本文件下方的 module-level 定义 (带空串/None 守卫)。
+    # _slice — see the module-level definition below in this file (with empty-string/None guards).
     user = f"""\
 You are reviewing an agent skill for production deployment.
 Score 3 INDEPENDENT dimensions (0-10 each) and flag any specific issues.
@@ -396,7 +396,7 @@ caps utility (separately), not robustness.
   0-2:  Body is TODO/placeholder/marketing/fabricated; will not deliver,
         OR body silently does something completely different from description.
 
-# Dimension 3 — safety (用了会不会造成伤害?)
+# Dimension 3 — safety (will using it cause harm?)
 Looks at active-harm vectors: destructive ops, secret/PII leakage, network
 exfiltration, prompt / command / exec injection, auth bypass, ToS
 violations, harmful or biased content. NOTE: factual inaccuracy is a
@@ -598,9 +598,9 @@ JSON output:"""
 
 
 def _parse_response(text: str) -> dict | None:
-    """质量判 JSON → {utility,robustness,safety,flags,reason},校验范围;失败 None。
+    """Quality-judge JSON → {utility,robustness,safety,flags,reason}, validate ranges; None on failure.
 
-    抽取(<think>/围栏/散文)统一走 LLMClient.extract_json,这里只做字段校验。"""
+    Extraction (<think>/fences/prose) all goes through LLMClient.extract_json; this only does field validation."""
     d = LLMClient.extract_json(text)
     if not isinstance(d, dict):
         return None
@@ -624,7 +624,7 @@ def _parse_response(text: str) -> dict | None:
     }
 
 
-# HARD_GATE_FLAGS 定义在本文件上方; synthesize_score + compute_quality 共用。
+# HARD_GATE_FLAGS is defined above in this file; shared by synthesize_score + compute_quality.
 
 
 def synthesize_score(utility: int, robustness: int, safety: int,
@@ -632,7 +632,7 @@ def synthesize_score(utility: int, robustness: int, safety: int,
     """Convert 3-dim sub-scores into a single 0-10 composite for the
     ``score`` column — this is the content_q fed into the source_prior blend.
 
-    v2: flag 只做 hard gate, 不累加扣分(数字分已含同观察惩罚)."""
+    v2: flags only act as a hard gate, no additive penalty (the numeric scores already include the same-observation penalty)."""
     if safety < 3:
         return 0.0
     if any(f in HARD_GATE_FLAGS for f in (flags or [])):
@@ -645,7 +645,7 @@ def synthesize_score(utility: int, robustness: int, safety: int,
 
 
 class LLMQualityJudge:
-    """LLM 打分 + SQLite cache. 按 content_hash 去重 (相同内容不重复判)."""
+    """LLM scoring + SQLite cache. Deduplicated by content_hash (identical content is not re-judged)."""
 
     def __init__(self, llm: LLMClient, conn: sqlite3.Connection):
         self.llm = llm
@@ -709,9 +709,9 @@ class LLMQualityJudge:
         self.conn.commit()
 
     def compute_no_cache(self, rec: SkillRecord) -> QualityJudgment | None:
-        """纯 LLM 调用, 不读写 cache. 线程安全 — 供并发 worker 用.
+        """Pure LLM call, does not read/write the cache. Thread-safe — for use by concurrent workers.
 
-        主线程拿到结果后手动 cache_put 即可.
+        The main thread can cache_put the result manually afterward.
         """
         msgs = _build_prompt(rec)
         raw = self.llm.chat(msgs, response_format="json", max_tokens=400)
@@ -730,11 +730,11 @@ class LLMQualityJudge:
         )
 
     def cache_put(self, content_hash: str, j: QualityJudgment) -> None:
-        """公开 cache_put, 供并发脚本在主线程统一写入 (避免跨线程 SQLite)."""
+        """Public cache_put, for concurrent scripts to write uniformly from the main thread (avoid cross-thread SQLite)."""
         self._cache_put(content_hash, j)
 
     def score(self, rec: SkillRecord) -> QualityJudgment | None:
-        """打分. 命中 cache 直接返回; LLM 失败 / 解析失败返回 None. 单线程用."""
+        """Score. Return directly on cache hit; return None on LLM failure / parse failure. Single-threaded use."""
         if not rec.content_hash:
             return None
         cached = self._cache_get(rec.content_hash)
@@ -747,7 +747,7 @@ class LLMQualityJudge:
         return j
 
     def get_cached_score(self, content_hash: str) -> float | None:
-        """按 content_hash 查 cached normalized score, 没有返回 None."""
+        """Look up the cached normalized score by content_hash; return None if absent."""
         if not content_hash:
             return None
         j = self._cache_get(content_hash)
@@ -767,7 +767,7 @@ class LLMQualityJudge:
         }
 
     def histogram(self) -> dict[str, int]:
-        """LLM 分数分布 (0-2 / 2-4 / 4-6 / 6-8 / 8-10)."""
+        """LLM score distribution (0-2 / 2-4 / 4-6 / 6-8 / 8-10)."""
         rows = self.conn.execute("SELECT score FROM quality_judgments").fetchall()
         buckets = {"0-2": 0, "2-4": 0, "4-6": 0, "6-8": 0, "8-10": 0}
         for r in rows:
@@ -780,23 +780,23 @@ class LLMQualityJudge:
         return buckets
 
 
-# ════════════════════ 16-class 分类 + tag 抽取 ════════════════════
-"""LLM 分类器 — LLM-based, 16 类单标签.
+# ════════════════════ 16-class classification + tag extraction ════════════════════
+"""LLM classifier — LLM-based, 16-class single-label.
 
-Producer 端分类的唯一实现. 替代废弃的 classify.py(规则) / classify_llm.py
-(旧 15 类 LLM) / classify_facets.py(4-facet).
+The sole implementation of producer-side classification. Replaces the deprecated
+classify.py (rules) / classify_llm.py (old 15-class LLM) / classify_facets.py (4-facet).
 
-设计 docs: ../docs/16_classification.md
-实测 1000-sample 用 Qwen3.5-397B-A17B-GPTQ-Int4:
-    100% succ / 0 OOV / 0 fail / 平均 confidence 0.95
+Design docs: ../docs/16_classification.md
+Measured on 1000 samples with Qwen3.5-397B-A17B-GPTQ-Int4:
+    100% succ / 0 OOV / 0 fail / average confidence 0.95
 
-调用方式:
+Usage:
     cls = Classifier(llm)
     result = cls.classify(name, description, body)
-    # result.category ∈ VOCAB (16 类), result.confidence ∈ [0,1]
+    # result.category ∈ VOCAB (16 classes), result.confidence ∈ [0,1]
 
-失败兜底:
-    LLM 返回非 JSON / category OOV / 网络错误 → category="OTHER", confidence=0.0
+Failure fallback:
+    LLM returns non-JSON / category OOV / network error → category="OTHER", confidence=0.0
 """
 
 
@@ -804,7 +804,7 @@ Producer 端分类的唯一实现. 替代废弃的 classify.py(规则) / classif
 
 
 
-# 16 类词表 — 单一来源 = store.CATEGORIES (避免与枚举漂移, 见 docs/16_classification.md §2)
+# 16-class vocabulary — single source = store.CATEGORIES (avoid drift from the enum, see docs/16_classification.md §2)
 VOCAB: frozenset[str] = frozenset(CATEGORIES)
 
 
@@ -955,9 +955,9 @@ def _build_classify_prompt(name: str, description: str, body: str) -> list[dict[
 
 
 def _parse_classify_response(text: str) -> dict | None:
-    """分类 JSON → {category,confidence,reason},校验 category∈VOCAB;失败 None。
+    """Classification JSON → {category,confidence,reason}, validate category∈VOCAB; None on failure.
 
-    抽取(<think>/围栏/散文)统一走 LLMClient.extract_json,这里只做字段校验。"""
+    Extraction (<think>/fences/prose) all goes through LLMClient.extract_json; this only does field validation."""
     d = LLMClient.extract_json(text)
     if not isinstance(d, dict):
         return None
@@ -977,9 +977,9 @@ def _parse_classify_response(text: str) -> dict | None:
 
 
 class Classifier:
-    """LLM 唯一分类器.
+    """The sole LLM classifier.
 
-    用法:
+    Usage:
         cls = Classifier(llm_client)
         result = cls.classify("stripe-payment", "Stripe SDK ...", body)
         # result.category == "DEV"
@@ -991,9 +991,9 @@ class Classifier:
     def classify(
         self, name: str, description: str, body: str = "",
     ) -> ClassifyResult:
-        """单分类 — 返回 ClassifyResult, 永不抛异常.
+        """Single classification — returns a ClassifyResult, never raises.
 
-        失败时(LLM 不可用 / parse 失败 / category OOV)归到 OTHER + method='fallback'.
+        On failure (LLM unavailable / parse failure / category OOV) it falls back to OTHER + method='fallback'.
         """
         msgs = _build_classify_prompt(name, description, body)
         try:
@@ -1026,16 +1026,16 @@ class Classifier:
 # Tag generation (originally skill_library/tags.py, now merged here)
 # =============================================================
 #
-# Tag extraction — 从 frontmatter / name / description 抽 3-5 个关键词作 tag.
+# Tag extraction — pull 3-5 keywords as tags from frontmatter / name / description.
 #
-# 与上面的 16-class CATEGORY 解耦:
-#   - Classifier (上) 决定 PRIMARY CATEGORY (16 类之一)
-#   - extract_tags (下) 抽 TAGS (自由词表, 多 tag, 补充 retrieval 信号)
+# Decoupled from the 16-class CATEGORY above:
+#   - Classifier (above) decides the PRIMARY CATEGORY (one of the 16 classes)
+#   - extract_tags (below) pulls TAGS (free vocabulary, multiple tags, supplementary retrieval signal)
 #
-# 实现是纯规则(无 LLM 调用), 因为:
-#   - tag 抽得快: ingest 路径 hot path
-#   - 上游 frontmatter 多数已带 tags 字段, 直接复用即可
-#   - 即便随便抽几个词, BM25 / 全文索引也能用上
+# The implementation is pure rules (no LLM call), because:
+#   - tag extraction is fast: the ingest path is a hot path
+#   - most upstream frontmatter already carries a tags field, which can be reused directly
+#   - even a few arbitrary words are still usable by BM25 / full-text indexing
 
 
 
@@ -1044,7 +1044,7 @@ _WORD_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+#]{1,}")
 
 
 _STOPWORDS: frozenset[str] = frozenset({
-    # 虚词
+    # function words
     "the", "and", "for", "this", "that", "with", "from", "into", "your",
     "yours", "you", "use", "using", "used", "when", "whenever", "what",
     "which", "how", "where", "why", "here", "there", "their", "them",
@@ -1053,7 +1053,7 @@ _STOPWORDS: frozenset[str] = frozenset({
     "does", "did", "doing", "done", "but", "not", "than", "then", "also",
     "out", "off", "over", "under", "such", "same", "other", "another", "more",
     "most", "any", "all", "some", "every", "each", "few", "many",
-    # 通用名词
+    # generic nouns
     "skill", "skills", "task", "tasks", "help", "helps", "helper",
     "description", "name", "claude", "agent", "agents", "user", "users",
     "tool", "tools", "return", "returns", "function", "functions",
@@ -1071,13 +1071,13 @@ def extract_tags(
     frontmatter: dict[str, Any] | None = None,
     max_tags: int = 5,
 ) -> list[str]:
-    """规则抽 tag, 返回 0..max_tags 个小写关键词.
+    """Rule-based tag extraction, returning 0..max_tags lowercase keywords.
 
-    优先级:
-      1. frontmatter.tags / keywords (如果上游有)
-      2. frontmatter.category (作为 tag 补充)
-      3. name 的 slug 分段 ('python-docx-generation' → [python, docx, generation])
-      4. description 长度 ≥4 的非停用词
+    Priority:
+      1. frontmatter.tags / keywords (if present upstream)
+      2. frontmatter.category (as a supplementary tag)
+      3. slug segments of the name ('python-docx-generation' → [python, docx, generation])
+      4. non-stopword tokens of length ≥4 from the description
     """
     out: list[str] = []
     seen: set[str] = set()
@@ -1103,15 +1103,15 @@ def extract_tags(
         for t in re.split(r"[,\s;]+", raw_tags):
             add(t)
 
-    # 2. frontmatter.category (作为 tag, 不是主分类)
+    # 2. frontmatter.category (as a tag, not the primary category)
     if isinstance(fm.get("category"), str):
         add(fm["category"])
 
-    # 3. name slug 分段
+    # 3. name slug segments
     for p in _SLUG_SPLIT.split(name or ""):
         add(p)
 
-    # 4. description 长词 (≥4 chars)
+    # 4. long words from the description (≥4 chars)
     for w in _WORD_RE.findall(description or ""):
         if len(w) >= 4:
             add(w)

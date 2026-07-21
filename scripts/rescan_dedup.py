@@ -1,13 +1,13 @@
-"""对整库跑一次近似去重扫描 — Round A backfill.
+"""Run one near-duplicate scan over the whole library — Round A backfill.
 
-流程:
-  1. GROUP BY canonical name_hash 找跨 source 同名候选
-  2. 遍历所有 skill 查 embedding top-k 候选 (cos >= min_cosine)
-  3. 合并成唯一 candidate pair 集合 (a.skill_id < b.skill_id)
-  4. 对每对调 LLMDupJudge (缓存命中直接用)
-  5. 确认重复的 pair: 比较 quality_score + source_weight, loser supersede
+Flow:
+  1. GROUP BY canonical name_hash to find same-name candidates across sources
+  2. iterate over all skills querying embedding top-k candidates (cos >= min_cosine)
+  3. merge into a unique candidate pair set (a.skill_id < b.skill_id)
+  4. call LLMDupJudge on each pair (use the cached verdict directly on a cache hit)
+  5. for confirmed-duplicate pairs: compare quality_score + source_weight, supersede the loser
 
-用法:
+Usage:
     python -m skill_library.scripts.rescan_dedup [--lib PATH] [--dry-run] [--limit N]
 """
 
@@ -46,11 +46,11 @@ def _load_embedding(conn, skill_id: str) -> list[float] | None:
 
 
 def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: int | None):
-    """收集候选 pair (a, b, cos, trigger) 其中 a.skill_id < b.skill_id."""
+    """Collect candidate pairs (a, b, cos, trigger) where a.skill_id < b.skill_id."""
     store = lib.store
     conn = store._connect()
 
-    # 1) name_hash 冲突 (跨 source, 包含同 source 多份)
+    # 1) name_hash collisions (across sources, including multiple copies within a source)
     name_groups: dict[str, list[str]] = defaultdict(list)
     rows = conn.execute(
         "SELECT skill_id, name_hash FROM skills WHERE deleted = 0"
@@ -75,9 +75,9 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
                 a, b = sorted([ids[i], ids[j]])
                 key = (a, b)
                 if key not in pairs:
-                    # 用**真 cosine**, 不再硬置 1.0 (历史教训: 1.0 + auto_cos 短路
-                    # → 7148/68% 跨 source 假阳合并). embedding 缺失 → 用 min_cos
-                    # 让它走 LLM 二判, 不自动合并.
+                    # use the **real cosine**, no longer hardcoded to 1.0 (lesson: 1.0 + auto_cos
+                    # short-circuit → 7148/68% cross-source false-positive merges). missing embedding
+                    # → use min_cos so it goes to the LLM second judgment, not an auto-merge.
                     ea, eb = _emb(a), _emb(b)
                     cos = cosine_sim(ea, eb) if (ea is not None and eb is not None) else min_cos
                     pairs[key] = (cos, "name_hash")
@@ -85,7 +85,7 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
     print(f"[1/4] name_hash collisions: {name_pair_count} pairs across "
           f"{sum(1 for v in name_groups.values() if len(v) > 1)} groups")
 
-    # 2) embedding 近邻 (遍历每个 skill)
+    # 2) embedding nearest-neighbors (iterate over each skill)
     skill_ids = [r["skill_id"] for r in rows]
     if limit:
         skill_ids = skill_ids[:limit]
@@ -106,7 +106,7 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
             a, b = sorted([sid, rec.skill_id])
             key = (a, b)
             if key in pairs:
-                # 升级 cos
+                # upgrade cos
                 prev_cos, prev_trigger = pairs[key]
                 pairs[key] = (max(prev_cos, cos),
                               "both" if prev_trigger == "name_hash" else prev_trigger)
@@ -123,17 +123,17 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
 
 def _apply_merge(lib: SkillLibrary, a_id: str, b_id: str, cos: float, trigger: str,
                  dry_run: bool) -> dict | None:
-    """对确认重复的 pair 应用合并. 返回操作记录或 None."""
+    """Apply the merge for a confirmed-duplicate pair. Returns an operation record or None."""
     a = lib.store.get(a_id)
     b = lib.store.get(b_id)
     if a is None or b is None:
         return None
     winner = lib.ingester._pick_winner(a, b)
-    loser_rec = b if winner == "new" else a  # 注意: _pick_winner("new"=a的角色?)
+    loser_rec = b if winner == "new" else a  # note: _pick_winner("new"=a's role?)
 
-    # _pick_winner 的 "new" 是第一个参数. 这里把 a 当 "new", b 当 "old"
-    # 所以 winner == "new" → 保留 a, 淘汰 b
-    # winner == "old" → 保留 b, 淘汰 a
+    # _pick_winner's "new" is the first argument. Here we treat a as "new" and b as "old",
+    # so winner == "new" → keep a, drop b
+    # winner == "old" → keep b, drop a
     if winner == "new":
         keep, drop = a, b
     else:
@@ -148,7 +148,7 @@ def _apply_merge(lib: SkillLibrary, a_id: str, b_id: str, cos: float, trigger: s
             "dry_run": True,
         }
 
-    # 真实合并: 删物理 + supersede
+    # real merge: delete physical files + supersede
     if drop.stored_path:
         remove_skill_from_library(lib.lib_root, drop.stored_path)
     lib.store.supersede(drop.skill_id, keep.skill_id)
@@ -164,17 +164,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", default=None, help="library root (default: skill_library/data)")
     ap.add_argument("--dry-run", action="store_true",
-                    help="只扫描 + LLM 判, 不实际 supersede / 删文件")
+                    help="scan + LLM judge only, do not actually supersede / delete files")
     ap.add_argument("--limit", type=int, default=None,
-                    help="只处理前 N 个 skill 作为 anchor (调试用)")
+                    help="only process the first N skills as anchors (for debugging)")
     ap.add_argument("--min-cos", type=float, default=None,
-                    help="覆盖 config 里的 near_dup_min_cosine")
+                    help="override near_dup_min_cosine from config")
     ap.add_argument("--top-k", type=int, default=None,
-                    help="覆盖 config 里的 near_dup_top_k")
+                    help="override near_dup_top_k from config")
     ap.add_argument("--max-pairs", type=int, default=None,
-                    help="最多处理多少对候选 (调试/成本控制)")
+                    help="max number of candidate pairs to process (debug/cost control)")
     ap.add_argument("--report", default=None,
-                    help="merge report 落盘 JSON 路径")
+                    help="JSON path to dump the merge report")
     args = ap.parse_args()
 
     lib = SkillLibrary(args.lib).open()
@@ -186,25 +186,25 @@ def main():
     print(f"lib: {lib.lib_root}")
     print(f"config: min_cos={min_cos}, top_k={top_k}, auto_cos={auto_cos}")
     if lib.dup_judge is None:
-        print("!! LLM dup judge unavailable — 只能判 cos >= auto_cos 的自动重复")
+        print("!! LLM dup judge unavailable — can only judge auto-duplicates with cos >= auto_cos")
 
     t0 = time.time()
     pairs = _collect_candidates(lib, min_cos, top_k, args.limit)
     print(f"[3/4] total candidate pairs: {len(pairs)}, "
           f"elapsed={time.time()-t0:.1f}s")
 
-    # LLM 判 + 合并
-    # Phase 4 拆 2 子阶段:
-    #   4a. 并发 LLM judge (远端 endpoint 容量大, 单线程串行只用了 1/8)
-    #       8 worker 同时调 LLM, throughput ~5-8x
-    #   4b. 串行 apply_merge (DB 写串行, 也避免 race)
-    pairs_sorted = sorted(pairs.items(), key=lambda kv: -kv[1][0])  # cos 降序
+    # LLM judge + merge
+    # Phase 4 splits into 2 sub-phases:
+    #   4a. concurrent LLM judge (the remote endpoint has plenty of capacity, single-threaded
+    #       serial only used 1/8); 8 workers call the LLM at once, throughput ~5-8x
+    #   4b. serial apply_merge (DB writes are serial, also avoids races)
+    pairs_sorted = sorted(pairs.items(), key=lambda kv: -kv[1][0])  # cos descending
     if args.max_pairs:
         pairs_sorted = pairs_sorted[:args.max_pairs]
 
     from concurrent.futures import ThreadPoolExecutor
 
-    # 预取所有 SkillRecord (单线程, 避免 worker 撞 sqlite 多线程问题)
+    # pre-fetch all SkillRecords (single-threaded, to avoid workers hitting sqlite multithreading issues)
     needed_ids: set[str] = set()
     for (a_id, b_id), _ in pairs_sorted:
         needed_ids.add(a_id)
@@ -215,7 +215,7 @@ def main():
     }
 
     def _judge_pair_cached(item):
-        """Worker (改用预取 cache, 不 touch lib.store)."""
+        """Worker (uses the pre-fetched cache, does not touch lib.store)."""
         (a_id, b_id), (cos, trigger) = item
         a, b = rec_cache.get(a_id), rec_cache.get(b_id)
         if a is None or b is None:
@@ -258,7 +258,7 @@ def main():
     print(f"[4/4] done in {time.time()-t0:.1f}s — "
           f"llm_calls={llm_calls}, auto_calls={auto_calls}, merges={len(merges)}")
 
-    # 汇总 by source pair
+    # aggregate by source pair
     by_src = defaultdict(int)
     for m in merges:
         k = f"{m['winner_src']}  <-  {m['loser_src']}"

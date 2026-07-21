@@ -1,9 +1,9 @@
-"""LLM client — OpenAI-compatible 聊天接口 (单端点).
+"""LLM client — OpenAI-compatible chat interface (single endpoint).
 
-用途: LLM 分类 / tag / 质量评分 / 兜底。
+Purpose: LLM classification / tagging / quality scoring / fallback.
 
-配置从 config.yaml 的 ``llm`` 段读取, 用**单个端点**
-(取 ``llm.endpoints[0]`` 或退回 ``llm.base_url``)。
+Configuration is read from the ``llm`` section of config.yaml, using a **single endpoint**
+(taking ``llm.endpoints[0]`` or falling back to ``llm.base_url``).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ _JSON_RE = re.compile(r"\{[\s\S]*\}")
 
 
 class LLMClient:
-    """OpenAI-compatible 单端点 LLM 客户端 (chat + retry)."""
+    """OpenAI-compatible single-endpoint LLM client (chat + retry)."""
 
     def __init__(
         self,
@@ -32,7 +32,7 @@ class LLMClient:
         max_tokens: int = 512,
         timeout: int = 60,
         max_retries: int = 2,
-        enable_thinking: bool = False,   # Qwen3 / R1 关 thinking 加速
+        enable_thinking: bool = False,   # Qwen3 / R1: disable thinking for speed
     ):
         self.base_url = base_url
         self.model = model
@@ -103,16 +103,16 @@ class LLMClient:
 
     @staticmethod
     def extract_json(text: str | None) -> dict | None:
-        """从 LLM 输出里尽力解析出一个 JSON object。
+        """Best-effort parse of a single JSON object from the LLM output.
 
-        统一处理: 去掉 ``<think>...</think>`` 思考块、markdown ```` ``` ```` 围栏、
-        前后散文, 再 ``json.loads``;失败则回退到首个平衡 ``{...}``。
-        质量判 / 分类 / 去重判 三处共用这套抽取(各自再做字段校验)。
+        Uniform handling: strip ``<think>...</think>`` thinking blocks, markdown ```` ``` ```` fences,
+        and surrounding prose, then ``json.loads``; on failure, fall back to the first balanced ``{...}``.
+        Quality judging / classification / dedup judging all share this extraction (each does its own field validation).
         """
         if not text:
             return None
         text = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()
-        # 去掉围栏标记 (开头 ```json / 任意位置的 ```)
+        # Strip fence markers (leading ```json / ``` anywhere)
         text = re.sub(r"```(?:json)?\s*", "", text)
         text = re.sub(r"```\s*$", "", text).strip()
         try:

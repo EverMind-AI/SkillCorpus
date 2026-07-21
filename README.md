@@ -1,79 +1,79 @@
 # Skill Library
 
-通用 skill 库构建管线 — 多源聚合 + CRUD + 入库筛选 + 主动 refresh.
+General-purpose skill library build pipeline — multi-source aggregation + CRUD + ingest filtering + proactive refresh.
 
-**架构**: producer (本仓) 写 SQLite + faiss + 文件树, 通过 `skill_library.export` 导出
-`mass_library.db`; consumer (`everclaw/skill_forge/`)
-通过 `SqliteStore` attach 该 DB 作为 mass pool, 配合 filesystem 上的 scripts/references 附件.
-LLM 主路径 + 规则兜底, embedding 走共享 SkillRouter remote endpoint (runtime 检索由 consumer 负责).
+**Architecture**: the producer (this repo) writes SQLite + faiss + a file tree, and exports
+`mass_library.db` via `skill_library.export`; the consumer (`everclaw/skill_forge/`)
+attaches that DB as a mass pool via `SqliteStore`, together with scripts/references attachments on the filesystem.
+LLM as the primary path + rules as fallback; embedding goes through the shared SkillRouter remote endpoint (runtime retrieval is handled by the consumer).
 
 ---
 
-## 快速开始
+## Quick Start
 
 ```bash
-pip install pyyaml numpy click faiss-cpu sqlite-vec openai   # 依赖
-python3 -m skill_library.cli build                        # 从零构建 (默认 demo 4 源) → data/index.db
-python3 -m skill_library.cli stats                        # 看库统计
-python3 -m skill_library.cli build --update               # 之后: 增量更新 (按 cadence 只跑到期源)
+pip install pyyaml numpy click faiss-cpu sqlite-vec openai   # dependencies
+python3 -m skill_library.cli build                        # build from scratch (default demo, 4 sources) -> data/index.db
+python3 -m skill_library.cli stats                        # view library stats
+python3 -m skill_library.cli build --update               # afterwards: incremental update (runs only due sources per cadence)
 ```
 
-- **构建/更新是同一条命令** `cli build`(`--update` 区分),详见 [用法](#用法)。
-- 公开默认读 `sources.yaml`(demo 4 个 permissive 源);`data/` 产物不随仓库发布,`build` 会从这些源自建本地库。全量 62 源在私有 `sources.full.yaml`(`--full`)。
-- embedding / LLM 端点见 `config.yaml`;**端点不可达时自动降级**(分类→`OTHER`,检索→BM25-only),流程仍可完整运行。
+- **Build and update are the same command** `cli build` (distinguished by `--update`); see [Usage](#usage) for details.
+- The public default reads `sources.yaml` (demo, 4 permissive sources); `data/` artifacts are not published with the repo, and `build` builds a local library from these sources. The full 62 sources live in the private `sources.full.yaml` (`--full`).
+- See `config.yaml` for the embedding / LLM endpoints; **automatic degradation when endpoints are unreachable** (classification -> `OTHER`, retrieval -> BM25-only), so the pipeline still runs end to end.
 
 ---
 
-## 状态 (/new endpoint 迁移后, 2026-05-30)
+## Status (after the /new endpoint migration, 2026-05-30)
 
 ```
 producer index.db
   total              157,802
   active=1 deleted=0   96,401   (GREEN license, exportable)
-  active=0 deleted=0   47,181   (非 GREEN, 入库保留但不导出)
+  active=0 deleted=0   47,181   (non-GREEN, kept in the library but not exported)
   deleted=1            14,220   (dedup soft-delete)
 
 consumer mass pool (post-license-filter + post-align)
-  mass_library.db      96,401 行  ·  1.2 GB  (embedding-our-new, byte-identical vs producer)
+  mass_library.db      96,401 rows  ·  1.2 GB  (embedding-our-new, byte-identical vs producer)
 
-Endpoint        http://<EMBEDDING_HOST>/new   (内网, 自训模型)
-Embedding 公式   name | desc[:500] | strip(body)[:8000]   (producer 与 consumer 已对齐)
+Endpoint            http://<EMBEDDING_HOST>/new   (internal network, self-trained model)
+Embedding formula   name | desc[:500] | strip(body)[:8000]   (producer and consumer are aligned)
 ```
 
-架构定型: SQLite mass pool + 共享 GPU embedding/reranker endpoint + cron 主动 refresh.
+Architecture finalized: SQLite mass pool + shared GPU embedding/reranker endpoint + cron proactive refresh.
 
 ---
 
-## 依赖
+## Dependencies
 
-**SkillRouter remote endpoint** (共享 GPU service):
-| Path | 用途 | 用方 |
+**SkillRouter remote endpoint** (shared GPU service):
+| Path | Purpose | Used by |
 |---|---|---|
-| `POST /embed   {"texts":[...]}`  → `{"embeddings":[[1024]]}` | embedding | **producer**(去重 + 导出向量)|
-| `POST /score   {"prompts":[...]}` → `{"scores":[...]}`         | reranker (P(yes)) | consumer(检索精排;producer 不用)|
+| `POST /embed   {"texts":[...]}`  → `{"embeddings":[[1024]]}` | embedding | **producer** (dedup + export vectors) |
+| `POST /score   {"prompts":[...]}` → `{"scores":[...]}`         | reranker (P(yes)) | consumer (retrieval re-ranking; not used by producer) |
 
-`config.yaml` 的 `embedding.provider = "skillrouter_remote"` 指向 endpoint, helper
-里加 5 次 retry/backoff 防 RST.
+`config.yaml`'s `embedding.provider = "skillrouter_remote"` points at the endpoint, with 5 retry/backoff
+attempts added in the helper to guard against RST.
 
-**LLM 调用** (分类 / quality judge / dedup judge): 远端 OpenAI-compatible endpoint,
-见 `config.yaml` 的 `llm.endpoints`.
+**LLM calls** (classification / quality judge / dedup judge): a remote OpenAI-compatible endpoint,
+see `config.yaml`'s `llm.endpoints`.
 
-**降级**:
-- LLM 不可用: 分类 fallback 为 `OTHER` + tag 仍走规则提取
-- Embedding 不可用: 跳过 embedding 去重 + retrieval 退化 BM25-only
+**Degradation**:
+- LLM unavailable: classification falls back to `OTHER` + tags still use rule-based extraction
+- Embedding unavailable: skip embedding dedup + retrieval degrades to BM25-only
 
 ---
 
-## 架构
+## Architecture
 
 ```
 ┌─ PRODUCER (this repo) ──────────────────────┐
 │  data/index.db        SQLite metadata       │
-│  data/skill_index.faiss  HNSW (dedup 加速)  │
+│  data/skill_index.faiss HNSW (dedup speedup)│
 │  data/skills/<source>/<name>/{scripts,refs} │
-│       ↓ ingest pipeline (并发 8)             │
-│  parse → safety → quality 长度闸 →          │
-│  sub-skill 过滤 → dedup 三层     →         │
+│       ↓ ingest pipeline (concurrency 8)     │
+│  parse → safety → quality length gate →     │
+│  sub-skill filter → 3-layer dedup →         │
 │  classify → LLM quality → embed → store     │
 └──────────┬──────────────────────────────────┘
            │ export_to_mass_library
@@ -81,7 +81,7 @@ Embedding 公式   name | desc[:500] | strip(body)[:8000]   (producer 与 consum
            │   └──→ skills/<src>/<n>/  (FS: scripts/refs only;
            │                            SKILL.md not needed,
            │                            body is in DB)
-           │   写 .stale + .refresh_endpoint
+           │   write .stale + .refresh_endpoint
            ▼
 ┌─ CONSUMER MOUNT ─────────────────────────────┐
 │  mass_library.db        attach via SqliteStore
@@ -97,180 +97,180 @@ Embedding 公式   name | desc[:500] | strip(body)[:8000]   (producer 与 consum
        (dense mass pool + lexical local pool)
 ```
 
-### 入库 dedup 三层
+### Three-layer ingest dedup
 
-1. **精确**: `content_hash` SHA-256 normalized body 完全相同 → DUPLICATE
-2. **同 source canonical name**: name_hash 命中 → 覆盖旧 record
-3. **跨 source 近似**: name_hash 跨 source 冲突 OR cosine ≥ 0.90 → `LLMDupJudge` 二次确认; cos ≥ 0.995 自动判重 (cache)
+1. **Exact**: `content_hash` — identical SHA-256 of the normalized body → DUPLICATE
+2. **Same-source canonical name**: name_hash hit → overwrite the old record
+3. **Cross-source near-duplicate**: name_hash conflict across sources OR cosine ≥ 0.90 → `LLMDupJudge` secondary confirmation; cos ≥ 0.995 auto-marked as duplicate (cache)
 
-### 父-子 skill (三端一致)
+### Parent-child skills (consistent across all three ends)
 
-- 父 skill = 顶层 `<source>/<name>/SKILL.md` (depth=3 in producer fs)
-- 子文件夹下 SKILL.md = 父的附属普通文件 (read_file 可读, 不索引为单独 skill)
-- producer `_drop_subskill_paths` (`pipeline.py`) 写时过滤 + consumer `_iter_skill_dirs`
-  (`registry.py`) 读时过滤 = 双层防护
+- Parent skill = top-level `<source>/<name>/SKILL.md` (depth=3 in producer fs)
+- A SKILL.md under a subfolder = an ordinary attached file of the parent (readable via read_file, not indexed as a separate skill)
+- producer `_drop_subskill_paths` (`pipeline.py`) filters at write time + consumer `_iter_skill_dirs`
+  (`registry.py`) filters at read time = two-layer protection
 
-### `{baseDir}` 解析
+### `{baseDir}` resolution
 
-producer 出库时只为 body 真正引用 fs 附件的 skill 填 `mass_library.db.path` 列 (~40%; 由
-`export._dir_referenced_assets` 目录接地检测决定 — 读 skill 目录真实文件再与 body 比对).
-consumer `_row_to_meta` 读 path 后,
-`load_skills_for_context` 把 body 里的 `{baseDir}` 替换为 `meta.path.parent` (=
-真实 fs 目录), agent 拿到的就是可访问绝对路径. `path=NULL` 的 sqlite-only row
-触发 `sqlite://` 守卫跳过替换, body 原样输出.
+On export, the producer fills the `mass_library.db.path` column only for skills whose body actually references fs attachments (~40%; determined by
+`export._dir_referenced_assets` directory-grounding detection — reading the real files in the skill directory and comparing them against the body).
+After the consumer's `_row_to_meta` reads path,
+`load_skills_for_context` replaces `{baseDir}` in the body with `meta.path.parent` (=
+the real fs directory), so what the agent receives is an accessible absolute path. A sqlite-only row with `path=NULL`
+triggers the `sqlite://` guard to skip the replacement, and the body is emitted as-is.
 
 ---
 
-## 分类 (LLM 分类器, 16 类)
+## Classification (LLM classifier, 16 classes)
 
-| 组 | 分类 |
+| Group | Categories |
 |---|---|
-| 软件开发栈 (5) | DEV, FRONTEND-UI, DEVOPS-INFRA, TESTING, SECURITY |
-| 数据/AI (2) | DATA, AI-ML |
-| 认证 (1) | AUTH |
-| 内容输出 (4) | DOC-PROC, WRITING, MULTIMEDIA, COMMS |
-| 流程/办公 (2) | WORKFLOW, PRODUCTIVITY |
-| 元工具 (1) | META |
-| 兜底 (1) | OTHER |
+| Software dev stack (5) | DEV, FRONTEND-UI, DEVOPS-INFRA, TESTING, SECURITY |
+| Data/AI (2) | DATA, AI-ML |
+| Auth (1) | AUTH |
+| Content output (4) | DOC-PROC, WRITING, MULTIMEDIA, COMMS |
+| Workflow/office (2) | WORKFLOW, PRODUCTIVITY |
+| Meta-tooling (1) | META |
+| Fallback (1) | OTHER |
 
-实现:`metadata.py` 内置分类 prompt(自训 Qwen3.5-397B,1000-sample 测试 100% 命中,0 OOV)。
-**Tag**: 由 `metadata.py` 的规则提取 3-5 个关键词(独立于主分类)。
+Implementation: `metadata.py` has a built-in classification prompt (self-trained Qwen3.5-397B, 100% hit rate on a 1000-sample test, 0 OOV).
+**Tag**: `metadata.py`'s rules extract 3-5 keywords (independent of the main classification).
 
 ---
 
-## 源清单 & 可复现性边界
+## Source Inventory & Reproducibility Boundaries
 
-### 源列在哪 — 注册表(公开 demo + 私有全量)
+### Where the sources are listed — the registry (public demo + private full set)
 
-**所有源入口统一收敛在 YAML 注册表**;`fetch.py`(全量 crawl)和 `scripts/refresh_loop.py`(定时刷新)都从它读,经 `fetch.py:discover_repos` 按 `type` 路由。**新增/删源只改 YAML,不动代码。**
+**All source entries converge in a single YAML registry**; both `fetch.py` (full crawl) and `scripts/refresh_loop.py` (scheduled refresh) read from it, routed by `type` via `fetch.py:discover_repos`. **Adding/removing a source only touches the YAML, not the code.**
 
-| 文件 | 内容 | 发布 |
+| File | Content | Published |
 |---|---|---|
-| `sources.yaml` | **公开默认 = demo**(4 个 permissive git_clone 源:anthropics/skills、vercel-labs/skills、addyosmani/agent-skills、K-Dense-AI/scientific-agent-skills)| ✅ 进 git,公开 |
-| `sources.full.yaml` | **生产全量 62 源 / 6 type** | ❌ `.gitignore` 排除,私有 |
+| `sources.yaml` | **public default = demo** (4 permissive git_clone sources: anthropics/skills, vercel-labs/skills, addyosmani/agent-skills, K-Dense-AI/scientific-agent-skills) | ✅ committed to git, public |
+| `sources.full.yaml` | **full production set, 62 sources / 6 types** | ❌ excluded by `.gitignore`, private |
 
-- 公开用户:`python -m skill_library.fetch`(默认 demo)→ 完整运行流程, 自建本地库
-- 生产端:`python -m skill_library.fetch --config skill_library/sources.full.yaml` → 全量
+- Public users: `python -m skill_library.fetch` (default demo) → run the full pipeline, build a local library
+- Production side: `python -m skill_library.fetch --config skill_library/sources.full.yaml` → full set
 
-**部分开源模型**:公开仓 = 完整 code + demo `sources.yaml`,**不发** `data/`(index.db/skills/mass_library 均被 .gitignore 排除)和 `sources.full.yaml`。用户可完整运行流程并得到自建的本地库,但无法获取全量源清单与成品 96K 语料。
+**Partially open-source model**: the public repo = complete code + demo `sources.yaml`, but **does not ship** `data/` (index.db/skills/mass_library are all excluded by .gitignore) or `sources.full.yaml`. Users can run the full pipeline and obtain a self-built local library, but cannot obtain the full source inventory or the finished 96K corpus.
 
-全量 62 源的 type 分布(私有 sources.full.yaml):
+Type distribution of the full 62 sources (private sources.full.yaml):
 
-| type | 条数 | discovery 方式 |
+| type | Count | Discovery method |
 |---|---:|---|
-| `readme_scrape` | 19 | clone awesome 清单 + 抓取 README 中的外链(动态展开成数千 repo) |
-| `git_clone` | 38 | 指名直接 clone(含 antigravity→sickn33、majiayu000 等自定义 label) |
-| `index_api` | 2 | REST API 分页(skillsdirectory + skillsmp) |
-| `json_catalog` | 1 | clone + 解析 JSON 目录(skillmanager) |
-| `sitemap_scrape` | 1 | 抓 skills.sh sitemap → owner/repo |
-| `lobehub_json` | 1 | clone + lobehub_to_skills.py 转换 |
+| `readme_scrape` | 19 | clone awesome lists + scrape the external links in the README (dynamically expands into thousands of repos) |
+| `git_clone` | 38 | clone directly by name (including custom labels such as antigravity→sickn33, majiayu000) |
+| `index_api` | 2 | REST API pagination (skillsdirectory + skillsmp) |
+| `json_catalog` | 1 | clone + parse a JSON catalog (skillmanager) |
+| `sitemap_scrape` | 1 | scrape the skills.sh sitemap → owner/repo |
+| `lobehub_json` | 1 | clone + convert via lobehub_to_skills.py |
 
-另:`data/source_manifest.csv`(5,375 行)是**输出快照**(这份 data 实际产出了哪些源 → repo URL → skill 数,从 index.db 导出,随 data/ 迁移)。sources.yaml 是**输入注册表**(要 fetch 什么);manifest 是**结果账本**。
+Also: `data/source_manifest.csv` (5,375 rows) is an **output snapshot** (which sources this data actually produced → repo URL → skill count, exported from index.db, migrated along with data/). sources.yaml is the **input registry** (what to fetch); the manifest is the **result ledger**.
 
-(已退役入口:`--from-skillsbench`/`--from-datahub` 及 fetch.py 旧的硬编码 `README_SOURCES`/`DIRECT_REPOS` 常量、5 个 `--from-X` flag —— 全部收敛进 sources.yaml 或删除。)
+(Retired entry points: `--from-skillsbench`/`--from-datahub` and fetch.py's old hard-coded `README_SOURCES`/`DIRECT_REPOS` constants, plus the 5 `--from-X` flags — all consolidated into sources.yaml or removed.)
 
-### 能否从空 data/ 完整复现当前 data?**不能 bit-for-bit 复现**
+### Can the current data be fully reproduced from an empty data/? **No bit-for-bit reproduction**
 
-注册表 62 个入口里 `readme_scrape`/`index_api`/`sitemap_scrape` 会**动态展开**成 ~5,375 源 / 96,401 skill。即使把上游清单和所有 repo **完全冻结**, 仍有 5 个相互独立的因素阻止逐字节复现:
+Among the registry's 62 entries, `readme_scrape`/`index_api`/`sitemap_scrape` **dynamically expand** into ~5,375 sources / 96,401 skills. Even if the upstream lists and all repos were **completely frozen**, five mutually independent factors still prevent byte-for-byte reproduction:
 
-| # | 因素 | 说明 |
+| # | Factor | Explanation |
 |---|---|---|
-| A | **上游列表更新** | awesome 清单增删链接、repo 删库/改名/转私有(最大来源) |
-| B | **同仓内容漂移** | `git clone --depth 1` 取默认分支**最新 commit, 不锁 SHA** → 同 repo 内容可能已变 |
-| C | **LLM 非确定** | `config.yaml temperature=0.1`(非 0)→ category + quality_score 每次跑可能不同; 端点模型可能被换 |
-| D | **dedup winner 翻转** | `_pick_winner`: quality(LLM)→ source → `added_at`(入库时间)。并发 8 + 时间 tie-break → 近似重复里谁存活会变 |
-| E | **embedding 漂移** | 向量驱动 dedup cosine 阈值(0.90/0.995), 临界对翻转; 换端点向量也变 |
+| A | **Upstream list updates** | awesome lists add/remove links, repos are deleted/renamed/made private (the largest source) |
+| B | **In-repo content drift** | `git clone --depth 1` takes the default branch's **latest commit, without pinning a SHA** → the same repo's content may already have changed |
+| C | **LLM non-determinism** | `config.yaml temperature=0.1` (non-zero) → category + quality_score may differ per run; the endpoint model may be swapped |
+| D | **dedup winner flips** | `_pick_winner`: quality (LLM) → source → `added_at` (ingest time). Concurrency 8 + time tie-break → which of the near-duplicates survives can change |
+| E | **embedding drift** | vectors drive the dedup cosine thresholds (0.90/0.995), so borderline pairs flip; switching endpoints also changes the vectors |
 
-(另有运维瞬态: GitHub license API 的 404/限流、clone 超时导致每次成功子集不同。)
+(There are also operational transients: 404s/rate-limiting from the GitHub license API, and clone timeouts causing a different successful subset each time.)
 
-### 缓解 & 实践结论
+### Mitigations & practical conclusions
 
-- LLM 打分/判重**按 content_hash 缓存**(`quality_judgments` / `dedup_judgments` 表)。**从冻结的 `data/skills/` + 缓存表重跑** → 内容不变即命中缓存 → C/D 基本可复现; **从空 data/ re-fetch 重判** → 无缓存 + 重 clone → A–E 全发作 → 不可复现。
-- **可复现性取决于从哪起跑**: 现有 data 快照(含 skills/ 树 + index.db + 缓存)≈ 可复现且自包含可直接用; 空目录 re-fetch ≠ 可复现(会得到相似但不同的库)。
-- 要做到空目录高度复现需额外: pin commit SHA(治 B)+ temperature=0 + 锁模型版本(治 C/E)+ 固定单线程 ingest 顺序(治 D)。**当前不做** —— producer 目标是"持续吸纳最新 skill", 不是"可重放实验"。当前 data 已是自包含快照, 配 `source_manifest.csv` 可审计来源。
+- LLM scoring/dedup judgments are **cached by content_hash** (the `quality_judgments` / `dedup_judgments` tables). **Rerunning from a frozen `data/skills/` + the cache tables** → unchanged content hits the cache → C/D are largely reproducible; **re-fetching and re-judging from an empty data/** → no cache + a fresh clone → A–E all kick in → not reproducible.
+- **Reproducibility depends on where you start**: the existing data snapshot (including the skills/ tree + index.db + caches) is ≈ reproducible and self-contained, ready to use directly; an empty-directory re-fetch ≠ reproducible (you get a similar but different library).
+- Achieving high reproducibility from an empty directory would additionally require: pinning commit SHAs (fixes B) + temperature=0 + locking the model version (fixes C/E) + fixing a single-threaded ingest order (fixes D). **Not done currently** — the producer's goal is to "continuously absorb the latest skills", not to be a "replayable experiment". The current data is already a self-contained snapshot, and `source_manifest.csv` makes the sources auditable.
 
 ---
 
-## 文件结构
+## File Structure
 
 ```
 skill_library/
 ├── README.md / __init__.py / cli.py / config.yaml
 │
-│ ── 入库 pipeline (按阶段) ──
-├── fetch.py            # 源注册表 (load_registry/discover_repos, 按 type dispatch)
-│                       #   + Stage 0: 多源 git clone (GIT_TERMINAL_PROMPT=0)
-├── pipeline.py         # Coordinator (串/并发 + sub-skill 过滤) + SkillLibrary 顶层 API
-├── rules.py            # 纯规则阶段: SKILL.md 解析 + safety 正则 + license GREEN 闸
-├── dedup.py            # 规则 dedup (content/name hash + cosine) + LLM 判重
-├── metadata.py         # LLM 阶段: quality judge (3-facet/19-flag) + 16-class 分类 + tag
-├── embed.py            # SkillRouter remote embedding 客户端
-├── store.py            # SQLite + sqlite-vec + faiss (含 SkillRecord schema)
-├── export.py           # producer index.db → mass_library.db (全量导出 + 增量 sync)
+│ ── ingest pipeline (by stage) ──
+├── fetch.py            # source registry (load_registry/discover_repos, dispatch by type)
+│                       #   + Stage 0: multi-source git clone (GIT_TERMINAL_PROMPT=0)
+├── pipeline.py         # Coordinator (serial/concurrent + sub-skill filtering) + SkillLibrary top-level API
+├── rules.py            # pure-rule stage: SKILL.md parsing + safety regex + license GREEN gate
+├── dedup.py            # rule dedup (content/name hash + cosine) + LLM dedup judgment
+├── metadata.py         # LLM stage: quality judge (3-facet/19-flag) + 16-class classification + tag
+├── embed.py            # SkillRouter remote embedding client
+├── store.py            # SQLite + sqlite-vec + faiss (includes SkillRecord schema)
+├── export.py           # producer index.db → mass_library.db (full export + incremental sync)
 │
-│ ── 辅助工具 ──
-├── llm.py              # OpenAI-compatible LLM client (单端点)
-├── license_audit.py    # license 维护 CLI: refresh/build/validate/apply/stats
+│ ── helper tools ──
+├── llm.py              # OpenAI-compatible LLM client (single endpoint)
+├── license_audit.py    # license maintenance CLI: refresh/build/validate/apply/stats
 │
-│ ── 配置 (进 git) ──
-├── sources.yaml                  # 公开 demo 源列表 (4 个 permissive 源)
-├── sources.full.yaml             # 生产全量 62 源 (git-ignored, 私有)
-├── license_safe_sources.json     # GREEN-license 白名单
+│ ── config (committed to git) ──
+├── sources.yaml                  # public demo source list (4 permissive sources)
+├── sources.full.yaml             # full production set, 62 sources (git-ignored, private)
+├── license_safe_sources.json     # GREEN-license allowlist
 │
-│ ── 数据 (git-ignored) ──
+│ ── data (git-ignored) ──
 ├── data/
 │   ├── index.db
 │   ├── skill_index.faiss + skill_index_ids.json
 │   └── skills/<source>/<name>/
 │
-│ ── 运维脚本 (非 pipeline) ──
+│ ── ops scripts (non-pipeline) ──
 ├── scripts/
-│   ├── rescan_dedup.py        # 整库 backfill 近似去重
-│   ├── rescan_quality.py      # 整库 LLM 评分 backfill
-│   ├── source_resync.py       # 单源增量 refresh (跳已在库的)
-│   ├── refresh_loop.py        # cron 调度 (按 cadence 跑到期源)
-│   ├── refresh_server.py      # HTTP trigger (:8765, consumer 远程触发)
+│   ├── rescan_dedup.py        # whole-library near-duplicate backfill
+│   ├── rescan_quality.py      # whole-library LLM scoring backfill
+│   ├── source_resync.py       # single-source incremental refresh (skips those already in the library)
+│   ├── refresh_loop.py        # cron scheduling (runs due sources per cadence)
+│   ├── refresh_server.py      # HTTP trigger (:8765, triggered remotely by the consumer)
 │   └── lobehub_to_skills.py   # LobeHub agent JSON → SKILL.md
 │
-└── tests/ (9 单元测试)
+└── tests/ (9 unit tests)
 ```
 
 ---
 
-## 用法
+## Usage
 
-### 一键全流程 — `cli build`(新建 + 更新同一入口)
+### One-command full pipeline — `cli build` (create + update share one entry point)
 
-**新建和增量更新是同一个功能**, 靠 `--update` 区分。空库自动 init(`open()` 内置
-`init_schema`), 链路 = discover → clone → ingest → quality → export:
+**Creation and incremental update are the same feature**, distinguished by `--update`. An empty library auto-inits (`open()` has a built-in
+`init_schema`); the chain = discover → clone → ingest → quality → export:
 
 ```bash
-python3 -m skill_library.cli build              # 从零新建 (默认 demo 4 源, 全跑)
-python3 -m skill_library.cli build --update     # 增量更新 (按 cadence 只跑到期源)
-python3 -m skill_library.cli build --full       # 全量注册表 (62 源, 生产; 可叠 --update)
-python3 -m skill_library.cli build --source anthropics/skills   # 只跑单源
-python3 -m skill_library.cli build --dry-run    # 只发现+打印, 不实际跑
+python3 -m skill_library.cli build              # create from scratch (default demo, 4 sources, runs all)
+python3 -m skill_library.cli build --update     # incremental update (runs only due sources per cadence)
+python3 -m skill_library.cli build --full       # full registry (62 sources, production; can combine with --update)
+python3 -m skill_library.cli build --source anthropics/skills   # run a single source only
+python3 -m skill_library.cli build --dry-run    # discover + print only, no actual run
 ```
 
-底层是 `scripts/refresh_loop.py:run_refresh()`(`--update` 翻 `force`,`--full` 切注册表),
-也可直接 `python3 -m skill_library.scripts.refresh_loop [--config ...] [--force] [--source ...]`。
+Under the hood it is `scripts/refresh_loop.py:run_refresh()` (`--update` flips `force`, `--full` switches the registry);
+you can also run `python3 -m skill_library.scripts.refresh_loop [--config ...] [--force] [--source ...]` directly.
 
-**手动分步** — `cli build` 已自动串起下面这些;只有想单独控制每步时才用:
+**Manual step-by-step** — `cli build` already chains the steps below automatically; use these only when you want to control each step individually:
 
 ```bash
-# 1. 多源 git clone → 暂存到 experiment-results/_reference_skills/_fetched/<owner>/<repo>/
-#    (默认 demo 4 源; 全量加 --config sources.full.yaml, ~30min/~6K repo)
+# 1. Multi-source git clone → staged into experiment-results/_reference_skills/_fetched/<owner>/<repo>/
+#    (default demo, 4 sources; for the full set add --config sources.full.yaml, ~30min/~6K repos)
 python3 -m skill_library.fetch --workers 16
 
-# 2. ingest 到 DB (跑完整 pipeline: parse→safety→quality→dedup→classify→embed→store)
-#    输入 = 上一步 clone 的 _fetched 目录 (store 再把入库的 skill 写到 data/skills/)
+# 2. ingest into the DB (runs the full pipeline: parse→safety→quality→dedup→classify→embed→store)
+#    input = the _fetched directory cloned in the previous step (store then writes ingested skills into data/skills/)
 python3 -m skill_library.cli add-batch experiment-results/_reference_skills/_fetched/<owner>/<repo> --source <owner>/<repo>
 
-# 3. (可选) 整库 backfill (大批量 ingest 关了 inline LLM 后补跑)
+# 3. (optional) whole-library backfill (a follow-up run after large-batch ingest was done with inline LLM disabled)
 python3 -m skill_library.scripts.rescan_dedup
 python3 -m skill_library.scripts.rescan_quality --workers 16
 
-# 4. 导出到 consumer mass pool (写 mass_library.db + .stale)
+# 4. export to the consumer mass pool (writes mass_library.db + .stale)
 python3 -m skill_library.export
 ```
 
@@ -291,36 +291,36 @@ python3 -m skill_library.cli add /path/to/skill-dir --source custom
 ```python
 from skill_library import SkillLibrary
 
-with SkillLibrary().open() as lib:    # 默认路径 skill_library/data/
+with SkillLibrary().open() as lib:    # default path skill_library/data/
     lib.add("/path/to/skill", source="anthropics")
     lib.add_batch("/path/to/skills/", source="anthropics")
     print(lib.stats())
 ```
 
-### 导出到 consumer (mass pool)
+### Export to consumer (mass pool)
 
 ```bash
-# 同机 zero-config (assets-dir 默认 = producer 数据目录):
+# Same machine, zero-config (assets-dir defaults to the producer data directory):
 python3 -m skill_library.export \
     --dst <PATH_TO>/mass_library.db
 
-# 跨机部署: rsync producer skills/ 树到 consumer 端, 再 export 指向 consumer 路径:
+# Cross-machine deployment: rsync the producer skills/ tree to the consumer side, then export pointing at the consumer path:
 python3 -m skill_library.export \
     --dst /path/to/mass_library.db \
     --assets-dir /path/to/consumer/side
 
-# 写 .refresh_endpoint sentinel (consumer `skill refresh` 零配置自动发现):
+# Write the .refresh_endpoint sentinel (the consumer `skill refresh` auto-discovers it with zero config):
 python3 -m skill_library.export \
     --refresh-endpoint http://producer-host:8765
 ```
 
-输出:
-- `mass_library.db` — body / embedding / frontmatter_json / path / is_always / requires_json 全字段
-- `.stale` — consumer 下次 attach 时 consume 并删, 用作"新版可用"信号
-- `.refresh_endpoint` (可选) — consumer `skill refresh` CLI auto-discover
+Output:
+- `mass_library.db` — all fields: body / embedding / frontmatter_json / path / is_always / requires_json
+- `.stale` — consumed and deleted the next time the consumer attaches, used as a "new version available" signal
+- `.refresh_endpoint` (optional) — auto-discovered by the consumer `skill refresh` CLI
 
-consumer 端在 `~/.everclaw/config.json` 加(以下均为新代码 default, 显式
-列出仅作参考):
+On the consumer side, add the following to `~/.everclaw/config.json` (all of these are defaults in the new code, listed
+explicitly only for reference):
 ```json
 {
   "skill_forge": {
@@ -337,86 +337,86 @@ consumer 端在 `~/.everclaw/config.json` 加(以下均为新代码 default, 显
 }
 ```
 
-**关键默认值说明** (2026-05-20 更新):
+**Key default value notes** (updated 2026-05-20):
 
-- `disable_always`: **默认 `true`**(2026-05-20 翻转, 原 `false`)
-  - `true`(默认): `always: true` skill 既不进 always 块也不进 top-K, 防止
-    mirror-side persona/mood 类 skill 双重注入 + 占用 top-K 名额
-  - `false`: builtin (memory / self-improving) 等 always-true skill 自动注入
-    (兼容旧行为, 但 top-K 会被污染)
+- `disable_always`: **defaults to `true`** (flipped on 2026-05-20, previously `false`)
+  - `true` (default): `always: true` skills go into neither the always block nor top-K, preventing
+    double injection of mirror-side persona/mood skills + occupying top-K slots
+  - `false`: always-true skills such as builtin (memory / self-improving) are auto-injected
+    (compatible with the old behavior, but top-K gets polluted)
 
-- `injection_mode`: 默认 `"full_body"` (eval 实测 top-1 keyword 召回 ~0.80)
-  - `"summary"` 是替代选项 (XML 目录 + agent 自己 read_file), token 更省但
-    召回降到 ~0.62; 选 `summary` 时 agent 必须熟悉 read_file 流程
+- `injection_mode`: defaults to `"full_body"` (eval measured top-1 keyword recall ~0.80)
+  - `"summary"` is the alternative option (XML table of contents + the agent's own read_file), more token-efficient but
+    recall drops to ~0.62; when choosing `summary` the agent must be familiar with the read_file flow
 
-- `enabled`: 默认 `false` (主开关), 必须显式 `true` 才开 skill_forge 功能.
+- `enabled`: defaults to `false` (master switch), must be explicitly `true` to enable the skill_forge feature.
 
-- `embedding_model`: 必须与 `mass_library_db` 的 embedding 模型对齐
-  (`embedding-our-new` ↔ `mass_library.db`); 错配会导致召回失效.
+- `embedding_model`: must align with the embedding model of `mass_library_db`
+  (`embedding-our-new` ↔ `mass_library.db`); a mismatch breaks recall.
 
-### 主动 refresh
+### Proactive refresh
 
 ```bash
-# 起 HTTP trigger (让 consumer CLI 远程触发)
+# Start the HTTP trigger (lets the consumer CLI trigger it remotely)
 python3 -m skill_library.scripts.refresh_server --port 8765 &
 
-# cron 自动调度 (按 sources.yaml 里各源的 pull_cadence 只跑到期源)
+# cron auto-scheduling (runs only due sources per each source's pull_cadence in sources.yaml)
 0 3 * * *   python3 -m skill_library.scripts.refresh_loop
 
-# 手动跑某个源
+# Manually run a specific source
 python3 -m skill_library.scripts.refresh_loop --source openclaw/skills --force
 ```
 
-cron 跑 `refresh_loop` 会:
-1. 读 `sources.yaml` + `data/refresh_state.json` 判 cadence
-2. 该跑的: git pull → fast-batch ingest → rescan_quality → export_to_mass_library
-   (写 mass_library.db + .stale)
+Running `refresh_loop` via cron will:
+1. Read `sources.yaml` + `data/refresh_state.json` to determine cadence
+2. For those due: git pull → fast-batch ingest → rescan_quality → export_to_mass_library
+   (writes mass_library.db + .stale)
 
-### 近似去重 backfill
+### Near-duplicate backfill
 
 ```bash
 python3 -m skill_library.scripts.rescan_dedup --dry-run --report /tmp/rescan.json
 python3 -m skill_library.scripts.rescan_dedup --report /tmp/rescan.json
-# 选项: --min-cos 0.92 / --top-k 10 / --max-pairs 100 / --limit 500
+# Options: --min-cos 0.92 / --top-k 10 / --max-pairs 100 / --limit 500
 ```
 
-### 质量打分 (LLM judge + 落库)
+### Quality scoring (LLM judge + persist to DB)
 
 ```bash
-# 对未评分 / 新增 active skill 跑 LLM judge, 结果写 quality_judgments 表 + skills.quality_score
+# Run the LLM judge on unscored / newly-added active skills; results are written to the quality_judgments table + skills.quality_score
 python3 -m skill_library.scripts.rescan_quality --workers 16 --report /tmp/q.json
 ```
 
-### License 维护 (`license_audit.py`)
+### License maintenance (`license_audit.py`)
 
-单点维护 source → license 映射, 一个子命令一步: refresh / build / validate / apply / stats.
+Single-point maintenance of the source → license mapping, one subcommand per step: refresh / build / validate / apply / stats.
 
-数据流: `GitHub API (spdx_id)` → `source_license_report.csv` → `license_safe_sources.json` → `index.db skills.license / active`
+Data flow: `GitHub API (spdx_id)` → `source_license_report.csv` → `license_safe_sources.json` → `index.db skills.license / active`
 
 ```bash
-# 1. 增量补全: 给 DB 里有 active skill 但 CSV 没记录的 source 查 GitHub license
+# 1. Incremental fill: query the GitHub license for sources that have active skills in the DB but no record in the CSV
 GITHUB_TOKEN=ghp_xxx python3 -m skill_library.license_audit refresh
-#    --source <one>   只查一个   --refresh-all   重查已在 CSV 的   --dry-run   预览
+#    --source <one>   query only one   --refresh-all   re-query those already in the CSV   --dry-run   preview
 
-# 2. 重建白名单: CSV → license_safe_sources.json (只留 GREEN 类 source)
+# 2. Rebuild the allowlist: CSV → license_safe_sources.json (keep only GREEN-class sources)
 python3 -m skill_library.license_audit build [--dry-run]
 
-# 3. 一致性校验: CSV ↔ JSON ↔ DB 交叉检查 (CI / 发布前跑)
+# 3. Consistency check: cross-check CSV ↔ JSON ↔ DB (run in CI / before release)
 python3 -m skill_library.license_audit validate
 
-# 4. 回填 DB: source-level CSV cat 写进 skills.license (仅覆盖 junk, 不动已声明值)
+# 4. Backfill the DB: write the source-level CSV category into skills.license (only overwrites junk, leaves already-declared values untouched)
 python3 -m skill_library.license_audit apply [--dry-run]
 
-# 5. 看分布: source-level (CSV) + skill-level (DB) license 分布 + GREEN/RED/YELLOW tag
+# 5. View distribution: source-level (CSV) + skill-level (DB) license distribution + GREEN/RED/YELLOW tag
 python3 -m skill_library.license_audit stats
 ```
 
-例行: 扩源后跑 `refresh && build && apply`; 发布前跑 `validate` 把关.
-`validate` 当前会报 ~742 个 JSON↔CSV 不一致 (源 license 为 RED/NO_LICENSE
-但 skill fm.license 自报 GREEN, 如 lobehub Proprietary), 属已知信号非 bug
-(单文件自报 license 不覆盖整仓专有声明)。
+Routine: after adding sources run `refresh && build && apply`; before release run `validate` as a gate.
+`validate` currently reports ~742 JSON↔CSV inconsistencies (the source license is RED/NO_LICENSE
+but the skill's fm.license self-reports GREEN, e.g. lobehub Proprietary); this is a known signal, not a bug
+(a single file's self-reported license does not override the whole repo's proprietary declaration).
 
-### Source 增量 refresh (单源, 跳已在库的)
+### Source incremental refresh (single source, skips those already in the library)
 
 ```bash
 python3 -m skill_library.scripts.source_resync /path/to/source --source anthropics
@@ -431,46 +431,46 @@ python3 -m skill_library.cli export --source anthropics/skills --out /tmp/anth.z
 
 ---
 
-## 测试
+## Testing
 
-9 个测试文件 (纯 `__main__` 可独立跑, 无 pytest 依赖):
+9 test files (pure `__main__`, runnable standalone, no pytest dependency):
 
 ```bash
-# 从 skill_library 的上级目录运行;用 sys.path.append 避免目录内同名模块遮蔽 stdlib
+# Run from the parent directory of skill_library; use sys.path.append to avoid same-named modules inside the directory shadowing the stdlib
 cd <dir containing skill_library/>
 for t in skill_library/tests/test_*.py; do
   python3 -c "import sys; sys.path.append('.'); import runpy; runpy.run_path('$t', run_name='__main__')"
 done
 ```
 
-| 测试 | 覆盖 |
+| Test | Coverage |
 |---|---|
-| `test_parse.py` | SKILL.md frontmatter 解析 + validate |
-| `test_safety.py` | safety 正则 + `is_blocked` |
-| `test_license_filter.py` | GREEN/RED/YELLOW 判定 + `is_green_license` |
-| `test_classify.py` | 16 类分类器各类命中 + tag 抽取 |
-| `test_dedup_round_a.py` | canonical_name / LLMDupJudge cache / 跨 source 合并 |
-| `test_quality_round_b.py` | LLMQualityJudge cache/clamp + compute_quality 权重 |
+| `test_parse.py` | SKILL.md frontmatter parsing + validate |
+| `test_safety.py` | safety regex + `is_blocked` |
+| `test_license_filter.py` | GREEN/RED/YELLOW determination + `is_green_license` |
+| `test_classify.py` | 16-class classifier hits per class + tag extraction |
+| `test_dedup_round_a.py` | canonical_name / LLMDupJudge cache / cross-source merge |
+| `test_quality_round_b.py` | LLMQualityJudge cache/clamp + compute_quality weights |
 | `test_e2e.py` | CRUD + quality rejection + export_bundle + reindex |
-| `test_iter3_upgrade_smoke.py` | 全量 export 路径 smoke (index.db → mass_library.db) |
-| `test_producer_review_fixes.py` | 回归: faiss 对齐 / 短 batch 拒绝 / stale-dim drop / active anti-clobber / 增量 stats 不重复计 |
+| `test_upgrade_smoke.py` | full export path smoke (index.db → mass_library.db) |
+| `test_producer_review_fixes.py` | regression: faiss alignment / short-batch rejection / stale-dim drop / active anti-clobber / incremental stats not double-counted |
 
 ---
 
-## 外部集成 (consumer = everclaw/skill_forge)
+## External integration (consumer = everclaw/skill_forge)
 
-producer 出 `mass_library.db` + fs assets, consumer 用 `SqliteStore` attach 后
-跑 dense retrieval.
+The producer emits `mass_library.db` + fs assets; the consumer attaches them with `SqliteStore` and then
+runs dense retrieval.
 
-三句话集成总结:
-- producer/consumer 共用 SkillRouter remote endpoint, CPU-only 节点也能跑
-- consumer 通过 `mass_library_db` 配置 attach SqliteStore, dense pool + local BM25
-  pool 通过 RRF 融合; FS 上只保留 scripts/references 等附件, body 已在 DB
-- 用户 `everclaw skill refresh <src>` 远程触发 producer git pull + ingest + export,
-  零 config (mass_library.db 旁边自带 `.refresh_endpoint`)
+Integration summary in three sentences:
+- producer/consumer share the SkillRouter remote endpoint, so CPU-only nodes can run it too
+- the consumer attaches SqliteStore via the `mass_library_db` config; the dense pool + local BM25
+  pool are fused via RRF; only attachments such as scripts/references remain on the FS, the body is already in the DB
+- the user's `everclaw skill refresh <src>` remotely triggers the producer's git pull + ingest + export,
+  zero-config (the `.refresh_endpoint` sits right next to mass_library.db)
 
 ---
 
-## 范围
+## Scope
 
-**不做**: skill 进化 / 执行时质量追踪(4 计数器)—— 那是运行时的事, 本库只管入库时的一次性筛选与评分. 新增源只改 `sources.yaml`(见 [源清单](#源清单--可复现性边界)), 无需改代码.
+**Out of scope**: skill evolution / runtime quality tracking (4 counters) — that is a runtime concern; this library only handles the one-time ingest-time filtering and scoring. Adding a source only touches `sources.yaml` (see [Source Inventory](#source-inventory--reproducibility-boundaries)), with no code changes needed.

@@ -1,6 +1,6 @@
-"""Skill Library CLI — click 命令行接口.
+"""Skill Library CLI — click command-line interface.
 
-用法示例 (``--lib`` 是 group 选项, 须放在子命令之前):
+Usage examples (``--lib`` is a group option and must precede the subcommand):
   python -m skill_library.cli --lib /tmp/lib init
   python -m skill_library.cli --lib /tmp/lib add /path/to/pdf --source anthropics
   python -m skill_library.cli --lib /tmp/lib add-batch /path/to/skills --source anthropics
@@ -52,7 +52,7 @@ def cli(ctx, lib_root, config_path):
 @cli.command()
 @click.pass_context
 def init(ctx):
-    """初始化一个 skill 库目录 (路径由 --lib 指定)."""
+    """Initialize a skill library directory (path given by --lib)."""
     lib = SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]).open()
     click.echo(f"Initialized skill library at: {lib.lib_root}")
     click.echo(f"  DB: {lib.lib_root / 'index.db'}")
@@ -68,7 +68,7 @@ def init(ctx):
 @click.option("--force", is_flag=True, help="Force re-ingest even if duplicate")
 @click.pass_context
 def add(ctx, skill_dir, source, source_url, force):
-    """添加单个 skill 目录到库."""
+    """Add a single skill directory to the library."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         result = lib.add(skill_dir, source=source, source_url=source_url, force=force)
         click.echo(f"Status: {result.status.value}")
@@ -85,7 +85,7 @@ def add(ctx, skill_dir, source, source_url, force):
 @click.option("--limit", type=int, default=None)
 @click.pass_context
 def add_batch(ctx, root, source, pattern, limit):
-    """批量扫描目录, 对每个 SKILL.md 所在 dir 入库."""
+    """Batch-scan a directory and ingest the dir containing each SKILL.md."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         out = lib.add_batch(root, source=source, pattern=pattern, limit=limit)
         samples = out.pop("rejected_samples", [])
@@ -97,15 +97,15 @@ def add_batch(ctx, root, source, pattern, limit):
                 click.echo(f"  - {path}: {reason}")
 
 
-# NOTE: 本 CLI 只覆盖入库/构建/运维; runtime 检索 (BM25+embedding 搜库)
-# 由 consumer 端负责, 不在这里提供 `search` 子命令。
+# NOTE: this CLI only covers ingestion / build / ops; runtime retrieval (BM25+embedding
+# search over the library) is the consumer's responsibility, so no `search` subcommand is provided here.
 
 
 @cli.command()
 @click.argument("skill_id")
 @click.pass_context
 def get(ctx, skill_id):
-    """显示单个 skill 详情."""
+    """Show the details of a single skill."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         r = lib.get(skill_id)
         if r is None:
@@ -125,7 +125,7 @@ def get(ctx, skill_id):
 @click.option("--limit", default=50, type=int)
 @click.pass_context
 def list_cmd(ctx, category, source, tag, min_quality, limit):
-    """列出 skill (可按 category/source/tag/quality 过滤)."""
+    """List skills (optionally filtered by category/source/tag/quality)."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         records = lib.list(
             category=category, source=source, tag=tag,
@@ -142,7 +142,7 @@ def list_cmd(ctx, category, source, tag, min_quality, limit):
 @click.option("--hard", is_flag=True, help="Physical delete (also remove files)")
 @click.pass_context
 def delete(ctx, skill_id, hard):
-    """删除 skill (默认 soft)."""
+    """Delete a skill (soft by default)."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         ok = lib.delete(skill_id, soft=not hard)
         click.echo("deleted" if ok else "not found")
@@ -152,34 +152,34 @@ def delete(ctx, skill_id, hard):
 @cli.command()
 @click.pass_context
 def stats(ctx):
-    """库统计信息."""
+    """Library statistics."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         click.echo(json.dumps(lib.stats(), ensure_ascii=False, indent=2))
 
 
 @cli.command("build")
 @click.option("--update", is_flag=True,
-              help="增量模式: 按 cadence 只跑到期的源 (默认从零全跑)")
+              help="incremental mode: run only the sources due per cadence (default runs everything from scratch)")
 @click.option("--full", is_flag=True,
-              help="用全量注册表 sources.full.yaml (= --sources-config 的快捷方式)")
+              help="use the full registry sources.full.yaml (= shortcut for --sources-config)")
 @click.option("--sources-config", "sources_config", type=click.Path(), default=None,
-              help="源注册表 yaml 路径 (默认公开 demo sources.yaml)")
-@click.option("--source", default=None, help="只跑指定源名")
+              help="path to the source registry yaml (default: the public demo sources.yaml)")
+@click.option("--source", default=None, help="run only the named source")
 @click.option("--dry-run", is_flag=True)
 @click.pass_context
 def build(ctx, update, full, sources_config, source, dry_run):
-    """一键全流程 — discover→clone→ingest→quality→export, 从零产出 / 增量更新.
+    """One-shot full pipeline — discover→clone→ingest→quality→export, building from scratch / incremental update.
 
-    空库自动建 (SkillLibrary.open 内置 init_schema)。是 refresh_loop 的门面。
+    An empty library is created automatically (SkillLibrary.open has a built-in init_schema). This is the facade for refresh_loop.
     \b
-    python -m skill_library.cli build                       # demo 从零产出
-    python -m skill_library.cli build --update              # 增量 (按 cadence)
-    python -m skill_library.cli build --full                # 全量注册表 (生产)
-    python -m skill_library.cli build --sources-config X.yaml  # 自备注册表
+    python -m skill_library.cli build                       # demo build from scratch
+    python -m skill_library.cli build --update              # incremental (per cadence)
+    python -m skill_library.cli build --full                # full registry (production)
+    python -m skill_library.cli build --sources-config X.yaml  # bring your own registry
     """
     from pathlib import Path
     from .scripts.refresh_loop import run_refresh, DEFAULT_YAML
-    # 注册表选择: --sources-config 显式 > --full 快捷 > 默认 demo
+    # registry selection: explicit --sources-config > --full shortcut > default demo
     if sources_config:
         config = Path(sources_config)
     elif full:
@@ -188,10 +188,10 @@ def build(ctx, update, full, sources_config, source, dry_run):
         config = DEFAULT_YAML
     if not config.exists():
         if sources_config:
-            hint = f"注册表文件不存在: {config}"
-        else:  # 来自 --full
-            hint = ("全量注册表 sources.full.yaml 不随公开发布提供; "
-                    "公开版用默认 demo (去掉 --full), 或 --sources-config 指向你自己的 yaml")
+            hint = f"registry file does not exist: {config}"
+        else:  # from --full
+            hint = ("the full registry sources.full.yaml is not shipped with the public release; "
+                    "use the default demo in the public version (drop --full), or point --sources-config at your own yaml")
         click.echo(f"ERROR: {hint}", err=True)
         raise SystemExit(2)
     rc = run_refresh(
@@ -206,7 +206,7 @@ def build(ctx, update, full, sources_config, source, dry_run):
 @click.argument("tags")
 @click.pass_context
 def retag(ctx, skill_id, tags):
-    """更新 tag 列表 (逗号分隔)."""
+    """Update the tag list (comma-separated)."""
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         r = lib.retag(skill_id, tag_list)
@@ -221,7 +221,7 @@ def retag(ctx, skill_id, tags):
 @click.argument("category")
 @click.pass_context
 def reclassify(ctx, skill_id, category):
-    """修改主分类."""
+    """Change the primary category."""
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         r = lib.reclassify(skill_id, category)
         if r is None:
@@ -241,7 +241,7 @@ def reclassify(ctx, skill_id, category):
 @click.option("--limit", default=10_000, type=int)
 @click.pass_context
 def export(ctx, out_path, ids, category, source, tag, min_quality, limit):
-    """导出 skill 子集为 zip (含 manifest.json + skill 目录)."""
+    """Export a subset of skills as a zip (containing manifest.json + skill directories)."""
     skill_ids = [s.strip() for s in ids.split(",") if s.strip()] if ids else None
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
         out = lib.export_bundle(

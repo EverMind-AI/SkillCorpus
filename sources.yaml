@@ -1,21 +1,21 @@
-# 源注册表 (公开默认 = demo) — fetch.py / refresh_loop.py 默认读这个文件。
+# Source registry (public default = demo) — fetch.py / refresh_loop.py read this file by default.
 #
-# 这是**公开发布版**: 只列少数几个可靠的 permissive 公开仓, 让拿到代码的用户
-# 能端到端跑通整条 producer 流程 (fetch → ingest → quality → classify → embed
-# → store → export), 自建一个小库验证。
+# This is the **public release version**: it lists only a few reliable, permissive public repos so that
+# users who obtain the code can run the entire producer pipeline end to end (fetch -> ingest -> quality
+# -> classify -> embed -> store -> export) and build a small library to verify it.
 #
-# 完整生产注册表 (62 源, 6 type) 在 sources.full.yaml —— 已被 .gitignore 排除,
-# 不随公开发布提供。生产端跑全量:
+# The full production registry (62 sources, 6 types) lives in sources.full.yaml — it is excluded by
+# .gitignore and not provided with the public release. To run the full set on the production side:
 #   python -m skill_library.fetch --config skill_library/sources.full.yaml
 #
-# data/ 产物 (index.db / skills/ / mass_library.db) 也被 .gitignore 排除, 用户
-# 跑完得到的是从下面这几个源自建的小库, 不是成品语料。
+# The data/ artifacts (index.db / skills/ / mass_library.db) are also excluded by .gitignore; what users
+# get after a run is a small library built from the few sources below, not the finished corpus.
 #
-# 用法 (默认即 demo):
+# Usage (the default is demo):
 #   python -m skill_library.fetch
 #   python -m skill_library.scripts.refresh_loop --force
 #
-# 全部 git_clone 类型 (确定、快、无动态展开), 都是 OSI-permissive 公开仓。
+# All are of git_clone type (deterministic, fast, no dynamic expansion) and are OSI-permissive public repos.
 
 defaults:
   rescan_quality_after: true
@@ -28,22 +28,22 @@ sources:
     repo: anthropics/skills
     type: git_clone
     pull_cadence: weekly
-    source_label: anthropics/skills        # 官方 Agent Skills 仓 (锚点)
+    source_label: anthropics/skills        # official Agent Skills repo (anchor)
 
   - name: vercel-labs/skills
     repo: vercel-labs/skills
     type: git_clone
     pull_cadence: weekly
-    source_label: vercel-labs/skills        # Vercel 官方 dogfood
+    source_label: vercel-labs/skills        # Vercel official dogfood
 
   - name: addyosmani/agent-skills
     repo: addyosmani/agent-skills
     type: git_clone
     pull_cadence: monthly
-    source_label: addyosmani/agent-skills   # 知名前端工程师, TDD/调试/CI
+    source_label: addyosmani/agent-skills   # well-known frontend engineer, TDD/debugging/CI
 
   - name: K-Dense-AI/scientific-agent-skills
     repo: K-Dense-AI/scientific-agent-skills
     type: git_clone
     pull_cadence: monthly
-    source_label: K-Dense-AI/scientific-agent-skills  # 学术: 生物/化学/医学/工程
+    source_label: K-Dense-AI/scientific-agent-skills  # academic: biology/chemistry/medicine/engineering

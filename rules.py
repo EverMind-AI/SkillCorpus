@@ -1,6 +1,6 @@
-"""rules.py — 纯规则阶段 (无 LLM): parse + safety + license。
+"""rules.py — pure rule stage (no LLM): parse + safety + license.
 
-三块: SKILL.md frontmatter 解析、safety 正则硬拦、license GREEN 闸。
+Three parts: SKILL.md frontmatter parsing, safety regex hard-blocking, and the license GREEN gate.
 """
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from typing import Any
 
 
 
-# ======================== SKILL.md 解析 ========================
-"""SKILL.md 解析: frontmatter (YAML) + body.
+# ======================== SKILL.md parsing ========================
+"""SKILL.md parsing: frontmatter (YAML) + body.
 
-优先用 PyYAML (支持嵌套字段如 antigravity 的 metadata.openclaw);
-fallback 到简单 line-by-line 解析 (兼容 OpenSpace skill_utils 风格).
+Prefer PyYAML (supports nested fields such as antigravity's metadata.openclaw);
+fall back to simple line-by-line parsing (compatible with the OpenSpace skill_utils style).
 """
 
 
@@ -33,18 +33,18 @@ SKILL_FILENAME_LOWER = "skill.md"
 
 
 class ParseError(ValueError):
-    """SKILL.md 解析失败."""
+    """SKILL.md parsing failed."""
 
 
 def parse_skill_md(content: str) -> tuple[dict[str, Any], str]:
-    """解析 SKILL.md 文本, 返回 (frontmatter_dict, body).
+    """Parse SKILL.md text, returning (frontmatter_dict, body).
 
-    Body 不含 frontmatter 和分隔符.
+    Body excludes the frontmatter and the delimiters.
     """
     if not content.lstrip().startswith("---"):
         raise ParseError("no frontmatter (content must start with '---')")
 
-    # 确保从 --- 开始匹配
+    # Ensure matching starts from ---
     content = content.lstrip()
     m = _FRONTMATTER_RE.match(content)
     if m is None:
@@ -68,7 +68,7 @@ def parse_skill_md(content: str) -> tuple[dict[str, Any], str]:
 
 
 def _simple_parse(fm_raw: str) -> dict[str, Any]:
-    """后备的朴素 key:value 解析 (仅一级)."""
+    """Fallback naive key:value parsing (single level only)."""
     fm: dict[str, Any] = {}
     for line in fm_raw.split("\n"):
         if ":" not in line:
@@ -84,13 +84,13 @@ def _simple_parse(fm_raw: str) -> dict[str, Any]:
 
 
 def parse_skill_file(path: Path) -> tuple[dict[str, Any], str]:
-    """从路径读并解析 SKILL.md."""
+    """Read and parse SKILL.md from a path."""
     content = path.read_text(encoding="utf-8", errors="replace")
     return parse_skill_md(content)
 
 
 def find_skill_md(skill_dir: Path) -> Path | None:
-    """在 skill_dir 里找 SKILL.md (大小写兼容)."""
+    """Find SKILL.md in skill_dir (case-insensitive)."""
     for name in (SKILL_FILENAME, SKILL_FILENAME_LOWER):
         candidate = skill_dir / name
         if candidate.is_file():
@@ -99,13 +99,13 @@ def find_skill_md(skill_dir: Path) -> Path | None:
 
 
 class ValidationError(ValueError):
-    """Skill 元数据验证失败."""
+    """Skill metadata validation failed."""
 
 
 def validate_skill(fm: dict[str, Any], body: str) -> None:
-    """验证必填字段 (agentskills.io 规范).
+    """Validate required fields (agentskills.io spec).
 
-    必填: name, description
+    Required: name, description
     Raises: ValidationError
     """
     name = fm.get("name")
@@ -115,35 +115,35 @@ def validate_skill(fm: dict[str, Any], body: str) -> None:
     if not description or not isinstance(description, str):
         raise ValidationError("missing or invalid 'description'")
 
-    # name 规范: lowercase + digit + hyphen, ≤ 64
+    # name spec: lowercase + digit + hyphen, ≤ 64
     if not re.fullmatch(r"[a-z0-9][a-z0-9\-]{0,63}", name):
         raise ValidationError(
             f"name '{name}' does not match slug spec (lowercase letters/digits/hyphens, ≤64)"
         )
 
     if len(description) > 1024:
-        # agentskills.io 上限, 截断但不拒
+        # agentskills.io cap; truncate but don't reject
         pass
 
 
-# ======================== safety 正则硬拦 ========================
-"""安全检查 — regex hard-block(只保留 1 条).
+# ======================== safety regex hard-block ========================
+"""Safety check — regex hard-block (only 1 rule kept).
 
-仅 `blocked.*` 类规则触发拒入库.
+Only `blocked.*` rules trigger rejection from ingestion.
 
-历史:之前还有 6 条 `suspicious.*`(keyword / secrets / crypto / webhook /
-script / url_shortener)记为 audit flag.2026-05-21 跑了 stratified 100-skill
-audit,LLM-judge 标 TP/FP,**overall FP rate = 98%**:
-  - suspicious.secrets   命中 48,962 skill (45% 全库), precision 0% (20/20 FP)
+History: there used to be 6 `suspicious.*` rules (keyword / secrets / crypto / webhook /
+script / url_shortener) recorded as audit flags. On 2026-05-21 a stratified 100-skill
+audit was run; the LLM judge labelled TP/FP, giving an **overall FP rate = 98%**:
+  - suspicious.secrets   matched 48,962 skills (45% of the whole corpus), precision 0% (20/20 FP)
   - suspicious.webhook                                  precision 0%
   - suspicious.script / .url_shortener / .keyword       precision 0%
   - suspicious.crypto                                   precision 10% (2/20)
-全是 substring match,无 context 感知,LLM judge (3-dim + 19-flag) 已 cover
-真实风险.故彻底删除.
+All were substring matches with no context awareness, and the LLM judge (3-dim + 19-flag)
+already covers the real risks, so they were removed entirely.
 
-剩余的细粒度 safety 判定由 LLM judge 完成,hard-gate 由 quality.py 处理:
-  - 数字 hard-gate:LLM safety < 3 → quality = 0
-  - flag hard-gate:5 个 (prompt_injection / cmd_injection / unsafe_exec /
+The remaining fine-grained safety decisions are made by the LLM judge; the hard-gate is handled by quality.py:
+  - numeric hard-gate: LLM safety < 3 → quality = 0
+  - flag hard-gate: 5 flags (prompt_injection / cmd_injection / unsafe_exec /
                          auth_bypass / csam_risk) → quality = 0
 """
 
@@ -157,16 +157,16 @@ _BLOCKING_FLAGS = frozenset({"blocked.malware"})
 
 
 def check_safety(text: str) -> list[str]:
-    """返回触发的 flag 名; 空列表表示安全."""
+    """Return the names of triggered flags; an empty list means safe."""
     return [flag for flag, pat in _SAFETY_RULES if pat.search(text)]
 
 
 def is_blocked(flags: list[str]) -> bool:
-    """有 blocked.* flag 即拒绝入库."""
+    """Any blocked.* flag means the skill is rejected from ingestion."""
     return any(f in _BLOCKING_FLAGS for f in flags)
 
 
-# ======================== license GREEN 闸 ========================
+# ======================== license GREEN gate ========================
 """License filter — enforce GREEN-only (commercially redistributable) active set.
 
 Adds a hard-gate step on top of safety filtering: a skill is admitted
@@ -188,7 +188,7 @@ Use:
         record.reason = "non-green license"
 
 The GREEN allow-list mirrors the consumer-side mass-pool policy
-(see docs/15_consumer_skill_库现状.md) and matches the paper's
+(see docs/15_consumer_skill_library_status.md) and matches the paper's
 released artifact.
 """
 
@@ -358,4 +358,4 @@ def is_green_license(
     src_lic = source_license_map.get(source)
     return src_lic in GREEN_LICENSES if src_lic else False
 
-# 批量按 license 维护 skill 的 active 状态见 ``license_audit.py``。
+# For maintaining the active status of skills by license in bulk, see ``license_audit.py``.

@@ -1,4 +1,4 @@
-"""LLM 分类 + tag 测试 — 纯函数 + mock LLM, 无 DB 依赖."""
+"""LLM classification + tag tests — pure functions + mock LLM, no DB dependency."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def test_vocab_matches_enum():
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# _parse_classify_response — JSON 抽取健壮性
+# _parse_classify_response — JSON extraction robustness
 # ─────────────────────────────────────────────────────────────────────────
 
 def test_parse_clean_json():

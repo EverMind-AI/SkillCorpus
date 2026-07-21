@@ -1,4 +1,4 @@
-"""Safety check 测试 — 纯正则, 无 DB 依赖."""
+"""Safety check tests — pure regex, no DB dependency."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Round A 新增功能测试:canonical name + embedding 近邻 + LLM 判重 + supersede."""
+"""Round A new-feature tests: canonical name + embedding nearest-neighbor + LLM dedup judge + supersede."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from skill_library.store import SkillRecord
 # ----------------------------------------------------------------------
 
 def test_canonical_name_absorbs_separators():
-    """大小写 / 分隔符 / 标点 / 多余空格都归一成一致形式."""
+    """Case / separators / punctuation / extra whitespace all normalize to a consistent form."""
     expected = "react hooks"
     for variant in [
         "react-hooks", "React Hooks", "react_hooks",
@@ -31,7 +31,7 @@ def test_name_hash_collides_on_canonical_variants():
     h = name_hash("react-hooks")
     for variant in ["React Hooks", "react_hooks", "React.Hooks"]:
         assert name_hash(variant) == h, f"hash mismatch: {variant!r}"
-    # 真不同名不该碰撞
+    # genuinely different names should not collide
     assert name_hash("react-router") != h
 
 
@@ -40,7 +40,7 @@ def test_name_hash_collides_on_canonical_variants():
 # ----------------------------------------------------------------------
 
 class _FakeLLM:
-    """Fake LLM 固定返回指定 is_duplicate."""
+    """Fake LLM that always returns the given is_duplicate value."""
     def __init__(self, is_dup: bool, conf: float = 0.9, reason: str = "fake"):
         self._is_dup = is_dup
         self._conf = conf
@@ -80,13 +80,13 @@ def test_dup_judge_caches_verdict():
     assert j1.cached is False
     assert llm.call_count == 1
 
-    # 第二次应命中 cache, 不再调 LLM
+    # the second call should hit the cache and not call the LLM again
     j2 = judge.is_duplicate(a, b)
     assert j2.is_duplicate is True
     assert j2.cached is True
-    assert llm.call_count == 1  # 不变
+    assert llm.call_count == 1  # unchanged
 
-    # 反向传参也应命中同一 cache key
+    # reversed argument order should also hit the same cache key
     j3 = judge.is_duplicate(b, a)
     assert j3.cached is True
     assert llm.call_count == 1
@@ -113,7 +113,7 @@ def test_pair_key_order_independent():
 
 
 # ----------------------------------------------------------------------
-# A-4: 跨 source 合并路径 — 端到端 (用 Fake LLM 代替)
+# A-4: cross-source merge path — end-to-end (using a Fake LLM instead)
 # ----------------------------------------------------------------------
 
 _SKILL_MD_TEMPLATE = """---
@@ -138,11 +138,12 @@ def _write_skill(dir_: Path, dirname: str, name: str, desc: str, body: str) -> P
 
 
 def test_cross_source_name_collision_triggers_merge():
-    """不同 source 上传同一 slug-name 的 skill, 启用 LLM 后触发 supersede.
+    """Skills with the same slug-name uploaded from different sources trigger supersede once the LLM is enabled.
 
-    注意: skill name 必须符合 agentskills.io slug 规范 (lowercase + hyphens).
-    canonical 对 大小写/下划线/空格的归一在 test_canonical_name_absorbs_separators
-    里覆盖; 这里只测合法 slug 的跨 source 冲突路径.
+    Note: the skill name must follow the agentskills.io slug convention (lowercase + hyphens).
+    Canonical normalization of case/underscore/whitespace is covered in
+    test_canonical_name_absorbs_separators; here we only test the cross-source
+    collision path for valid slugs.
     """
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "src"
@@ -158,7 +159,7 @@ def test_cross_source_name_collision_triggers_merge():
         )
 
         lib = SkillLibrary(Path(tmp) / "lib").open()
-        # 注入 Fake dup judge 永远 True (避免真调 LLM)
+        # inject a Fake dup judge that always returns True (avoid calling a real LLM)
         lib.dup_judge = LLMDupJudge(_FakeLLM(is_dup=True), lib.store._connect())
         lib.ingester.dup_judge = lib.dup_judge
 
@@ -166,19 +167,19 @@ def test_cross_source_name_collision_triggers_merge():
         assert r1.status == IngestStatus.ADDED
 
         r2 = lib.add(b_dir, source="awesome:someone/repo")
-        # anthropics source_weight=1.0 vs awesome 默认 0.5, anthropics 胜
+        # anthropics source_weight=1.0 vs awesome default 0.5, anthropics wins
         assert r2.status in (IngestStatus.MERGED_KEPT_OLD,
                              IngestStatus.MERGED_KEPT_NEW), \
             f"expected merge, got {r2.status}"
 
-        # 库里只剩一条 active
+        # only one active record remains in the library
         active = lib.list(limit=100)
         assert len(active) == 1
         winner = active[0]
         assert winner.superseded_by is None
 
-        # MERGED_KEPT_NEW: loser 入库过后被 supersede (留痕)
-        # MERGED_KEPT_OLD: new 是 loser, 根本没入库, 没 supersede 记录
+        # MERGED_KEPT_NEW: the loser was ingested and then superseded (leaves a trace)
+        # MERGED_KEPT_OLD: new is the loser, never ingested, no supersede record
         conn = lib.store._connect()
         row = conn.execute(
             "SELECT skill_id, superseded_by FROM skills "
@@ -188,13 +189,13 @@ def test_cross_source_name_collision_triggers_merge():
             assert row is not None
             assert row["superseded_by"] == winner.skill_id
         else:
-            # MERGED_KEPT_OLD: r2 的 new 被 drop, winner 就是原 anthropics
+            # MERGED_KEPT_OLD: r2's new is dropped, the winner is the original anthropics
             assert winner.source == "anthropics"
         lib.close()
 
 
 def test_same_source_same_name_still_overwrites():
-    """同 source 同 canonical name 保持原有覆盖行为 (非 supersede)."""
+    """Same source + same canonical name keeps the original overwrite behavior (not supersede)."""
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "src"
         a = _write_skill(

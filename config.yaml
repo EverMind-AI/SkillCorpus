@@ -1,81 +1,81 @@
-# skill_library 配置
+# skill_library configuration
 
-# 数据源权重 (用于 quality_score)
+# Source weights (used for quality_score)
 source_weights:
-  anthropics: 1.00      # 官方最高
-  karanb192:  0.90      # verified 徽章
-  clawhub:    0.85      # VirusTotal + 人工审核
-  voltagent:  0.80      # 精选清单
-  antigravity: 0.75     # 社区 bundled, 质量参差
-  skillsbench: 0.70     # 学术语料, 未必实用
-  community:  0.60      # 其他社区来源
-  custom:     0.50      # 用户自传
+  anthropics: 1.00      # official, highest
+  karanb192:  0.90      # verified badge
+  clawhub:    0.85      # VirusTotal + manual review
+  voltagent:  0.80      # curated list
+  antigravity: 0.75     # community bundled, mixed quality
+  skillsbench: 0.70     # academic corpus, not necessarily practical
+  community:  0.60      # other community sources
+  custom:     0.50      # user-uploaded
 
-# 质量过滤阈值 (Phase 1 规则)
+# Quality filter thresholds (Phase 1 rules)
 thresholds:
-  body_min_chars: 300      # body 太短拒绝
-  body_max_chars: 50000    # body 异常大拒绝
+  body_min_chars: 300      # reject if body is too short
+  body_max_chars: 50000    # reject if body is abnormally large
   description_min_chars: 20
-  description_max_chars: 1024   # agentskills.io 规范上限
-  # Phase 2 LLM judge 最低分
+  description_max_chars: 1024   # agentskills.io spec upper limit
+  # Phase 2 LLM judge minimum score
   llm_judge_min: 6.0
 
 # Quality scoring policy
 quality:
-  # V3 (2026-05-07): 大批量 ingest 时关掉 inline LLM judge — 它单线程 2-5s/skill,
-  # 174K majiayu 用 inline 估 100h+. 关掉后 ingest 走 rule-based quality only,
-  # 跑完后用 `rescan_quality.py --workers 16` 并行回填 LLM 分数.
+  # V3 (2026-05-07): disable the inline LLM judge during large-batch ingest — single-threaded at 2-5s/skill,
+  # 174K majiayu would take an estimated 100h+ with inline. With it off, ingest uses rule-based quality only,
+  # then backfill the LLM scores in parallel afterwards with `rescan_quality.py --workers 16`.
   llm_quality_at_ingest: false
 
-# 去重阈值
+# Deduplication thresholds
 dedup:
-  # 跨 source 近似去重: embedding cosine >= near_dup_min_cosine 进 LLM 判重
-  # (纯 embedding 自动判的阈值设更高, 避免误杀)
-  near_dup_min_cosine: 0.90        # 进入 LLM 二次确认的下限
-  near_dup_auto_cosine: 0.995      # 高于此值直接判重, 不过 LLM
-  near_dup_top_k: 3                # 每个新 skill 至多检查的近邻数 (2026-04-29: 5→3 加速 D-5, 漏判 <3%)
-  # 开关: 入库时是否做近似去重 (关闭则只做 content_hash + name_hash)
-  # V3 (2026-05-07): 大批量 ingest 时关掉 — majiayu000 174K 里 ~90% 跟现有 71K 重叠,
-  # 每个走 LLM 判 ×1.5s = 不可行. 关掉后 ingest 只 content_hash + name_hash 去重 (fast),
-  # 跑完后用 `rescan_dedup.py` 全库扫一次补 LLM 判.
+  # Cross-source near-duplicate detection: embedding cosine >= near_dup_min_cosine enters LLM dedup judgment
+  # (the threshold for pure-embedding auto-judgment is set higher to avoid false positives)
+  near_dup_min_cosine: 0.90        # lower bound for entering LLM secondary confirmation
+  near_dup_auto_cosine: 0.995      # above this value, mark as a duplicate directly, skipping the LLM
+  near_dup_top_k: 3                # max number of neighbors checked per new skill (2026-04-29: 5->3 to speed up D-5, missed judgments <3%)
+  # Switch: whether to run near-duplicate detection at ingest (when off, only content_hash + name_hash)
+  # V3 (2026-05-07): disabled during large-batch ingest — ~90% of majiayu000's 174K overlap with the existing 71K,
+  # running each through an LLM judgment x1.5s = infeasible. With it off, ingest only does content_hash + name_hash dedup (fast),
+  # then run a whole-library scan afterwards with `rescan_dedup.py` to backfill the LLM judgments.
   enable_near_dup: false
-  # name_hash 冲突时的处理策略: keep_higher_quality | keep_newer | keep_existing
+  # Policy when a name_hash conflicts: keep_higher_quality | keep_newer | keep_existing
   name_conflict_policy: "keep_higher_quality"
 
-# 注: 本库只管入库/构建; runtime 检索 (retrieval) 由 consumer 端配置, 这里不含。
+# Note: this library only handles ingest/build; runtime retrieval is configured on the consumer side and is not included here.
 
-# Embedding — V4 (2026-05-07) 切到共享 GPU 端点 (跟 everclaw consumer 对齐)
-# 2026-05-18: <EMBEDDING_HOST> → <EMBEDDING_HOST> (down)
-# 2026-05-20: <EMBEDDING_HOST> → <EMBEDDING_HOST> (down)
-# 2026-05-28: <EMBEDDING_HOST> → <EMBEDDING_HOST> (/v6 自训模型)
-# 2026-05-30: <EMBEDDING_HOST>/v6 → <EMBEDDING_HOST>/new (新自训模型).
-#             /new 是新模型, 与旧 /v6 向量空间不兼容 → 配套做了全量重嵌入
-#             (c9_reembed) + 重导消费端 mass pool, label 同步 bump 成
-#             embedding-our-new. model 字段仅作标识不参与路由, 但需与
-#             mass_library DB 用的 embedding 模型对齐.
+# Embedding — V4 (2026-05-07) switched to a shared GPU endpoint (aligned with the everclaw consumer)
+# 2026-05-18: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (down)
+# 2026-05-20: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (down)
+# 2026-05-28: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (/v6 self-trained model)
+# 2026-05-30: <EMBEDDING_HOST>/v6 -> <EMBEDDING_HOST>/new (new self-trained model).
+#             /new is a new model, incompatible with the old /v6 vector space -> a full re-embedding
+#             (c9_reembed) was done alongside it + a re-export of the consumer-side mass pool, with the
+#             label bumped to embedding-our-new. The model field is only an identifier and does not
+#             take part in routing, but it must align with the embedding model used by the mass_library DB.
 embedding:
   provider: "skillrouter_remote"
-  model: "embedding-our-new"  # 自训新模型 (/new 端点, 替换 v6)
+  model: "embedding-our-new"  # new self-trained model (/new endpoint, replaces v6)
   dim: 1024
   base_url: "http://<EMBEDDING_HOST>/new"
   api_key: "<EMBEDDING_API_KEY>"
   batch_size: 32
   timeout: 60
-# 老配置 (本地 vLLM 时):
+# Legacy config (when running local vLLM):
 # embedding:
 #   provider: "openai_compatible"
 #   model: "Qwen/Qwen3-Embedding-0.6B"
 #   dim: 1024
 #   base_url: "http://localhost:8100/v1"
 
-# LLM 分类/tag/兜底 — 用 endpoints 列表的**第一个**端点 (单端点)。
-# 列多个不会负载均衡, 只取 [0];要换端点改第一条即可。
+# LLM classification/tag/fallback — uses the **first** endpoint in the endpoints list (single endpoint).
+# Listing multiple does not load-balance; only [0] is used. To switch endpoints, change the first entry.
 llm:
   provider: "openai_compatible"
   endpoints:
     - { base_url: "https://<LLM_GATEWAY_HOST>/v1", model: "Qwen3.5-397B-A17B-GPTQ-Int4", api_key: "dummy" }
 
-  # endpoints 为空时的回退字段
+  # Fallback fields when endpoints is empty
   model: "qwen3"
   base_url: "http://localhost:8211/v1"
   api_key: "dummy"
@@ -83,12 +83,12 @@ llm:
   temperature: 0.1
   max_tokens: 512
   timeout: 60
-  # 分类策略: llm_primary | rule_primary | embedding_primary
+  # Classification strategy: llm_primary | rule_primary | embedding_primary
   classify_strategy: "llm_primary"
   tag_strategy: "llm"
-  # 并发数 — 端点数 × 4 大约
+  # Concurrency — roughly endpoint count x 4
   concurrency: 32
 
-# 分类 — LLM 分类器(2026-05-20)
-# 分类逻辑全部内置在 classify.py 的 prompt 里, 不再用 yaml 配置.
-# 16 类 + OTHER 兜底, 详见 docs/16_classification.md.
+# Classification — LLM classifier (2026-05-20)
+# All classification logic is built into the prompt in classify.py, no longer configured via yaml.
+# 16 classes + OTHER fallback, see docs/16_classification.md for details.

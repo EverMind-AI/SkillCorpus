@@ -1,4 +1,4 @@
-"""Round B 新增测试:LLM quality judge + compute_quality 新权重."""
+"""Round B new tests: LLM quality judge + compute_quality new weights."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def test_quality_judge_cache_and_normalize():
     assert j1.cached is False
     assert judge.llm.call_count == 1
 
-    # 第二次命中 cache
+    # the second call hits the cache
     j2 = judge.score(rec)
     assert j2.cached is True
     assert j2.normalized == expected / 10.0
@@ -82,11 +82,11 @@ def test_quality_judge_hard_gate_and_fails_gracefully():
     assert j.score == 0.0
     assert j.normalized == 0.0
 
-    # 越界子分 (utility=13) → 解析拒绝 → None
+    # out-of-range sub-score (utility=13) → parse rejects → None
     judge_oob = LLMQualityJudge(_FakeLLM(utility=13), _fresh_conn())
     assert judge_oob.score(_make_rec(content_hash="h_oob")) is None
 
-    # LLM 返回非 JSON → None
+    # LLM returns non-JSON → None
     class _BadLLM:
         def chat(self, *a, **kw): return None
     bad_judge = LLMQualityJudge(_BadLLM(), _fresh_conn())
@@ -101,11 +101,11 @@ def test_compute_no_cache_bypasses_db():
     j = judge.compute_no_cache(rec)
     assert j is not None
     assert j.score == synthesize_score(6, 6, 6, [])
-    # cache 为空 (compute_no_cache 不写 DB)
+    # cache is empty (compute_no_cache does not write the DB)
     row = conn.execute("SELECT COUNT(*) FROM quality_judgments").fetchone()
     assert row[0] == 0
 
-    # 主线程手动 put
+    # main thread puts it manually
     judge.cache_put(rec.content_hash, j)
     row = conn.execute("SELECT COUNT(*) FROM quality_judgments").fetchone()
     assert row[0] == 1
@@ -121,13 +121,13 @@ def test_get_cached_score():
 
 
 # ----------------------------------------------------------------------
-# compute_quality 新权重
+# compute_quality new weights
 # ----------------------------------------------------------------------
 
 def test_compute_quality_llm_dominates():
-    """llm_score=1.0 应显著提升最终 quality, 即使 source 低."""
+    """llm_score=1.0 should significantly raise the final quality, even when the source is low."""
     kw = dict(
-        source="awesome:foo/bar",  # 默认权重 custom=0.5
+        source="awesome:foo/bar",  # default weight custom=0.5
         source_weights={"anthropics": 1.0, "custom": 0.5},
         body_len=3000, desc_len=150, frontmatter={"tags": ["a"], "license": "MIT"},
         has_scripts=False, has_references=False, safety_flags=[],
@@ -136,28 +136,28 @@ def test_compute_quality_llm_dominates():
     q_high_llm = compute_quality(**kw, llm_score=1.0)
     q_low_llm = compute_quality(**kw, llm_score=0.1)
 
-    # LLM high 应显著比 no_llm 高, 显著比 LLM low 高
+    # LLM high should be significantly above no_llm, and significantly above LLM low
     assert q_high_llm > q_no_llm + 0.05
     assert q_high_llm > q_low_llm + 0.2
 
 
 def test_compute_quality_source_weight_reduced():
-    """同一 skill 换成 anthropics (1.0) 对比 custom (0.5), delta 应不超过 ~0.2 (旧版 ~0.35)."""
+    """Switching the same skill from custom (0.5) to anthropics (1.0), the delta should stay under ~0.2 (old version ~0.35)."""
     base = dict(
         source_weights={"anthropics": 1.0, "custom": 0.5},
         body_len=3000, desc_len=150, frontmatter={},
         has_scripts=False, has_references=False, safety_flags=[],
-        llm_score=0.7,  # 启用新权重
+        llm_score=0.7,  # enable the new weights
     )
     q_anth = compute_quality(source="anthropics", **base)
     q_cust = compute_quality(source="custom", **base)
-    # source 只贡献 0.15 权重, 差值应 <= 0.15 * (1.0 - 0.5) = 0.075
+    # source contributes only 0.15 weight, so the delta should be <= 0.15 * (1.0 - 0.5) = 0.075
     assert q_anth - q_cust <= 0.08
     assert q_anth > q_cust
 
 
 def test_compute_quality_fallback_without_llm():
-    """llm_score=None 走老权重 (source 0.35), 保证兼容."""
+    """llm_score=None uses the old weights (source 0.35), ensuring compatibility."""
     q = compute_quality(
         source="anthropics",
         source_weights={"anthropics": 1.0, "custom": 0.5},
@@ -165,7 +165,7 @@ def test_compute_quality_fallback_without_llm():
         has_scripts=False, has_references=False, safety_flags=[],
         llm_score=None,
     )
-    # anthropics + 3000 字 + 合理 desc, 应 >= 0.6
+    # anthropics + 3000 chars + reasonable desc, should be >= 0.6
     assert q >= 0.6
 
 
@@ -176,7 +176,7 @@ def test_compute_quality_safety_blocked():
         body_len=3000, desc_len=150, frontmatter={},
         has_scripts=True, has_references=True,
         safety_flags=["blocked.malware"],
-        llm_score=1.0,  # 即使 LLM 满分, blocked 直接 0
+        llm_score=1.0,  # even with a perfect LLM score, blocked forces 0
     )
     assert q == 0.0
 

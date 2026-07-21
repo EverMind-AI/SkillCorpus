@@ -1,13 +1,14 @@
-"""Embedding client — SkillRouter 远程 embedding 端点 (POST /embed)。
+"""Embedding client — SkillRouter remote embedding endpoint (POST /embed).
 
-使用方式:
+Usage:
   os.environ["OPENAI_BASE_URL"] = "https://api.openai.com/v1"
   os.environ["OPENAI_API_KEY"]  = "sk-..."
   client = EmbeddingClient(dim=1024, base_url="http://host:1357/new")
   vec = client.embed("hello")
   vecs = client.embed_batch(["a", "b", "c"])
 
-如果环境里没配 key, `embed_batch` 返回 None (调用方跳过入库向量, 仅靠 BM25 检索).
+If no key is configured in the environment, `embed_batch` returns None (the caller skips
+storing vectors and relies on BM25 retrieval only).
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ def _strip_frontmatter(body: str) -> str:
 #   - ingest.py:   "{name}\n{description}\n{body[:2000]}"  (newline, 2000)
 #   - retrieval:   "{name} | {description[:500]} | {strip(body)[:8000]}"
 # The pipe + 8000 form is Tianyi's original (commit 84fd1c2, 2026-04-25),
-# aligned across ingest + export on 2026-05-19. 换 embedding 模型时, 向量空间
-# 变化需对全库 active 行重嵌入后再重导出 mass pool。
+# aligned across ingest + export on 2026-05-19. When switching embedding models, the vector
+# space changes, so all active rows in the corpus must be re-embedded before re-exporting the mass pool.
 # ---------------------------------------------------------------------
 def format_embedding_text(
     name: str,
@@ -59,11 +60,11 @@ def format_embedding_text(
 
 
 class EmbeddingClient:
-    """Embedding 客户端 — SkillRouter 远程推理端点.
+    """Embedding client — SkillRouter remote inference endpoint.
 
-    POST ``<base_url>/embed`` body ``{"texts": [...]}`` →
-    ``{"embeddings": [[...]]}``。当前 base_url = <EMBEDDING_HOST>/new,
-    与 consumer mass pool 用同一端点/同一向量空间 (label embedding-our-new)。
+    POST ``<base_url>/embed`` with body ``{"texts": [...]}`` →
+    ``{"embeddings": [[...]]}``. The current base_url = <EMBEDDING_HOST>/new,
+    using the same endpoint / same vector space as the consumer mass pool (label embedding-our-new).
     """
 
     def __init__(
@@ -82,7 +83,7 @@ class EmbeddingClient:
         self._available: bool | None = None
 
     def is_available(self) -> bool:
-        """是否能连通 (会做一次 lightweight 探测)."""
+        """Whether the endpoint is reachable (performs one lightweight probe)."""
         if self._available is not None:
             return self._available
         if not self.api_key:
@@ -96,7 +97,7 @@ class EmbeddingClient:
         return self._available
 
     def embed(self, text: str) -> list[float] | None:
-        """Skip is_available 检查避免递归 (is_available 内部也调 embed)."""
+        """Skip the is_available check to avoid recursion (is_available also calls embed internally)."""
         if not self.api_key:
             return None
         results = self.embed_batch([text], _skip_avail_check=True)

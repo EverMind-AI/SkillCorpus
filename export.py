@@ -58,10 +58,11 @@ _CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
 
 def _config_embedding() -> tuple[str, int]:
-    """读 config.yaml 的 embedding.model / embedding.dim 作 export 默认值.
+    """Read embedding.model / embedding.dim from config.yaml as the export defaults.
 
-    保证导出的 embedding label 与本仓配置 (= consumer 端配置) 一致, 避免硬编码
-    label 过时导致 mass pool 静默退化为 BM25-only. config 缺失时退回保守默认.
+    Ensures the exported embedding label matches this repo's config (= the consumer-side config),
+    avoiding a hard-coded stale label that would silently degrade the mass pool to BM25-only.
+    Falls back to conservative defaults when config is missing.
     """
     try:
         import yaml
@@ -346,7 +347,7 @@ def export(
     limit: int | None = None,
     refresh_endpoint: str | None = None,
     assets_dir: Path | None = None,
-    embedding_model: str | None = None,   # None → 从 config.yaml embedding.model 读
+    embedding_model: str | None = None,   # None → read from config.yaml embedding.model
     embedding_dim: int | None = None,     # None → config.yaml embedding.dim
 ) -> dict[str, int]:
     """Stream active producer rows → mass_library.db. Returns stats.
@@ -365,9 +366,10 @@ def export(
     if not src_db.exists():
         raise FileNotFoundError(f"producer DB not found: {src_db}")
 
-    # embedding label/dim 必须与 consumer 端一致, 否则 runtime 按 label 匹配失败,
-    # 静默丢 embedding 列 → mass pool 退化 BM25-only. 默认从 config.yaml 取, 保证
-    # 与本仓真实模型一致 (不再硬编码可能过时的 pipizhao label).
+    # The embedding label/dim must match the consumer side, otherwise the runtime label-matching
+    # fails and the embedding column is silently dropped → the mass pool degrades to BM25-only.
+    # Read from config.yaml by default so it stays consistent with this repo's actual model
+    # (no longer hard-coding a possibly-stale pipizhao label).
     if embedding_model is None or embedding_dim is None:
         _cfg_model, _cfg_dim = _config_embedding()
         if embedding_model is None:
@@ -492,7 +494,7 @@ def _safe_json(s: str | None):
         return None
 
 
-# ════════ incremental update — 原地更新已有 mass pool (不整库重导) ════════
+# ════════ incremental update — update the existing mass pool in place (no full re-export) ════════
 def _producer_active_rows(src_db: Path):
     """Yield producer rows with ``active=1 AND deleted=0`` as sqlite3.Row.
 
@@ -659,7 +661,7 @@ def sync(
     *,
     update_existing: bool = False,
     assets_dir: Path | None = None,
-    embedding_model: str | None = None,   # None → config.yaml embedding.model (与 consumer 一致)
+    embedding_model: str | None = None,   # None → config.yaml embedding.model (consistent with consumer)
     embedding_dim: int | None = None,
     dry_run: bool = False,
     do_backup: bool = True,
@@ -888,23 +890,23 @@ def main() -> int:
                          "column so {baseDir} substitutions resolve. "
                          "Defaults to --src (works zero-config on same machine).")
     ap.add_argument("--embedding-model", default=None,
-                    help="embedding model name stamped on each row (必须与 consumer "
-                         "config.embedding_model 一致, 否则 runtime 静默丢 embedding). "
-                         "默认从 config.yaml embedding.model 读")
+                    help="embedding model name stamped on each row (must match the consumer's "
+                         "config.embedding_model, otherwise the runtime silently drops the embedding). "
+                         "Read from config.yaml embedding.model by default")
     ap.add_argument("--embedding-dim", type=int, default=None,
-                    help="默认从 config.yaml embedding.dim 读")
+                    help="read from config.yaml embedding.dim by default")
     ap.add_argument("--incremental", action="store_true",
-                    help="增量更新已存在的 mass_library.db (按 content_hash diff "
-                         "插入新行/删失活行), 而非全量重写")
+                    help="incrementally update the existing mass_library.db (diff by content_hash to "
+                         "insert new rows / delete deactivated rows), rather than a full rewrite")
     ap.add_argument("--update-existing", action="store_true",
-                    help="(配合 --incremental) 同时刷新两边都有的行的 metadata")
+                    help="(with --incremental) also refresh the metadata of rows present on both sides")
     ap.add_argument("--no-backup", action="store_true",
-                    help="(配合 --incremental) 跳过 .backup-<ts> sidecar")
+                    help="(with --incremental) skip the .backup-<ts> sidecar")
     ap.add_argument("--dry-run", action="store_true",
-                    help="(配合 --incremental) 只打印 delta 不写")
+                    help="(with --incremental) only print the delta, don't write")
     args = ap.parse_args()
 
-    # --- 增量模式: 走 sync() 原地更新已有 mass pool, 直接返回 ---
+    # --- incremental mode: go through sync() to update the existing mass pool in place, then return ---
     if args.incremental:
         assets = args.assets_dir or args.src
         stats = sync(
@@ -916,7 +918,7 @@ def main() -> int:
         print(f"\nstats: {json.dumps(stats, indent=2)}")
         return 0
 
-    # 解析 embedding 默认 (与 export() 内逻辑一致, 这里先算出来便于打印)
+    # Resolve the embedding defaults (same logic as inside export(); computed here up-front for printing)
     _cfg_model, _cfg_dim = _config_embedding()
     emb_model = args.embedding_model or _cfg_model
     emb_dim = args.embedding_dim or _cfg_dim

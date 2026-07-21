@@ -182,11 +182,12 @@ def run_refresh(
     dry_run: bool = False,
     lib_root: str | Path | None = None,
 ) -> int:
-    """一键全流程: 读注册表 → 每源 discover → clone/pull → ingest → rescan_quality
-    → export。空库自动 init (SkillLibrary.open 内置 init_schema)。
+    """One-shot full pipeline: read the registry → discover per source → clone/pull → ingest →
+    rescan_quality → export. An empty library auto-inits (SkillLibrary.open has init_schema built in).
 
-    force=True → 忽略 cadence 全跑 (从零建库用); force=False → 按 cadence 增量。
-    被 ``main()`` (CLI argv) 和 ``cli.py:build`` 子命令共用。
+    force=True → ignore cadence and run everything (for building a library from scratch);
+    force=False → incremental by cadence.
+    Shared by ``main()`` (CLI argv) and the ``cli.py:build`` subcommand.
     """
     cfg = _load_yaml(Path(config))
     sources = cfg.get("sources", []) or []
@@ -216,16 +217,16 @@ def run_refresh(
     pre_total = lib.stats()["total"]
 
     summary: list[dict] = []
-    # git_clone / lobehub_json 是"自身即内容"的源 → ingest 用 entry 的 source_label;
-    # readme_scrape / index_api / sitemap_scrape / json_catalog 是"发现型"源 →
-    # 展开成多个 repo, 每个 repo 用它自己的 owner/repo 作 source label (与全量
-    # crawl ingest 行为一致, DB 里就是按 owner/repo 记 source 的).
+    # git_clone / lobehub_json are "content-is-itself" sources → ingest uses the entry's source_label;
+    # readme_scrape / index_api / sitemap_scrape / json_catalog are "discovery" sources →
+    # expanded into multiple repos, each repo using its own owner/repo as the source label (consistent
+    # with full crawl-ingest behavior, where the DB records source by owner/repo).
     self_types = {"git_clone", "lobehub_json"}
     for s in due:
         name, typ = s["name"], s["type"]
         print(f"\n=== {name} ({s.get('pull_cadence')}, {typ}) ===", flush=True)
 
-        # discover: 该源要 ingest 哪些 repo (自身 or 展开)
+        # discover: which repos this source should ingest (itself or expanded)
         try:
             repos = discover_repos(s)
         except Exception as e:
@@ -239,7 +240,7 @@ def run_refresh(
                   flush=True)
             continue
 
-        # clone/pull + ingest 每个发现的 repo
+        # clone/pull + ingest each discovered repo
         added_total = 0
         ok = 0
         for owner, repo in repos:
@@ -260,16 +261,16 @@ def run_refresh(
         summary.append({"name": name, "repos": len(repos),
                         "ingested": ok, "added": added_total})
 
-        # 标记 last_success 只在"有进展"时: 至少 ingest 成功一个, 或本就没 repo 可做。
-        # 若发现了 repo 但全部 clone/ingest 失败 (ok==0), 不标成功 → 下个 cadence 重试,
-        # 避免坏源被永久跳过。
+        # mark last_success only on "progress": at least one ingest succeeded, or there were no
+        # repos to do. If repos were discovered but all clone/ingest failed (ok==0), don't mark
+        # success → retry on the next cadence, avoiding a bad source being skipped forever.
         if ok > 0 or not repos:
             state.setdefault(name, {})["last_success"] = (
                 datetime.now(timezone.utc).isoformat()
             )
             state[name]["last_added"] = added_total
         else:
-            print(f"  !! {name}: 发现 {len(repos)} repo 但全部失败, 不标记成功 (下次重试)",
+            print(f"  !! {name}: discovered {len(repos)} repo but all failed, not marking success (retry next time)",
                   flush=True)
         _save_state(state)
 

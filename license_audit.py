@@ -1,22 +1,22 @@
-"""License audit — 单点维护 source license metadata.
+"""License audit — single-entry maintenance of source license metadata.
 
-整合了原来散落的脚本:
+Consolidates the formerly scattered scripts:
   scripts/_archive/enrich_unmapped_licenses.py   →  ``refresh``
-  (人工 SQL 重建 license_safe_sources.json)      →  ``build``
-  (无)                                            →  ``validate``
-  enrich_unmapped_licenses.py 的 step 4           →  ``apply``
-  (无)                                            →  ``stats``
+  (manual SQL rebuild of license_safe_sources.json)  →  ``build``
+  (none)                                          →  ``validate``
+  step 4 of enrich_unmapped_licenses.py           →  ``apply``
+  (none)                                          →  ``stats``
 
-每个子命令独立可跑, 也可以 ``refresh && build && apply`` 串起来当周/月例行.
+Each subcommand runs standalone, or they can be chained as ``refresh && build && apply`` for a weekly/monthly routine.
 
-数据流:
+Data flow:
     GitHub API (spdx_id)
-        ↓ refresh (并发 fetch, 增量 append)
-    source_license_report.csv  (源 → category 映射)
+        ↓ refresh (concurrent fetch, incremental append)
+    source_license_report.csv  (source → category mapping)
         ↓ build  (filter to GREEN_LICENSES)
-    license_safe_sources.json  (运行时白名单)
+    license_safe_sources.json  (runtime whitelist)
         ↓ apply (backfill DB skills.license)
-    data/index.db skills.license  (per-skill 落地)
+    data/index.db skills.license  (per-skill persistence)
 
 Usage:
     GITHUB_TOKEN=ghp_xxx python3 -m skill_library.license_audit refresh
@@ -369,42 +369,44 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
-# activate — 把 skills.active 对齐 GREEN 白名单 (升级回填)
+# activate — align skills.active with the GREEN whitelist (upgrade backfill)
 # ---------------------------------------------------------------------------
 def cmd_activate(args: argparse.Namespace) -> int:
-    """把 skills.active 列对齐 GREEN 白名单 (active=1 iff source ∈ whitelist, deleted=0).
+    """Align the skills.active column with the GREEN whitelist (active=1 iff source ∈ whitelist, deleted=0).
 
-    用途: store.insert 仅对**新插入**行按 GREEN 设 active;老 DB 升级时
-    `_migrate` 新增的 active 列默认全 0, 没有任何路径把存量 GREEN 行设回 1,
-    导致升级后 export (WHERE active=1) 产出空库。升级后跑一次本命令修复。
-    幂等: 重复跑结果不变。白名单来自 license_safe_sources.json (与 store 同源)。
+    Purpose: store.insert sets active per GREEN only for **newly inserted** rows; when an
+    old DB is upgraded, the active column added by `_migrate` defaults to all 0, and no path
+    sets existing GREEN rows back to 1, so after the upgrade export (WHERE active=1) produces
+    an empty library. Run this command once after an upgrade to fix it.
+    Idempotent: rerunning yields the same result. The whitelist comes from license_safe_sources.json (same source as store).
     """
     json_path = Path(args.json)
     db_path = Path(args.db)
     if not json_path.exists():
-        print(f"ERROR: whitelist JSON not found: {json_path} (先跑 build)", file=sys.stderr)
+        print(f"ERROR: whitelist JSON not found: {json_path} (run build first)", file=sys.stderr)
         return 1
     green_sources = set(json.loads(json_path.read_text(encoding="utf-8")).get("sources", []))
     if not green_sources:
-        print("ERROR: whitelist 为空, 拒绝把全库 active 清 0", file=sys.stderr)
+        print("ERROR: whitelist is empty; refusing to clear active to 0 for the whole library", file=sys.stderr)
         return 1
 
     con = sqlite3.connect(db_path)
     before = con.execute("SELECT COUNT(*) FROM skills WHERE active=1 AND deleted=0").fetchone()[0]
     con.execute("CREATE TEMP TABLE _green(source TEXT PRIMARY KEY)")
     con.executemany("INSERT OR IGNORE INTO _green VALUES (?)", [(s,) for s in green_sources])
-    # 只激活: GREEN 源里当前 active!=1 的行。**不停用**任何行 (active=0 的非 GREEN
-    # 保持 0; 已 active=1 的非 GREEN 也不动) — 避免回溯停用既有行。
+    # Activate only: rows from GREEN sources currently having active!=1. **Deactivate** no rows
+    # (non-GREEN rows with active=0 stay 0; non-GREEN rows already at active=1 are left alone) — to
+    # avoid retroactively deactivating existing rows.
     to_activate = con.execute(
         "SELECT COUNT(*) FROM skills WHERE deleted=0 AND active!=1 "
         "AND source IN (SELECT source FROM _green)"
     ).fetchone()[0]
     print(f"whitelist GREEN sources: {len(green_sources):,}")
-    print(f"将激活 (GREEN 且当前非 active): {to_activate:,}  (active=1 现状 {before:,})")
+    print(f"to activate (GREEN and currently not active): {to_activate:,}  (current active=1 {before:,})")
 
     if args.dry_run:
         con.execute("DROP TABLE _green")
-        print("(dry-run, 未写入)")
+        print("(dry-run, nothing written)")
         return 0
 
     cur = con.cursor()
@@ -415,7 +417,7 @@ def cmd_activate(args: argparse.Namespace) -> int:
     con.execute("DROP TABLE _green")
     con.commit()
     after = con.execute("SELECT COUNT(*) FROM skills WHERE active=1 AND deleted=0").fetchone()[0]
-    print(f"done: active=1 {before:,} → {after:,} (新激活 {cur.rowcount:,} 行, 未停用任何行)")
+    print(f"done: active=1 {before:,} → {after:,} (newly activated {cur.rowcount:,} rows, no rows deactivated)")
     return 0
 
 
@@ -515,9 +517,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dry-run", action="store_true")
     sp.set_defaults(func=cmd_apply)
 
-    # activate (升级回填: active 列对齐 GREEN 白名单)
+    # activate (upgrade backfill: align the active column with the GREEN whitelist)
     sp = sub.add_parser("activate",
-                        help="把 skills.active 对齐 GREEN 白名单 (老 DB 升级后必跑, 否则 export 空)")
+                        help="align skills.active with the GREEN whitelist (must be run after an old DB upgrade, otherwise export is empty)")
     _add_common(sp)
     sp.add_argument("--json", default=str(DEFAULT_JSON))
     sp.add_argument("--dry-run", action="store_true")

@@ -1,5 +1,5 @@
-"""License filter 一致性测试 — JSON whitelist 的 green_categories 必须与代码
-GREEN_LICENSES 完全一致 (防 iter3 的 0BSD 缺失类 drift)."""
+"""License filter consistency test — the JSON whitelist's green_categories must exactly
+match the code's GREEN_LICENSES (guards against the iter3 drift where the 0BSD category went missing)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def test_json_green_categories_matches_code():
     data = json.loads(json_path.read_text(encoding="utf-8"))
     assert set(data["green_categories"]) == set(GREEN_LICENSES), (
         f"green_categories drift: json={sorted(data['green_categories'])} "
-        f"code={sorted(GREEN_LICENSES)}; 跑 `python -m skill_library.license_audit build` 重生成"
+        f"code={sorted(GREEN_LICENSES)}; run `python -m skill_library.license_audit build` to regenerate"
     )
 
 

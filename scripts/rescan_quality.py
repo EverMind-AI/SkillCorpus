@@ -1,15 +1,15 @@
-"""Round B backfill — 对所有 active skill 跑 LLM 质量打分.
+"""Round B backfill — run LLM quality scoring over all active skills.
 
-流程:
-  1. 遍历所有 deleted=0 skill
-  2. 并发 (ThreadPoolExecutor) 调 quality_judge.score(rec)
-  3. 结果自动写入 quality_judgments 表, 已 cache 的 skipped
-  4. 输出 score 直方图 + avg/min/max
+Flow:
+  1. iterate over all deleted=0 skills
+  2. concurrently (ThreadPoolExecutor) call quality_judge.score(rec)
+  3. results are written to the quality_judgments table automatically; already-cached ones are skipped
+  4. output a score histogram + avg/min/max
 
-本次不修改 skills.quality_score (那是 Round B-3 做的 —
-        quality.compute_quality 重构后统一重算).
+This run does not modify skills.quality_score (that is Round B-3's job —
+        recomputed uniformly after the quality.compute_quality refactor).
 
-用法:
+Usage:
     python -m skill_library.scripts.rescan_quality [--lib PATH] [--limit N] [--workers 8]
 """
 
@@ -32,22 +32,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", default=None)
     ap.add_argument("--limit", type=int, default=None,
-                    help="只跑前 N 个 active skill (调试用)")
+                    help="only process the first N active skills (for debugging)")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--skip-cached", action="store_true", default=True,
-                    help="跳过已判过的 content_hash (默认 True, cache 命中)")
+                    help="skip already-judged content_hash (default True, cache hit)")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
     lib = SkillLibrary(args.lib).open()
     if lib.quality_judge is None:
-        print("LLM quality judge unavailable — 退出", file=sys.stderr)
+        print("LLM quality judge unavailable — exiting", file=sys.stderr)
         lib.close()
         sys.exit(1)
 
     conn = lib.store._connect()
-    # 主线程批量加载 (skill_id, content_hash, name, description, body) 避免
-    # worker 线程碰 SQLite (Python sqlite3 默认不允许跨线程)
+    # main thread bulk-loads (skill_id, content_hash, name, description, body) to avoid
+    # worker threads touching SQLite (Python sqlite3 disallows cross-thread use by default)
     rows = conn.execute(
         "SELECT skill_id, content_hash, name, description, body "
         "FROM skills WHERE deleted = 0 ORDER BY skill_id"
@@ -66,7 +66,7 @@ def main():
     if cached_hashes:
         print(f"existing cached judgments: {len(cached_hashes)} (will be skipped)")
 
-    # 过滤出需要跑 LLM 的 work list (没 cache 的)
+    # filter out the work list that needs the LLM (those without cache)
     work_list = [r for r in rows if r["content_hash"] not in cached_hashes]
     skipped_cached = total - len(work_list)
     print(f"to score: {len(work_list)}  skipped_cached: {skipped_cached}")
@@ -74,7 +74,7 @@ def main():
     from skill_library.store import SkillRecord
 
     def _worker_score(row):
-        """Worker: 构造 SkillRecord, 调 compute_no_cache (纯 LLM, 无 SQLite)."""
+        """Worker: build a SkillRecord, call compute_no_cache (pure LLM, no SQLite)."""
         rec = SkillRecord(
             skill_id=row["skill_id"], content_hash=row["content_hash"],
             name=row["name"], description=row["description"], body=row["body"],
@@ -110,7 +110,7 @@ def main():
 
     elapsed = time.time() - t0
 
-    # 汇总 (含之前 cache 的 + 本次新打)
+    # aggregate (includes previously cached + newly scored this run)
     stats = lib.quality_judge.stats()
     hist = lib.quality_judge.histogram()
 

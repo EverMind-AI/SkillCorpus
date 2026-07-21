@@ -1,11 +1,11 @@
 # =============================================================
 # Data models (originally skill_library/models.py)
 # =============================================================
-"""数据模型 + SQLite schema.
+"""Data models + SQLite schema.
 
-SkillRecord 改造自 OpenSpace 的 SkillRecord:
-  - 去掉 4 计数器 / lineage / evolution 字段 (不做执行追踪和进化)
-  - 加 source / category / tags / quality_score / safety_flags 等库管理字段
+SkillRecord is adapted from OpenSpace's SkillRecord:
+  - drops the 4 counters / lineage / evolution fields (no execution tracking or evolution)
+  - adds library-management fields like source / category / tags / quality_score / safety_flags
 """
 
 from __future__ import annotations
@@ -17,39 +17,39 @@ from typing import Any
 
 
 class Category(str, Enum):
-    """主分类 LLM — 16 类(含 OTHER 兜底)。
+    """Primary LLM category — 16 classes (including the OTHER fallback).
 
-    设计文档: ../docs/16_classification.md
-    历史: 旧 15+1 类(CODING/BACKEND/AUTOMATION/...) 已 2026-05-20 替换。
+    Design doc: ../docs/16_classification.md
+    History: the old 15+1 classes (CODING/BACKEND/AUTOMATION/...) were replaced on 2026-05-20.
     """
-    # 软件开发栈 5 类
+    # software development stack, 5 classes
     DEV = "DEV"
     FRONTEND_UI = "FRONTEND-UI"
     DEVOPS_INFRA = "DEVOPS-INFRA"
     TESTING = "TESTING"
     SECURITY = "SECURITY"
 
-    # 数据 / AI 2 类
+    # data / AI, 2 classes
     DATA = "DATA"
     AI_ML = "AI-ML"
 
-    # 认证 1 类
+    # authentication, 1 class
     AUTH = "AUTH"
 
-    # 内容输出 4 类
+    # content output, 4 classes
     DOC_PROC = "DOC-PROC"
     WRITING = "WRITING"
     MULTIMEDIA = "MULTIMEDIA"
     COMMS = "COMMS"
 
-    # 流程 / 办公 2 类
+    # workflow / office, 2 classes
     WORKFLOW = "WORKFLOW"
     PRODUCTIVITY = "PRODUCTIVITY"
 
-    # 元工具 1 类
+    # meta-tooling, 1 class
     META = "META"
 
-    # 兜底
+    # fallback
     OTHER = "OTHER"
 
 
@@ -57,71 +57,71 @@ CATEGORIES: list[str] = [c.value for c in Category]
 
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
-    "DEV":          "通用编码 / SaaS API 集成 / SDK wrapper / 通用后端逻辑",
-    "FRONTEND-UI":  "前端 / 移动 / UI 组件 / 设计系统 / 可视布局",
-    "DEVOPS-INFRA": "CI/CD / 部署 / 容器 / k8s / 云基础设施 / 监控",
-    "DATA":         "结构化/量化输出 — 数据工程 / ETL / 数据库 / SQL / BI / 分析 / 参考库",
-    "AI-ML":        "产物即 AI 系统 — agent / persona / 多 agent / RAG / 训练推理",
-    "TESTING":      "软件/硬件测试 — 单测 / 集成 / E2E / fuzz / QA / debug / 测试规划",
-    "SECURITY":     "漏洞扫描 / pen-test / 加密 / 威胁检测 / 审计 / forensics",
-    "AUTH":         "认证 / 授权 / OAuth / SSO / IAM / token / 权限管理",
-    "DOC-PROC":     "处理已有文档 — pdf/docx/xlsx/pptx/md 解析提取转换",
-    "WRITING":      "生成原创 prose — 文章/邮件/报告/战略文档/咨询/总结",
-    "MULTIMEDIA":   "图 / 视频 / 音频 生成或处理",
-    "COMMS":        "消息渠道集成 — 邮件/IM/Slack/Teams/Discord/钉钉/微信",
-    "WORKFLOW":     "多步业务流程 / playbook / 跨步骤编排(非 AI agent / 非 CI/CD)",
-    "PRODUCTIVITY": "单点办公 — 日程/预约/admin/笔记/单步记录",
-    "META":         "skill 创建/管理工具 — skill builder / 注册中心 / MCP server",
-    "OTHER":        "纯 lifestyle / 学术 / 工程长尾 — 无适配活动",
+    "DEV":          "General coding / SaaS API integration / SDK wrappers / generic backend logic",
+    "FRONTEND-UI":  "Frontend / mobile / UI components / design systems / visual layout",
+    "DEVOPS-INFRA": "CI/CD / deployment / containers / k8s / cloud infrastructure / monitoring",
+    "DATA":         "Structured/quantitative output — data engineering / ETL / databases / SQL / BI / analysis / reference DBs",
+    "AI-ML":        "Deliverable is an AI system itself — agent / persona / multi-agent / RAG / training and inference",
+    "TESTING":      "Software/hardware testing — unit / integration / E2E / fuzz / QA / debug / test planning",
+    "SECURITY":     "Vulnerability scanning / pen-test / encryption / threat detection / audit / forensics",
+    "AUTH":         "Authentication / authorization / OAuth / SSO / IAM / token / permission management",
+    "DOC-PROC":     "Processing existing documents — parse, extract, convert pdf/docx/xlsx/pptx/md",
+    "WRITING":      "Generating original prose — articles/emails/reports/strategy documents/advisory/summaries",
+    "MULTIMEDIA":   "Image / video / audio generation or processing",
+    "COMMS":        "Messaging channel integration — email/IM/Slack/Teams/Discord/DingTalk/WeChat",
+    "WORKFLOW":     "Multi-step business workflows / playbooks / cross-step orchestration (not AI agent / not CI/CD)",
+    "PRODUCTIVITY": "Single-task office work — scheduling/booking/admin/notes/single-step records",
+    "META":         "Skill creation/management tooling — skill builders / registries / MCP servers",
+    "OTHER":        "Pure lifestyle / academic / engineering long-tail — no fitting activity",
 }
 
 
 @dataclass
 class SkillRecord:
-    """Skill 记录 — 库的核心数据模型."""
+    """Skill record — the library's core data model."""
 
-    # --- 身份 ---
+    # --- identity ---
     skill_id: str                       # {source}__{name_slug}__{hash8}
-    name: str                           # frontmatter 里的 name
-    description: str                    # frontmatter 里的 description
-    body: str                           # SKILL.md 正文 (不含 frontmatter)
+    name: str                           # name from the frontmatter
+    description: str                    # description from the frontmatter
+    body: str                           # SKILL.md body (excluding frontmatter)
     frontmatter_raw: dict[str, Any] = field(default_factory=dict)
 
-    # --- 来源 ---
+    # --- source ---
     source: str = ""                    # "anthropics" | "karanb192" | "clawhub" | ...
     source_url: str | None = None
-    source_path: str = ""               # 原仓库内相对路径
+    source_path: str = ""               # relative path within the original repo
     license: str | None = None
 
-    # --- 内容 hash (去重用) ---
+    # --- content hash (for dedup) ---
     content_hash: str = ""              # SHA-256 (normalized body)
     name_hash: str = ""                 # SHA-256 (lowercased name)
 
-    # --- 分类 ---
+    # --- classification ---
     category: str = Category.OTHER.value
     tags: list[str] = field(default_factory=list)
 
-    # --- 质量 ---
+    # --- quality ---
     quality_score: float = 0.0          # 0.0 - 1.0
     safety_flags: list[str] = field(default_factory=list)
-    body_tokens: int = 0                # 粗略 tiktoken 估算
+    body_tokens: int = 0                # rough tiktoken estimate
 
-    # --- 结构特征 ---
+    # --- structural features ---
     has_scripts: bool = False
     has_references: bool = False
 
-    # --- 状态 ---
-    deleted: bool = False               # soft delete 标记
-    # 跨 source 近似去重后被合并的 skill 会记录 winner 的 skill_id
-    # (同时 deleted=True). 这样 winner 对应的文件/元数据仍可追溯.
+    # --- status ---
+    deleted: bool = False               # soft-delete marker
+    # a skill merged after cross-source near-dup detection records the winner's skill_id
+    # (with deleted=True). This keeps the winner's files/metadata traceable.
     superseded_by: str | None = None
 
-    # --- 时间 ---
+    # --- timestamps ---
     added_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-    # --- 可选存储路径 ---
-    stored_path: str = ""               # 库内存储路径 (相对 library root)
+    # --- optional storage path ---
+    stored_path: str = ""               # in-library storage path (relative to library root)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS skills (
     has_scripts INTEGER NOT NULL DEFAULT 0,            -- 0/1
     has_references INTEGER NOT NULL DEFAULT 0,
     deleted INTEGER NOT NULL DEFAULT 0,
-    superseded_by TEXT,                                -- 被近似去重合并时指向 winner skill_id
+    superseded_by TEXT,                                -- points to the winner skill_id when merged by near-dup detection
     added_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     stored_path TEXT NOT NULL DEFAULT '',
@@ -169,7 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_skills_content_hash ON skills(content_hash);
 CREATE INDEX IF NOT EXISTS idx_skills_name_hash    ON skills(name_hash);
 CREATE INDEX IF NOT EXISTS idx_skills_name         ON skills(name);
 CREATE INDEX IF NOT EXISTS idx_skills_deleted      ON skills(deleted);
--- superseded_by 索引由 store._migrate() 在 ALTER TABLE 之后创建
+-- the superseded_by index is created by store._migrate() after the ALTER TABLE
 """
 
 # Vector table (sqlite-vec). Created separately in store.py since it
@@ -180,19 +180,19 @@ VEC_TABLE_NAME = "vec_skills"
 # Storage layer (originally skill_library/storage.py, now merged here)
 # =============================================================
 #
-# Storage layer: SQLite (元数据) + sqlite-vec (向量, source of truth) + filesystem (源文件).
+# Storage layer: SQLite (metadata) + sqlite-vec (vectors, source of truth) + filesystem (source files).
 #
-# 改造自 OpenSpace openspace/skill_engine/store.py:
-#   - 去掉 evolution_suggestions / execution_analyses / tool_quality 表
-#   - 保留 skills 表 + 向量索引
-#   - 同步 (sync) 接口, 非 async
+# Adapted from OpenSpace openspace/skill_engine/store.py:
+#   - drops the evolution_suggestions / execution_analyses / tool_quality tables
+#   - keeps the skills table + vector index
+#   - synchronous (sync) interface, not async
 #
-# 向量检索路径 (2026-04-29 优化):
-#   - 写入仍走 sqlite-vec (vec_skills 表是 source of truth, 不丢)
-#   - 读取 (vector_search / find_near_duplicates) 优先走 faiss HNSW 索引
-#     (实测 80K 行 cosine top-5: sqlite-vec 800ms → faiss 0.4ms, ~2000x)
-#   - faiss 索引文件 ``<db_dir>/skill_index.faiss`` + ``skill_index_ids.json``
-#     缺失时自动从 vec_skills rebuild; 长期累积漂移可手动 rebuild_faiss_index()
+# Vector retrieval path (optimized 2026-04-29):
+#   - writes still go through sqlite-vec (the vec_skills table is the source of truth, never lost)
+#   - reads (vector_search / find_near_duplicates) prefer the faiss HNSW index
+#     (measured on 80K rows, cosine top-5: sqlite-vec 800ms → faiss 0.4ms, ~2000x)
+#   - the faiss index files ``<db_dir>/skill_index.faiss`` + ``skill_index_ids.json``
+#     are rebuilt automatically from vec_skills when missing; long-term accumulated drift can be manually fixed with rebuild_faiss_index()
 
 import json
 import logging
@@ -206,7 +206,7 @@ from typing import Any
 import sqlite_vec
 
 
-# faiss 是硬依赖 (dedup 近邻检索走它, 无 "没装 faiss" 的软降级路径)。
+# faiss is a hard dependency (dedup nearest-neighbor search uses it, there is no "faiss not installed" soft-degrade path).
 import faiss
 import numpy as np
 
@@ -227,7 +227,7 @@ logger = logging.getLogger("skill_library.store")
 
 
 class SkillStore:
-    """SQLite + sqlite-vec 持久化."""
+    """SQLite + sqlite-vec persistence."""
 
     def __init__(self, db_path: Path, embedding_dim: int = 1536):
         self.db_path = Path(db_path)
@@ -283,7 +283,7 @@ class SkillStore:
         return conn
 
     def init_schema(self) -> None:
-        """创建所有表 (幂等) + 运行必要的小型迁移."""
+        """Create all tables (idempotent) + run any necessary small migrations."""
         conn = self._connect()
         conn.executescript(SCHEMA_SQL)
         conn.execute(
@@ -298,19 +298,19 @@ class SkillStore:
         self._migrate()
 
     def _migrate(self) -> None:
-        """幂等迁移 — 给老 DB 加新列 / 重算 hash. 用 user_version 跟踪状态."""
+        """Idempotent migration — add new columns to old DBs / recompute hashes. Uses user_version to track state."""
         conn = self._connect()
         existing_cols = {
             r[1] for r in conn.execute("PRAGMA table_info(skills)").fetchall()
         }
-        # Round A (1): 加 superseded_by 列
+        # Round A (1): add the superseded_by column
         if "superseded_by" not in existing_cols:
             conn.execute("ALTER TABLE skills ADD COLUMN superseded_by TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_skills_superseded_by ON skills(superseded_by)"
             )
             logger.info("migrated: added skills.superseded_by column")
-        # License-gate (2): 加 active 列 (old DBs created before the GREEN
+        # License-gate (2): add the active column (old DBs created before the GREEN
         # filter existed). New DBs get it from SCHEMA_SQL; this is the
         # backfill path for pre-existing index.db without the column.
         if "active" not in existing_cols:
@@ -321,7 +321,7 @@ class SkillStore:
             logger.info("migrated: added skills.active column")
         conn.commit()
 
-        # Round A (2): 重算所有 name_hash 为 canonical 形式, 一次性
+        # Round A (2): recompute all name_hash to the canonical form, one-time
         cur_v = conn.execute("PRAGMA user_version").fetchone()[0]
         if cur_v < 1:
             from .dedup import name_hash as _canonical_name_hash
@@ -493,7 +493,7 @@ class SkillStore:
         raise last_err
 
     def supersede(self, loser_id: str, winner_id: str) -> bool:
-        """把 loser_id 标记为被 winner_id 合并取代 (soft delete + superseded_by)."""
+        """Mark loser_id as merged and superseded by winner_id (soft delete + superseded_by)."""
         conn = self._connect()
         from datetime import datetime, timezone
         cur = conn.execute(
@@ -828,7 +828,7 @@ class SkillStore:
             return out
 
     # ------------------------------------------------------------------
-    # 去重近邻检索 (faiss) — 仅用于入库 dedup, 不是 runtime 搜库。
+    # dedup nearest-neighbor search (faiss) — only for ingest dedup, not runtime library search.
     # ------------------------------------------------------------------
 
     def find_near_duplicates(
@@ -837,11 +837,12 @@ class SkillStore:
         top_k: int = 5,
         min_cosine: float = 0.92,
     ) -> list[tuple[SkillRecord, float]]:
-        """查 embedding 近似重复候选 (faiss HNSW + cosine)。
+        """Find embedding near-dup candidates (faiss HNSW + cosine).
 
-        返回 [(SkillRecord, cosine), ...] 按 cosine 降序, 过滤 >= min_cosine
-        且排除 exclude_skill_id。over-fetch 4× 让软删/废弃邻居不占 top_k 额度
-        (faiss 不能自己过滤 deleted=0; 下面用一次批量查丢掉)。
+        Returns [(SkillRecord, cosine), ...] sorted by cosine descending, filtered to
+        >= min_cosine and excluding exclude_skill_id. Over-fetches 4× so soft-deleted/
+        retired neighbors don't consume the top_k budget (faiss can't filter deleted=0
+        itself; they are dropped below via a single batch query).
         """
         candidates = self._faiss_search(embedding, top_k * 4)
         if not candidates:
@@ -918,10 +919,10 @@ def copy_skill_to_library(
     src_dir: Path, lib_root: Path, source: str, name_slug: str,
     meta: dict | None = None,
 ) -> Path:
-    """把 skill 目录从 src_dir 拷到 lib_root/skills/<source>/<name_slug>/.
+    """Copy the skill directory from src_dir to lib_root/skills/<source>/<name_slug>/.
 
-    保留 SKILL.md + scripts/ + references/ + 所有其他文件.
-    追加 .meta.json 记录 ingest 元数据.
+    Preserves SKILL.md + scripts/ + references/ + all other files.
+    Appends a .meta.json recording the ingest metadata.
     """
     dst_dir = lib_root / "skills" / source / name_slug
     if dst_dir.exists():

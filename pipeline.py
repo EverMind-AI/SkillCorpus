@@ -1,4 +1,4 @@
-"""入库 pipeline 编排 — 串接 parse → safety → quality → dedup → classify → embed → store."""
+"""Ingest pipeline orchestration — chains parse → safety → quality → dedup → classify → embed → store."""
 
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ logger = logging.getLogger("skill_library.pipeline")
 
 class IngestStatus(str, Enum):
     ADDED = "added"
-    DUPLICATE = "duplicate"              # content_hash 精确重复, 新 skill 丢弃
-    MERGED_KEPT_NEW = "merged_kept_new"  # LLM 判近似重复, 新 skill 替换旧 (旧 supersede)
-    MERGED_KEPT_OLD = "merged_kept_old"  # LLM 判近似重复, 旧 skill 更好, 新丢弃
+    DUPLICATE = "duplicate"              # exact content_hash match, new skill discarded
+    MERGED_KEPT_NEW = "merged_kept_new"  # LLM judged near-dup, new skill replaces old (old superseded)
+    MERGED_KEPT_OLD = "merged_kept_old"  # LLM judged near-dup, old skill is better, new discarded
     REJECTED_SAFETY = "rejected_safety"
     REJECTED_QUALITY = "rejected_quality"
     REJECTED_PARSE = "rejected_parse"
@@ -78,7 +78,7 @@ def _drop_subskill_paths(skill_md_paths: list[Path]) -> list[Path]:
 
 
 class Ingester:
-    """入库流水线."""
+    """Ingest pipeline."""
 
     def __init__(
         self,
@@ -96,28 +96,28 @@ class Ingester:
     ):
         self.store = store
         self.lib_root = Path(lib_root)
-        self.classifier = classifier  # LLM 分类器(None → 全部 OTHER)
+        self.classifier = classifier  # LLM classifier (None → everything OTHER)
         self.source_weights = source_weights
         self.thresholds = thresholds
         self.embedder = embedding_client
         self.concurrency = max(1, concurrency)
         self.dup_judge = dup_judge
-        # 去重配置 (embedding 近似去重触发阈值等)
+        # dedup config (embedding near-dup trigger thresholds, etc.)
         d = dedup_cfg or {}
         self._dedup_enabled = bool(d.get("enable_near_dup", True))
         self._dedup_min_cos = float(d.get("near_dup_min_cosine", 0.90))
         self._dedup_auto_cos = float(d.get("near_dup_auto_cosine", 0.995))
         self._dedup_top_k = int(d.get("near_dup_top_k", 5))
-        # 质量判 (Round B): ingest 阶段是否即时算 LLM 分
+        # quality judge (Round B): whether to compute the LLM score inline during ingest
         self.quality_judge = quality_judge
         q = quality_cfg or {}
         self._llm_quality_at_ingest = bool(q.get("llm_quality_at_ingest", True))
     # ------------------------------------------------------------------
-    # 去重决策 (共用 helper, serial + concurrent 都调)
+    # dedup decision (shared helper, called by both serial + concurrent paths)
     # ------------------------------------------------------------------
 
     def _pick_winner(self, new_rec: SkillRecord, old_rec: SkillRecord) -> str:
-        """返回 'new' 或 'old' — 保留哪个 skill. 依次:quality → source → newer."""
+        """Return 'new' or 'old' — which skill to keep. In order: quality → source → newer."""
         if new_rec.quality_score > old_rec.quality_score + 1e-6:
             return "new"
         if old_rec.quality_score > new_rec.quality_score + 1e-6:
@@ -130,22 +130,24 @@ class Ingester:
             return "new"
         if ow > nw:
             return "old"
-        # tie → 新的上传时间晚的赢 (后来者可能是更新版)
+        # tie → the one uploaded later wins (a latecomer may be a newer version)
         return "new" if (new_rec.added_at or "") > (old_rec.added_at or "") else "old"
 
     def _collect_near_dup_candidates(
         self, new_rec: SkillRecord, embedding: list[float] | None,
     ) -> list[tuple[SkillRecord, float, str]]:
-        """收集近似重复候选. 返回 [(old_rec, real_cosine, trigger)] 列表.
+        """Collect near-dup candidates. Return a list of [(old_rec, real_cosine, trigger)].
 
         trigger ∈ {'name_hash', 'name_hash_no_emb', 'embedding', 'both'}.
 
-        历史教训 (2026-05): cosine 曾经在 name_hash 路径用 1.0 占位, 配合
-        auto_cos=0.995 短路 → ``_judge_duplicate`` 不过 LLM, 直接 auto-merge.
-        实测产生 7,148 (68%) 跨 source name_hash supersede 是 false positive
-        (真 cos<0.90 的不同内容被误合并). 现在改成显式算真 cos: 拉两个
-        embedding numpy dot. embedding 缺失时退化到 ``_dedup_min_cos``
-        以强制走 LLM 二判, 不再绕过.
+        Historical lesson (2026-05): cosine used to be a 1.0 placeholder on the
+        name_hash path, which combined with auto_cos=0.995 short-circuited →
+        ``_judge_duplicate`` skipped the LLM and auto-merged directly. This
+        produced 7,148 (68%) cross-source name_hash supersedes that were false
+        positives (different content with real cos<0.90 wrongly merged). It now
+        explicitly computes the real cos: numpy dot of the two embeddings. When
+        an embedding is missing it falls back to ``_dedup_min_cos`` to force the
+        LLM second-pass judgment instead of bypassing it.
         """
         import numpy as _np
 
@@ -161,20 +163,20 @@ class Ingester:
             return float(_np.dot(av, bv) / (na * nb))
 
         cands: dict[str, tuple[SkillRecord, float, str]] = {}
-        # 1) canonical name_hash 冲突 (跨 source 同名) — 算真 cos
+        # 1) canonical name_hash collision (same name across sources) — compute real cos
         for r in self.store.get_by_name_hash(new_rec.name_hash):
             if r.source == new_rec.source:
-                continue  # 同 source 同名由 caller 单独处理 (覆盖)
+                continue  # same source + same name is handled separately by the caller (overwrite)
             other_emb = self.store.get_embedding(r.skill_id)
             real_cos = _cos(embedding, other_emb)
             if real_cos is None:
-                # embedding 缺失 (新 skill 没 embed / 老 skill 没存) →
-                # 用 min_cos 占位, _judge_duplicate 会走 LLM (不会短路)
+                # embedding missing (new skill not embedded / old skill not stored) →
+                # use min_cos as placeholder, _judge_duplicate will go through the LLM (no short-circuit)
                 cands[r.skill_id] = (r, self._dedup_min_cos, "name_hash_no_emb")
             else:
                 cands[r.skill_id] = (r, real_cos, "name_hash")
 
-        # 2) embedding 近邻
+        # 2) embedding neighbors
         if (self._dedup_enabled and embedding is not None
                 and self.embedder is not None):
             near = self.store.find_near_duplicates(
@@ -184,9 +186,9 @@ class Ingester:
             )
             for rec, cos in near:
                 if rec.skill_id in cands:
-                    # 已由 name_hash 命中, 用 embedding 路径的 cos 覆盖
-                    # (两者应该一致, 取后者 = 已经过 find_near_duplicates
-                    # 的归一化/计算)
+                    # already matched via name_hash; overwrite with the cos from
+                    # the embedding path (the two should agree, take the latter =
+                    # already normalized/computed by find_near_duplicates)
                     cands[rec.skill_id] = (rec, cos, "both")
                 else:
                     cands[rec.skill_id] = (rec, cos, "embedding")
@@ -195,8 +197,9 @@ class Ingester:
     def _judge_duplicate(
         self, new_rec: SkillRecord, old_rec: SkillRecord, cos: float,
     ) -> bool:
-        """决定 new_rec 和 old_rec 是否算重复. cos >= auto_cos 自动判重;
-        否则调 LLM. 若 LLM 不可用, 保守判非重复."""
+        """Decide whether new_rec and old_rec count as duplicates. cos >= auto_cos
+        auto-marks as duplicate; otherwise call the LLM. If the LLM is unavailable,
+        conservatively judge them as non-duplicate."""
         if cos >= self._dedup_auto_cos:
             return True
         if self.dup_judge is None:
@@ -210,37 +213,39 @@ class Ingester:
         source: str, source_url: str | None, source_path: str,
         force: bool = False,
     ) -> IngestResult:
-        """共用 finalize: 近似去重决策 + 文件拷贝 + store.insert.
+        """Shared finalize: near-dup decision + file copy + store.insert.
 
-        假设调用时 rec 已经 ready (除 stored_path), 且 content_hash /
-        同 source 同名的前置 dedup 已在 caller 处理. 这里只处理:
-          - 跨 source 同名 canonical
-          - embedding 近似
+        Assumes rec is already ready (except stored_path) when called, and that
+        the upstream dedup for content_hash / same-source same-name has already
+        been handled by the caller. This only handles:
+          - cross-source same-name canonical
+          - embedding near-dup
         """
-        # source_url 落到 row (此前只进 FS meta, DB 列被漏掉)
+        # persist source_url onto the row (previously it only went into the FS meta, the DB column was missed)
         if source_url and not rec.source_url:
             rec.source_url = source_url
-        # 近似去重决策 — 只在 dedup 启用 + 有 LLM judge 时触发
+        # near-dup decision — only triggered when dedup is enabled + an LLM judge exists
         did_supersede = False
         if not force and (self._dedup_enabled or self.dup_judge is not None):
             cands = self._collect_near_dup_candidates(rec, embedding)
-            cands.sort(key=lambda x: -x[1])  # cos 降序
-            # 先筛出所有被 (auto / LLM) 确认为重复的候选
+            cands.sort(key=lambda x: -x[1])  # cos descending
+            # first filter out all candidates confirmed as duplicates (auto / LLM)
             confirmed = [
                 (old, cos, trigger) for old, cos, trigger in cands
                 if self._judge_duplicate(rec, old, cos)
             ]
             if confirmed:
-                # 在 {rec} ∪ 所有确认 dup 里选唯一 winner (pairwise greedy max).
-                # 必须先定 winner 再动手 — 否则若 rec 输给某个老 skill, 却已经
-                # supersede 了别的老 skill, 那些 loser.superseded_by 会指向一个
-                # 根本不会入库的 rec.skill_id (悬挂引用).
+                # pick the single winner among {rec} ∪ all confirmed dups (pairwise greedy max).
+                # the winner MUST be decided before acting — otherwise, if rec loses
+                # to some old skill but has already superseded other old skills, those
+                # loser.superseded_by would point at a rec.skill_id that never gets
+                # inserted (dangling reference).
                 best, best_cos, best_trigger = rec, 0.0, ""
                 for old, cos, trigger in confirmed:
                     if self._pick_winner(best, old) == "old":
                         best, best_cos, best_trigger = old, cos, trigger
                 if best is not rec:
-                    # rec 不是最优 → 丢弃 rec, 合并进已有的 best
+                    # rec is not the best → discard rec, merge into the existing best
                     return IngestResult(
                         status=IngestStatus.MERGED_KEPT_OLD,
                         record=best,
@@ -248,8 +253,9 @@ class Ingester:
                                f"kept {best.skill_id}",
                         skill_dir=str(skill_dir),
                     )
-                # rec 胜过所有确认 dup → supersede 全部 (不再只处理第一对),
-                # 否则同类的其余老 skill 会成为活着的孤儿重复
+                # rec beats all confirmed dups → supersede all of them (no longer just
+                # the first pair), otherwise the remaining old skills of the same kind
+                # would live on as orphaned duplicates
                 for old, cos, trigger in confirmed:
                     if old.stored_path:
                         remove_skill_from_library(self.lib_root, old.stored_path)
@@ -260,7 +266,7 @@ class Ingester:
                         f"(trigger={trigger}, cos={cos:.3f})"
                     )
 
-        # 没被合并 (或 rec=winner 已 supersede 全部 old) → 正常入库
+        # not merged (or rec=winner has already superseded all old ones) → normal ingest
         stored_dir = copy_skill_to_library(
             skill_dir, self.lib_root, source, self._slug(rec.name),
             meta={
@@ -275,8 +281,9 @@ class Ingester:
         rec.stored_path = str(stored_dir.relative_to(self.lib_root))
         self.store.insert(rec, embedding=embedding)
 
-        # status 直接由本次是否 supersede 决定 — 不再查 superseded_by COUNT
-        # (那会把历史上赢过合并的 skill_id 再次入库时误报成 merge).
+        # status is decided directly by whether this run superseded anything — no longer
+        # queries the superseded_by COUNT (which would misreport a merge when a skill_id
+        # that historically won a merge is ingested again).
         status = IngestStatus.MERGED_KEPT_NEW if did_supersede else IngestStatus.ADDED
         return IngestResult(status=status, record=rec, skill_dir=str(skill_dir))
 
@@ -288,7 +295,7 @@ class Ingester:
         source_path: str | None = None,
         force: bool = False,
     ) -> IngestResult:
-        """对单个 skill 目录跑完整 pipeline. 成功返回 record."""
+        """Run the full pipeline on a single skill directory. Returns the record on success."""
         skill_dir = Path(skill_dir)
         md_path = find_skill_md(skill_dir)
         if md_path is None:
@@ -334,12 +341,13 @@ class Ingester:
                 skill_dir=str(skill_dir),
             )
 
-        # 注: GREEN-license 闸不在 ingest 层 —— 由 store.insert() 按 source 设
-        # active=0/1 (非 GREEN 留库但 active=0), export 再按 active=1 过滤。
-        # 见 store._load_safe_sources + export 的 WHERE active=1。
+        # Note: the GREEN-license gate is not at the ingest layer — store.insert()
+        # sets active=0/1 by source (non-GREEN is kept but active=0), and export
+        # then filters by active=1.
+        # See store._load_safe_sources + export's WHERE active=1.
 
         # ------------------------------------------------------------
-        # 3. Quality filter (Phase 1 规则)
+        # 3. Quality filter (Phase 1 rules)
         # ------------------------------------------------------------
         body_len = len(body)
         desc_len = len(description)
@@ -370,7 +378,7 @@ class Ingester:
             )
 
         # ------------------------------------------------------------
-        # 4a. 精确 content_hash 重复 — 直接判 DUPLICATE
+        # 4a. exact content_hash duplicate — mark as DUPLICATE directly
         # ------------------------------------------------------------
         c_hash = content_hash(body)
         n_hash = name_hash(name)
@@ -385,7 +393,7 @@ class Ingester:
             )
 
         # ------------------------------------------------------------
-        # 4b. 同 source + 同 canonical name → 覆盖旧 record (版本更新)
+        # 4b. same source + same canonical name → overwrite the old record (version update)
         # ------------------------------------------------------------
         same_name = self.store.get_by_name_hash(n_hash)
         same_name_same_src = [r for r in same_name if r.source == source]
@@ -398,7 +406,7 @@ class Ingester:
             stable_id = self._make_id(source, name, c_hash)
 
         # ------------------------------------------------------------
-        # 5. Classify (LLM 分类器) + tags
+        # 5. Classify (LLM classifier) + tags
         # ------------------------------------------------------------
         if self.classifier is not None:
             category = self.classifier.classify(name, description, body).category
@@ -418,7 +426,7 @@ class Ingester:
         )
 
         # ------------------------------------------------------------
-        # 6b. LLM quality (single-thread 路径: 直接用 score() 含 cache)
+        # 6b. LLM quality (single-thread path: use score() directly, includes cache)
         # ------------------------------------------------------------
         llm_quality_norm: float | None = None
         if self.quality_judge is not None and self._llm_quality_at_ingest:
@@ -451,7 +459,7 @@ class Ingester:
         )
 
         # ------------------------------------------------------------
-        # 7. Embed (近似去重前就需要)
+        # 7. Embed (needed before near-dup detection)
         # ------------------------------------------------------------
         embedding = None
         if self.embedder is not None and self.embedder.is_available():
@@ -459,7 +467,7 @@ class Ingester:
             embedding = self.embedder.embed(emb_text)
 
         # ------------------------------------------------------------
-        # 8. Finalize (near-dup 判决 + 文件拷贝 + store.insert)
+        # 8. Finalize (near-dup decision + file copy + store.insert)
         # ------------------------------------------------------------
         return self._finalize_and_insert(
             rec, skill_dir, embedding, source, source_url,
@@ -471,17 +479,18 @@ class Ingester:
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # Concurrent ingest (LLM + embed 并发, store 串行)
+    # Concurrent ingest (LLM + embed concurrent, store serial)
     # ------------------------------------------------------------------
 
     def _prepare(
         self, skill_dir: Path, source: str, source_path: str | None,
     ) -> tuple[IngestStatus, SkillRecord | None, str,
                list[float] | None, "object | None"]:
-        """在并发安全的前提下完成 LLM 分类 + embedding + LLM quality,
-        返回 (status, prepared_record, reason, embedding, quality_judgment).
+        """Do LLM classification + embedding + LLM quality in a concurrency-safe way,
+        returning (status, prepared_record, reason, embedding, quality_judgment).
 
-        quality_judgment 由主线程在 write phase cache_put (避免跨线程 SQLite).
+        quality_judgment is cache_put by the main thread in the write phase (to avoid
+        cross-thread SQLite).
         """
         md_path = find_skill_md(skill_dir)
         if md_path is None:
@@ -521,7 +530,7 @@ class Ingester:
         c_hash = content_hash(body)
         n_hash = name_hash(name)
 
-        # LLM classify (LLM 调用, 并发瓶颈)
+        # LLM classify (LLM call, the concurrency bottleneck)
         if self.classifier is not None:
             category = self.classifier.classify(name, description, body).category
         else:
@@ -536,7 +545,7 @@ class Ingester:
             for p in skill_dir.iterdir() if p.is_file()
         )
 
-        # LLM quality — 并发安全 (compute_no_cache 不碰 SQLite); 主线程 write phase cache_put.
+        # LLM quality — concurrency-safe (compute_no_cache doesn't touch SQLite); main thread cache_put in the write phase.
         quality_judgment = None
         llm_q_norm: float | None = None
         if self.quality_judge is not None and self._llm_quality_at_ingest:
@@ -558,7 +567,7 @@ class Ingester:
             safety_flags=safety_flags, llm_score=llm_q_norm,
         )
 
-        # Embed (并发)
+        # Embed (concurrent)
         embedding = None
         if self.embedder is not None and self.embedder.is_available():
             emb_text = format_embedding_text(name, description, body)
@@ -585,9 +594,9 @@ class Ingester:
         progress: bool = True,
         source_url: str | None = None,
     ) -> dict[str, Any]:
-        """并发版 batch ingest — LLM/embed 并发, store 写入串行.
+        """Concurrent batch ingest — LLM/embed concurrent, store writes serial.
 
-        比 ingest_batch 快 ~N 倍 (N=concurrency), 小规模无收益.
+        ~N times faster than ingest_batch (N=concurrency); no benefit at small scale.
 
         Sub-skill suppression (V4, 2026-05-08): when ``rglob`` finds two
         SKILL.md where one's parent directory is an ancestor of another's,
@@ -635,9 +644,9 @@ class Ingester:
                 skill_dir, rel, status, rec, reason, emb, qj = fut.result()
                 processed += 1
 
-                # 写入必须串行 (dedup + SQLite + filesystem)
+                # writes must be serial (dedup + SQLite + filesystem)
                 if status == IngestStatus.ADDED and rec is not None:
-                    # 主线程 cache_put LLM quality (避免跨线程 SQLite)
+                    # main thread cache_put for LLM quality (avoid cross-thread SQLite)
                     if qj is not None and self.quality_judge is not None:
                         try:
                             self.quality_judge.cache_put(rec.content_hash, qj)
@@ -649,7 +658,7 @@ class Ingester:
                         counts[IngestStatus.DUPLICATE.value] += 1
                         continue
 
-                    # 同名冲突 (同 source 内): 覆盖旧 record, keep stable_id
+                    # same-name collision (within the same source): overwrite the old record, keep stable_id
                     same_src = [
                         r for r in self.store.get_by_name_hash(rec.name_hash)
                         if r.source == source
@@ -695,7 +704,7 @@ class Ingester:
         }
 
     # ------------------------------------------------------------------
-    # Legacy sequential (保留)
+    # Legacy sequential (kept)
     # ------------------------------------------------------------------
 
     def ingest_batch(
@@ -706,13 +715,14 @@ class Ingester:
         progress: bool = True,
         source_url: str | None = None,
     ) -> dict[str, Any]:
-        """扫描 root 下所有 SKILL.md, 对每个所在目录跑 ingest.
+        """Scan all SKILL.md under root, running ingest on each containing directory.
 
-        注意: 保持串行 (SQLite WAL + vLLM 批量效率够). 要并发可用 ingest_batch_async.
+        Note: kept serial (SQLite WAL + vLLM batching are efficient enough). For
+        concurrency use ingest_batch_async.
         """
         root = Path(root)
         skill_md_paths = list(root.glob(pattern))
-        # 排除 workspaces / 临时 skill (常见于爬虫/中间产物)
+        # exclude workspaces / temporary skills (common in crawlers / intermediate artifacts)
         skill_md_paths = [p for p in skill_md_paths if "/workspaces/" not in str(p)]
         # V4 (2026-05-08) sub-skill suppression — same rule as
         # ingest_batch_concurrent above; see _drop_subskill_paths.
@@ -788,11 +798,11 @@ class Ingester:
 
     @staticmethod
     def _rough_tokens(body: str) -> int:
-        """粗略 token 数 (1 token ≈ 4 chars)."""
+        """Rough token count (1 token ≈ 4 chars)."""
         return max(1, len(body) // 4)
 
 
-# ════════════ SkillLibrary 顶层 API ════════════
+# ════════════ SkillLibrary top-level API ════════════
 _DEFAULT_CONFIG_NAME = "config.yaml"
 
 
@@ -800,10 +810,11 @@ _DEFAULT_LIB_ROOT = Path(__file__).resolve().parent / "data"
 
 
 class SkillLibrary:
-    """Skill 库顶层 API — CRUD + 入库 pipeline + 检索.
+    """Skill library top-level API — CRUD + ingest pipeline + retrieval.
 
-    默认路径: skill_library 包同级 data/ 子目录 (持久化, 跨会话保留).
-    显式指定 lib_root 可切换到其他实例.
+    Default path: the data/ subdirectory alongside the skill_library package
+    (persistent, retained across sessions).
+    Passing lib_root explicitly switches to another instance.
     """
 
     def __init__(
@@ -831,7 +842,7 @@ class SkillLibrary:
     # ------------------------------------------------------------------
 
     def open(self) -> "SkillLibrary":
-        """初始化 DB + 加载 config + 组件."""
+        """Initialize the DB + load config + components."""
         self.config = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
 
         # --- Embedding ---
@@ -845,7 +856,7 @@ class SkillLibrary:
             timeout=int(embed_cfg.get("timeout", 60)),
         )
 
-        # --- Storage (与 embedding dim 绑定) ---
+        # --- Storage (bound to the embedding dim) ---
         self.store = SkillStore(self.lib_root / "index.db", embedding_dim=dim)
         self.store.init_schema()
 
@@ -854,7 +865,7 @@ class SkillLibrary:
         self.llm: LLMClient | None = None
 
         if llm_cfg_dict:
-            # 单端点: 取 endpoints[0], 退回 llm 顶层 base_url/model/api_key
+            # single endpoint: take endpoints[0], fall back to the llm top-level base_url/model/api_key
             eps = llm_cfg_dict.get("endpoints") or []
             ep0 = eps[0] if eps else {}
             self.llm = LLMClient(
@@ -872,9 +883,9 @@ class SkillLibrary:
             else:
                 logger.warning("LLM unavailable; ingest will set category=OTHER")
 
-        # --- LLM dup judge (Round A — 跨 source 近似去重 LLM 仲裁) ---
+        # --- LLM dup judge (Round A — LLM arbitration for cross-source near-dup) ---
         self.dup_judge: LLMDupJudge | None = None
-        # --- LLM quality judge (Round B — 质量 0-10 打分) ---
+        # --- LLM quality judge (Round B — quality 0-10 scoring) ---
         self.quality_judge: LLMQualityJudge | None = None
         if self.llm is not None and self.llm.is_available():
             try:
@@ -1015,18 +1026,18 @@ class SkillLibrary:
         min_quality: float = 0.0,
         limit: int = 10_000,
     ) -> dict[str, Any]:
-        """导出一个 skill 子集为 zip 包, 可跨机迁移.
+        """Export a subset of skills as a zip bundle, portable across machines.
 
-        选择优先级:
-            skill_ids 指定 → 直接按 id 拿;
-            否则按 filter (category/source/tag/min_quality) 从 store.list 拿.
+        Selection priority:
+            skill_ids given → fetch directly by id;
+            otherwise fetch from store.list by filter (category/source/tag/min_quality).
 
-        Zip 结构:
-            manifest.json         元信息 + skill 列表
+        Zip structure:
+            manifest.json         metadata + skill list
             skills/<source>/<name_slug>/
-                SKILL.md 等全部文件 (从 lib_root/skills/ 下复制)
+                SKILL.md and all other files (copied from lib_root/skills/)
 
-        返回统计 dict: {out_path, count, size_bytes, ...}
+        Returns a stats dict: {out_path, count, size_bytes, ...}
         """
         import zipfile
         from datetime import datetime, timezone
@@ -1036,7 +1047,7 @@ class SkillLibrary:
         out_path = Path(out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # 选 skills
+        # select skills
         if skill_ids:
             records = [r for r in (self.store.get(sid) for sid in skill_ids) if r is not None]
         else:
@@ -1069,7 +1080,7 @@ class SkillLibrary:
                 if not src_dir.exists() or not src_dir.is_dir():
                     missing_files.append(rec.skill_id)
                     continue
-                # 走目录, 保持相对路径
+                # walk the directory, preserving relative paths
                 for f in src_dir.rglob("*"):
                     if not f.is_file():
                         continue
@@ -1116,14 +1127,14 @@ class SkillLibrary:
                 s["quality_histogram"] = self.quality_judge.histogram()
             except Exception as e:
                 logger.debug("quality_judge.stats() unavailable: %s", e)
-        # superseded 计数 — Round A 近似去重的战果
+        # superseded count — the payoff of Round A near-dup detection
         conn = self.store._connect()
         row = conn.execute(
             "SELECT COUNT(*) FROM skills WHERE superseded_by IS NOT NULL"
         ).fetchone()
         s["superseded_count"] = int(row[0]) if row else 0
 
-        # description > 1024 的 skill 数 (Round C 告警指标)
+        # number of skills with description > 1024 (Round C alerting metric)
         desc_max = int((self.config.get("thresholds") or {}).get("description_max_chars", 1024))
         row = conn.execute(
             "SELECT COUNT(*) FROM skills WHERE deleted = 0 AND LENGTH(description) > ?",

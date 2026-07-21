@@ -1,9 +1,9 @@
-"""去重: SHA-256 精确 (body) + canonical name + embedding 近似.
+"""Deduplication: SHA-256 exact (body) + canonical name + embedding near-match.
 
-三种去重层次:
-  content_hash(body)   精确 — 完全相同的 body 复制上传
-  name_hash(name)      近似 — canonical_name 归一, 大小写/标点/分隔符差异忽略
-  embedding cosine     语义 — 名字完全不同但内容接近
+Three dedup layers:
+  content_hash(body)   exact — identical bodies uploaded as copies
+  name_hash(name)      approximate — canonical_name normalization, ignoring case/punctuation/separator differences
+  embedding cosine     semantic — completely different names but similar content
 """
 
 from __future__ import annotations
@@ -12,28 +12,28 @@ import hashlib
 import re
 
 _WS_RE = re.compile(r"\s+")
-# canonical_name 里把 . _ - / 等常见分隔符全替成空格再压缩
+# In canonical_name, replace common separators like . _ - / with spaces, then compress
 _NAME_SEP_RE = re.compile(r"[^a-z0-9]+")
 
 
 def normalize_body(body: str) -> str:
-    """归一化 body 文本 (去首尾空白 + 压缩连续空白) 用于 hash 比较."""
+    """Normalize body text (strip leading/trailing whitespace + collapse consecutive whitespace) for hash comparison."""
     text = body.strip()
-    # 压缩连续空白但保留单个换行语义
+    # Collapse consecutive whitespace but preserve single-newline semantics
     lines = [_WS_RE.sub(" ", line.strip()) for line in text.splitlines()]
     return "\n".join(l for l in lines if l)
 
 
 def content_hash(body: str) -> str:
-    """计算归一化 body 的 SHA-256 (去除空白差异)."""
+    """Compute the SHA-256 of the normalized body (whitespace differences removed)."""
     normalized = normalize_body(body)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def canonical_name(name: str) -> str:
-    """把 skill name 归一为 canonical 形式, 吸收大小写/标点/分隔符差异.
+    """Normalize a skill name to its canonical form, absorbing case/punctuation/separator differences.
 
-    示例:
+    Examples:
       "react-hooks"   → "react hooks"
       "React Hooks"   → "react hooks"
       "react_hooks"   → "react hooks"
@@ -47,25 +47,25 @@ def canonical_name(name: str) -> str:
 
 
 def name_hash(name: str) -> str:
-    """计算 canonical_name 的 SHA-256.
+    """Compute the SHA-256 of canonical_name.
 
-    用 canonical 形式后, "react-hooks" / "React Hooks" / "react_hooks"
-    命中同一 hash, 跨 source 的近似同名也能被识别为冲突.
+    After canonicalization, "react-hooks" / "React Hooks" / "react_hooks"
+    hit the same hash, so near-identical names across sources are also recognized as collisions.
     """
     return hashlib.sha256(canonical_name(name).encode("utf-8")).hexdigest()
 
 
 def short_hash(full_hash: str, n: int = 8) -> str:
-    """取 hash 前 n 位作为 skill_id 后缀."""
+    """Take the first n characters of the hash as the skill_id suffix."""
     return full_hash[:n]
 
 
 # ---------------------------------------------------------------------------
-# 近似相似度 (用在 embedding 检索之后)
+# Approximate similarity (used after embedding retrieval)
 # ---------------------------------------------------------------------------
 
 def cosine_sim(a: list[float], b: list[float]) -> float:
-    """纯 Python 计算 cosine 相似度. 小规模向量够用."""
+    """Compute cosine similarity in pure Python. Adequate for small-scale vectors."""
     import math
     dot = sum(x * y for x, y in zip(a, b))
     na = math.sqrt(sum(x * x for x in a))
@@ -78,17 +78,17 @@ def cosine_sim(a: list[float], b: list[float]) -> float:
 # LLM-assisted near-duplicate adjudication (originally dedup_llm.py)
 # =============================================================
 #
-# LLM 成对重复判决 — 近似 embedding 候选的二次确认闸门.
+# LLM pairwise duplicate adjudication — a second-confirmation gate for near-match embedding candidates.
 #
-# 流程:
-#     embedding cos >= near_dup_min_cosine 的候选对
+# Flow:
+#     candidate pairs with embedding cos >= near_dup_min_cosine
 #         → LLMDupJudge.is_duplicate(a, b)
-#         → 返回 (is_dup: bool, confidence: float, reason: str)
+#         → returns (is_dup: bool, confidence: float, reason: str)
 #
-# 结果缓存到 SQLite 表 `dedup_judgments` (key = sorted content_hash 对),
-# 避免同一对 skill 重复调用 LLM.
+# Results are cached in the SQLite table `dedup_judgments` (key = sorted content_hash pair),
+# to avoid calling the LLM repeatedly for the same skill pair.
 #
-# cache miss 才调 LLM; cache hit 直接返回.
+# The LLM is only called on a cache miss; a cache hit returns directly.
 
 import logging
 import sqlite3
@@ -126,7 +126,7 @@ def _pair_key(hash_a: str, hash_b: str) -> str:
 
 
 def _build_prompt(a: SkillRecord, b: SkillRecord) -> list[dict[str, str]]:
-    """构造判重 prompt — 两 skill 给全, LLM 判是否实质同义."""
+    """Build the dedup prompt — provide both skills in full and let the LLM decide whether they are substantially synonymous."""
     def _slice(s: str, n: int) -> str:
         return s[:n].rstrip() + (" ..." if len(s) > n else "")
 
@@ -160,14 +160,15 @@ def _build_prompt(a: SkillRecord, b: SkillRecord) -> list[dict[str, str]]:
 
 
 class LLMDupJudge:
-    """LLM 成对判重 — 带 SQLite cache."""
+    """LLM pairwise dedup judging — with a SQLite cache."""
 
     def __init__(self, llm: LLMClient, conn: sqlite3.Connection):
         self.llm = llm
         self.conn = conn
-        # SQLite Connection 不是真正线程安全, 即便 check_same_thread=False,
-        # 多线程并发 execute 会撞 ``InterfaceError``. 用 Lock 串行化 SQLite,
-        # 保留 LLM HTTP 调用的并发自由 — HTTP 才是真瓶颈, lock 只 hold ms 级.
+        # A SQLite Connection is not truly thread-safe: even with check_same_thread=False,
+        # concurrent execute() from multiple threads hits ``InterfaceError``. Use a Lock to
+        # serialize SQLite while keeping the LLM HTTP calls free to run concurrently — HTTP is
+        # the real bottleneck, and the lock is only held for milliseconds.
         import threading
         self._sqlite_lock = threading.Lock()
         self._init_schema()
@@ -205,7 +206,7 @@ class LLMDupJudge:
             self.conn.commit()
 
     def is_duplicate(self, a: SkillRecord, b: SkillRecord) -> DupJudgment:
-        """判两个 skill 是否重复. 缓存命中直接返回, 否则调 LLM 并写 cache."""
+        """Decide whether two skills are duplicates. Return directly on cache hit; otherwise call the LLM and write to cache."""
         key = _pair_key(a.content_hash, b.content_hash)
         cached = self._cache_get(key)
         if cached is not None:
@@ -215,7 +216,7 @@ class LLMDupJudge:
         raw = self.llm.chat(msgs, response_format="json", max_tokens=256)
         d = LLMClient.extract_json(raw)
         if not isinstance(d, dict):
-            # LLM 失败 → 保守判非重复 (不写 cache, 下次再试)
+            # LLM failed → conservatively judge as non-duplicate (don't write cache, retry next time)
             logger.warning(
                 f"LLM dedup judge failed for {a.skill_id} vs {b.skill_id}: raw={raw!r}"
             )
