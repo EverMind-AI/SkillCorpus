@@ -157,11 +157,15 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     if dry:
         print("[dry-run] would rescan_quality + export_to_mass_library", flush=True)
         return
+    # The post-action subprocesses default to the package data dir, so a custom
+    # run_refresh(lib_root=...) would otherwise rescan / export the WRONG
+    # library. Thread the actual lib_root through as --lib / --src.
+    lib_root = str(lib.lib_root)
     if defaults.get("rescan_quality_after"):
         print("\n→ rescan_quality (LLM backfill on new skills)...", flush=True)
         subprocess.run(
             [sys.executable, "-m", "skill_library.scripts.rescan_quality",
-             "--workers", "16"],
+             "--lib", lib_root, "--workers", "16"],
             check=False,
         )
     if defaults.get("export_after"):
@@ -169,6 +173,7 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
               flush=True)
         export_cmd = [
             sys.executable, "-m", "skill_library.export",
+            "--src", lib_root,
         ]
         # Optional refresh-endpoint pass-through so the produced sentinel
         # tells downstream consumers where to call ``skill refresh``.
