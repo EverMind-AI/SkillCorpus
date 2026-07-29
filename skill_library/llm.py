@@ -49,9 +49,18 @@ class LLMClient:
     def is_available(self) -> bool:
         if self._available is not None:
             return self._available
+        # Short-timeout, no-retry probe so an unreachable endpoint fails in
+        # seconds. self.chat() retries max_retries x self.timeout, which made
+        # SkillLibrary.open()'s startup probe hang for minutes when down.
         try:
-            r = self.chat([{"role": "user", "content": "ping"}], max_tokens=4)
-            self._available = bool(r)
+            from openai import OpenAI
+            probe = OpenAI(base_url=self.base_url, api_key=self.api_key,
+                           timeout=5, max_retries=0)
+            r = probe.chat.completions.create(
+                model=self.model, max_tokens=4,
+                messages=[{"role": "user", "content": "ping"}],
+            )
+            self._available = bool(r and r.choices)
         except Exception as e:
             logger.debug(f"LLM availability check failed: {e}")
             self._available = False

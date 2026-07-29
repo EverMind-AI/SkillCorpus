@@ -83,15 +83,35 @@ class EmbeddingClient:
         self._available: bool | None = None
 
     def is_available(self) -> bool:
-        """Whether the endpoint is reachable (performs one lightweight probe)."""
+        """Whether the endpoint is reachable (one fast single-shot probe).
+
+        Uses a short timeout and NO retry so an unreachable endpoint fails in
+        seconds. The full retry/backoff path in embed_batch (5 x self.timeout)
+        is for real ingest calls, not the startup probe — going through it made
+        SkillLibrary.open() hang for minutes when the endpoint was down.
+        """
         if self._available is not None:
             return self._available
         if not self.api_key:
             self._available = False
             return False
+        import json as _json
+        import urllib.request
+        base = self.base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3]
         try:
-            v = self.embed("test")
-            self._available = v is not None and len(v) == self.dim
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            req = urllib.request.Request(
+                f"{base}/embed",
+                data=_json.dumps({"texts": ["test"]}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            resp = opener.open(req, timeout=5)
+            embs = _json.loads(resp.read()).get("embeddings")
+            self._available = (isinstance(embs, list) and len(embs) == 1
+                               and isinstance(embs[0], list)
+                               and len(embs[0]) == self.dim)
         except Exception:
             self._available = False
         return self._available
