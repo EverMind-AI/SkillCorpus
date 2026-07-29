@@ -257,7 +257,7 @@ def normalize_license(lic: str | None) -> str | None:
     # MIT family
     if "mit-0" in sl:
         return "MIT-0"
-    if re.match(r"^mit($|\s|\.|,|;)", sl) and "0" not in sl:
+    if re.match(r"^mit($|\s|\.|,|;)", sl):
         return "MIT"
     if sl in ("mit", "mit license", "mit licence"):
         return "MIT"

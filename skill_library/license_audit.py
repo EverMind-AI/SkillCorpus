@@ -48,6 +48,14 @@ from .rules import (
     normalize_license,
 )
 
+# Category strings _gh_fetch_license can return that are NOT actual licenses
+# (repo status, not an SPDX id). They must never be written into
+# skills.license by ``apply`` — otherwise the consumer receives "NO_LICENSE"
+# etc. as if it were a license.
+_NON_LICENSE_CATEGORIES = frozenset(
+    {"NO_LICENSE", "SOURCE_NOT_FETCHED", "Custom", "NOASSERTION"}
+)
+
 # ---------------------------------------------------------------------------
 # Paths — single source of truth
 # ---------------------------------------------------------------------------
@@ -343,7 +351,10 @@ def cmd_apply(args: argparse.Namespace) -> int:
         if cur_lic and cur_lic not in _JUNK_LIC_STRINGS:
             continue
         cat = csv_map.get(src)
-        if cat:
+        # Only backfill an actual license id; skip status categories
+        # (NO_LICENSE / SOURCE_NOT_FETCHED / Custom / NOASSERTION) so they
+        # never masquerade as a license on the skill / consumer side.
+        if cat and cat not in _NON_LICENSE_CATEGORIES:
             updates.append((cat, src))
 
     print(f"would update {len(updates):,} rows (junk → CSV category)")
@@ -451,7 +462,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         if cat in GREEN_LICENSES:  return "GREEN"
         if cat in RED_LICENSES:    return "RED"
         if cat in YELLOW_LICENSES: return "YELLOW"
-        if cat in ("NO_LICENSE", "SOURCE_NOT_FETCHED", "Custom"):
+        if cat in _NON_LICENSE_CATEGORIES:
             return "MISSING"
         return "OTHER"
 
