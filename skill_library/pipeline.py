@@ -46,6 +46,24 @@ class IngestResult:
     skill_dir: str = ""
 
 
+def _glob_skill_md(root: Path, pattern: str = "**/SKILL.md") -> list[Path]:
+    """Glob skill files case-insensitively for SKILL.md / skill.md.
+
+    find_skill_md() accepts a lowercase ``skill.md``, but pathlib glob is
+    case-sensitive, so a batch scan on ``**/SKILL.md`` alone silently skipped
+    lowercase-named skills. Glob the given pattern plus its lowercase-filename
+    variant and dedup by path (distinct files on a case-sensitive FS; the same
+    file never matches both patterns since glob's fnmatch is case-sensitive).
+    """
+    lower = pattern.replace("SKILL.md", "skill.md")
+    patterns = (pattern,) if lower == pattern else (pattern, lower)
+    seen: dict[str, Path] = {}
+    for pat in patterns:
+        for p in root.glob(pat):
+            seen[str(p)] = p
+    return list(seen.values())
+
+
 def _drop_subskill_paths(skill_md_paths: list[Path]) -> list[Path]:
     """Filter out SKILL.md whose parent dir is nested inside another SKILL.md
     parent dir in the same batch.
@@ -613,7 +631,7 @@ class Ingester:
         a top-level sibling skill" artifact.
         """
         root = Path(root)
-        skill_md_paths = list(root.glob(pattern))
+        skill_md_paths = _glob_skill_md(root, pattern)
         skill_md_paths = [p for p in skill_md_paths if "/workspaces/" not in str(p)]
         # Filter sub-skill SKILL.md: keep one path P only if no other
         # path Q has P.parent strictly under Q.parent. Sort by depth
@@ -730,7 +748,7 @@ class Ingester:
         concurrency use ingest_batch_async.
         """
         root = Path(root)
-        skill_md_paths = list(root.glob(pattern))
+        skill_md_paths = _glob_skill_md(root, pattern)
         # exclude workspaces / temporary skills (common in crawlers / intermediate artifacts)
         skill_md_paths = [p for p in skill_md_paths if "/workspaces/" not in str(p)]
         # V4 (2026-05-08) sub-skill suppression — same rule as

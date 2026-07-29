@@ -35,7 +35,12 @@ from skill_library.rules import (  # noqa: E402
 
 
 def _scan(root: Path) -> list[Path]:
-    return [p for p in root.glob("**/SKILL.md") if "/workspaces/" not in str(p)]
+    # Match add_batch's discovery: case-insensitive SKILL.md/skill.md (P3-17)
+    # and drop nested sub-skill SKILL.md so they stay auxiliary files of the
+    # parent bundle instead of being ingested as separate skills (P3-16).
+    from skill_library.pipeline import _glob_skill_md, _drop_subskill_paths
+    paths = [p for p in _glob_skill_md(root) if "/workspaces/" not in str(p)]
+    return _drop_subskill_paths(paths)
 
 
 def main():
