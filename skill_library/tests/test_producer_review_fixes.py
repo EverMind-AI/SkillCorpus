@@ -206,6 +206,55 @@ def test_fixb_update_pass_no_double_count():
     assert snap.get("without_embedding") == 1 and snap.get("db_only") == 1
 
 
+# ----------------------------------------------------------------------
+# P1-6/7/9/10 — full export carries subscores + writes .stale; sync writes
+# .stale and reports an accumulated delete count; consumer has a hash index.
+# ----------------------------------------------------------------------
+def test_p1_export_subscores_stale_and_delete_count():
+    import json
+    with tempfile.TemporaryDirectory() as tmp:
+        lib = SkillLibrary(Path(tmp) / "lib").open()
+        lib.store.insert(_rec("s1", "demo-skill"))          # content_hash = "h_s1"
+        c = lib.store._connect()
+        c.execute("UPDATE skills SET active=1")
+        c.executescript(
+            "CREATE TABLE IF NOT EXISTS quality_judgments("
+            "content_hash TEXT PRIMARY KEY, score REAL NOT NULL, reason TEXT, "
+            "judged_at TEXT NOT NULL, subscores TEXT NOT NULL DEFAULT '{}')")
+        c.execute("INSERT OR REPLACE INTO quality_judgments VALUES(?,?,?,?,?)",
+                  ("h_s1", 8.5, "ok", "2026-01-01T00:00:00Z",
+                   json.dumps({"utility": 8, "robustness": 9, "safety": 8, "flags": []})))
+        c.commit()
+
+        mass = Path(tmp) / "mass.db"
+        orig = export_mod._load_embeddings_from_vec_skills
+        export_mod._load_embeddings_from_vec_skills = lambda data_dir: {}
+        try:
+            export(lib.lib_root, mass, embedding_model="m", embedding_dim=DIM)
+            con = sqlite3.connect(mass)
+            idx = {r[0] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'")}
+            assert "idx_skills_content_hash" in idx, f"P1-10: {idx}"   # P1-10
+            fmj = con.execute(
+                "SELECT frontmatter_json FROM skills WHERE content_hash='h_s1'"
+            ).fetchone()[0]
+            sub = (json.loads(fmj).get("everclaw") or {}).get("subscores")
+            assert sub and sub.get("robustness") == 9, f"P1-6: {sub}"    # P1-6
+            con.close()
+            assert (mass.parent / ".stale").exists(), "P1-7 export: no .stale"  # P1-7
+
+            (mass.parent / ".stale").unlink()
+            c.execute("UPDATE skills SET active=0 WHERE skill_id='s1'")
+            c.commit()
+            stats = export_mod.sync(lib.lib_root, mass, embedding_model="m",
+                                    embedding_dim=DIM, do_backup=False)
+            assert (mass.parent / ".stale").exists(), "P1-7 sync: no .stale"    # P1-7
+            assert stats["deleted"] == 1, f"P1-9: {stats['deleted']}"           # P1-9
+        finally:
+            export_mod._load_embeddings_from_vec_skills = orig
+            lib.close()
+
+
 if __name__ == "__main__":
     test_r10_truthy_always()
     test_r4_valid_emb_blob()
@@ -216,4 +265,5 @@ if __name__ == "__main__":
     test_r7_reinsert_no_faiss_dup()
     test_r8_active_anticlobber()
     test_fixb_update_pass_no_double_count()
+    test_p1_export_subscores_stale_and_delete_count()
     print("ALL PRODUCER REVIEW-FIX TESTS PASSED")
