@@ -48,9 +48,13 @@ def _run_refresh_async(source: str | None, force: bool = False) -> dict[str, Any
     if force:
         cmd += ["--force"]
     log_path = Path("/tmp") / f"refresh_{(source or 'all').replace('/', '_')}_{int(time.time())}.log"
-    proc = subprocess.Popen(
-        cmd, stdout=open(log_path, "wb"), stderr=subprocess.STDOUT,
-    )
+    # Close the parent's copy after spawning; the child keeps its inherited fd.
+    # Leaving it open (the old `stdout=open(...)`) leaked a descriptor per call.
+    logf = open(log_path, "wb")
+    try:
+        proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+    finally:
+        logf.close()
     _CURRENT_JOB.update({
         "started_at": datetime.now(timezone.utc).isoformat(),
         "source": source or "all-due",
@@ -123,9 +127,16 @@ def _build_app():
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default="0.0.0.0")
+    # Bind loopback by default: POST /refresh triggers git clone + a subprocess
+    # and has NO authentication, so it must not be reachable off-host unless the
+    # operator explicitly opts in with --host 0.0.0.0 (behind their own gateway).
+    ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     args = ap.parse_args()
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(f"!! WARNING: binding refresh_server to {args.host} exposes an "
+              f"UNAUTHENTICATED POST /refresh (git clone + subprocess) off-host",
+              file=sys.stderr)
 
     try:
         import uvicorn
