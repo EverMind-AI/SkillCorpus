@@ -136,10 +136,14 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     existing = _load_csv_map(csv_path)
     print(f"existing CSV rows : {len(existing):,}  ({csv_path.name})")
 
-    # 2. unmapped active sources (optionally filtered to one)
+    # 2. unmapped sources — ALL non-deleted, NOT just active=1. License probing
+    #    must run BEFORE activation: a new source enters the DB at active=0
+    #    (store-side GREEN-whitelist gate), and only a GREEN license result can
+    #    promote it. Filtering to active=1 here deadlocked new sources at
+    #    active=0 forever (never probed -> never in CSV -> never whitelisted).
     con = sqlite3.connect(db_path)
     sources = list(con.execute(
-        "SELECT source, COUNT(*) c FROM skills WHERE deleted=0 AND active=1 "
+        "SELECT source, COUNT(*) c FROM skills WHERE deleted=0 "
         "GROUP BY source ORDER BY c DESC"
     ))
     if args.source:
@@ -149,7 +153,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     else:
         unmapped = [(s, c) for s, c in sources if s not in existing]
     print(f"to fetch          : {len(unmapped):,}  "
-          f"({sum(c for _, c in unmapped):,} active rows covered)")
+          f"({sum(c for _, c in unmapped):,} rows covered)")
 
     if args.dry_run:
         for src, c in unmapped[:20]:
