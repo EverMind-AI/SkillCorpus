@@ -59,6 +59,11 @@ embedding:
   dim: 1024
   base_url: "http://<EMBEDDING_HOST>/new"
   api_key: "<EMBEDDING_API_KEY>"
+  # NOTE: embeddings are computed one text at a time on purpose. The producer
+  # only ever calls embed() (single), and the shared embed server's left-pad +
+  # last-token pooling would contaminate short texts if batched. This knob is
+  # therefore NOT a speed lever; raising it does nothing. Kept only as a ceiling
+  # for any future explicit embed_batch() call.
   batch_size: 32
   timeout: 60
 # Legacy config (when running local vLLM):

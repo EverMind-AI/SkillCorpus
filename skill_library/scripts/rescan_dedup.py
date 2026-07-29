@@ -129,7 +129,6 @@ def _apply_merge(lib: SkillLibrary, a_id: str, b_id: str, cos: float, trigger: s
     if a is None or b is None:
         return None
     winner = lib.ingester._pick_winner(a, b)
-    loser_rec = b if winner == "new" else a  # note: _pick_winner("new"=a's role?)
 
     # _pick_winner's "new" is the first argument. Here we treat a as "new" and b as "old",
     # so winner == "new" → keep a, drop b

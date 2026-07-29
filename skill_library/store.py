@@ -462,6 +462,7 @@ class SkillStore:
         # 2026-05-20 540K-skill batch dropped 152K rows silently.
         import time
         last_err = None
+        conn = None
         for attempt in range(8):
             try:
                 conn = self._connect()
