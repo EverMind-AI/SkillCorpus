@@ -18,7 +18,7 @@ consumer side, not here.
 ## Quick Start
 
 ```bash
-pip install pyyaml numpy click faiss-cpu sqlite-vec openai   # dependencies
+pip install -r requirements.txt              # deps (or: pip install .  for the package)
 python3 -m skill_library.cli build            # build from scratch (demo, 4 sources) -> data/index.db
 python3 -m skill_library.cli stats            # library stats
 python3 -m skill_library.cli build --update   # incremental update (only sources due per cadence)

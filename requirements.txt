@@ -1,0 +1,15 @@
+# Runtime dependencies for a non-packaged install (mirrors the
+# [project].dependencies list in pyproject.toml). For a packaged/editable
+# install use `pip install .` (or `pip install -e .`) instead, which also
+# exposes the `skill_library` package on sys.path.
+#
+# Test/dev extras (pytest, reportlab) live in pyproject's
+# [project.optional-dependencies] dev; install with `pip install .[dev]`.
+pyyaml
+numpy
+click
+faiss-cpu
+sqlite-vec
+openai
+fastapi
+uvicorn
