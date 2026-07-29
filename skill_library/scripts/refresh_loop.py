@@ -124,9 +124,16 @@ def _git_pull_or_clone(repo: str, timeout: int = 300) -> tuple[Path | None, str]
 
 
 def _ingest_source(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict:
-    """Run fast-batch ingest (LLM classify/quality OFF, rescan post)."""
+    """Run fast-batch ingest.
+
+    Only the expensive LLM quality judge is disabled inline (it is backfilled
+    by rescan_quality in ``_post_actions``). The classifier stays enabled: one
+    classify call per skill is cheap relative to the quality judge, and without
+    it every skill's category would be OTHER. When no LLM is reachable the
+    ingester already leaves ``classifier=None`` (see ``SkillLibrary.open``), so
+    keeping it here never adds a per-skill timeout.
+    """
     if lib.ingester is not None:
-        lib.ingester.classifier = None
         lib.ingester.quality_judge = None
     return lib.add_batch(src_dir, source=source_label)
 

@@ -4,10 +4,13 @@ Flow:
   1. iterate over all deleted=0 skills
   2. concurrently (ThreadPoolExecutor) call quality_judge.score(rec)
   3. results are written to the quality_judgments table automatically; already-cached ones are skipped
-  4. output a score histogram + avg/min/max
+  4. write skills.quality_score = compute_quality(llm_score=cached judgment) for
+     every skill that now has a cached LLM judgment
+  5. output a score histogram + avg/min/max
 
-This run does not modify skills.quality_score (that is Round B-3's job —
-        recomputed uniformly after the quality.compute_quality refactor).
+Step 4 is what makes the LLM score actually reach the column that drives
+ranking / dedup / export. Fast-batch ingest leaves skills.quality_score at the
+structural fallback (llm_quality_at_ingest=false); this backfill upgrades it.
 
 Usage:
     python -m skill_library.scripts.rescan_quality [--lib PATH] [--limit N] [--workers 8]
@@ -109,6 +112,47 @@ def main():
     skipped = skipped_cached
 
     elapsed = time.time() - t0
+
+    # --- Round B-3: write skills.quality_score from the cached LLM judgments ---
+    # Folded in here (not a separate script) so the score the judge just
+    # computed reaches the column that drives ranking / dedup / export, instead
+    # of staying the structural fallback set at fast-batch ingest.
+    # compute_quality with llm_score set uses only source / safety_flags /
+    # has_scripts / has_references; body_len/desc_len/frontmatter are unused on
+    # this branch and passed as placeholders. Skills without a cached judgment
+    # (LLM failed) are not in the JOIN, so they keep their structural score.
+    from datetime import datetime, timezone
+    from skill_library.metadata import compute_quality
+    sw = lib.config.get("source_weights", {}) or {}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    wb_rows = conn.execute(
+        "SELECT s.skill_id, s.source, s.safety_flags, s.has_scripts, "
+        "       s.has_references, q.score "
+        "FROM skills s JOIN quality_judgments q ON q.content_hash = s.content_hash "
+        "WHERE s.deleted = 0"
+    ).fetchall()
+    wb_updates = []
+    for r in wb_rows:
+        try:
+            flags = json.loads(r["safety_flags"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            flags = []
+        new_q = compute_quality(
+            source=r["source"], source_weights=sw,
+            body_len=0, desc_len=0, frontmatter={},
+            has_scripts=bool(r["has_scripts"]),
+            has_references=bool(r["has_references"]),
+            safety_flags=flags,
+            llm_score=max(0.0, min(1.0, float(r["score"]) / 10.0)),
+        )
+        wb_updates.append((new_q, now_iso, r["skill_id"]))
+    conn.executemany(
+        "UPDATE skills SET quality_score = ?, updated_at = ? WHERE skill_id = ?",
+        wb_updates,
+    )
+    conn.commit()
+    print(f"  wrote skills.quality_score for {len(wb_updates)} skills "
+          f"(from cached LLM judgments)")
 
     # aggregate (includes previously cached + newly scored this run)
     stats = lib.quality_judge.stats()
