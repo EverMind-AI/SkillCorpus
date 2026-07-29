@@ -180,7 +180,11 @@ class Ingester:
         if (self._dedup_enabled and embedding is not None
                 and self.embedder is not None):
             near = self.store.find_near_duplicates(
-                embedding, exclude_skill_id=None,
+                # Exclude the row being (re)written itself: a same-source
+                # same-name overwrite reuses the old skill_id, so without this
+                # the old row self-matches at cos~=1.0 and triggers a
+                # supersede(x, x) self-reference.
+                embedding, exclude_skill_id=new_rec.skill_id,
                 top_k=self._dedup_top_k,
                 min_cosine=self._dedup_min_cos,
             )
@@ -398,10 +402,12 @@ class Ingester:
         same_name = self.store.get_by_name_hash(n_hash)
         same_name_same_src = [r for r in same_name if r.source == source]
         if same_name_same_src and not force:
-            old = same_name_same_src[0]
-            if old.stored_path:
-                remove_skill_from_library(self.lib_root, old.stored_path)
-            stable_id = old.skill_id
+            # Overwrite in place by reusing the id. Do NOT delete the old files
+            # here: copy_skill_to_library rmtrees + rewrites the same
+            # (source, slug) dir on a successful write, and deleting up front
+            # left a dangling row if _finalize_and_insert then discarded rec
+            # (near-dup loss) or raised.
+            stable_id = same_name_same_src[0].skill_id
         else:
             stable_id = self._make_id(source, name, c_hash)
 
@@ -664,10 +670,13 @@ class Ingester:
                         if r.source == source
                     ]
                     if same_src:
-                        old = same_src[0]
-                        if old.stored_path:
-                            remove_skill_from_library(self.lib_root, old.stored_path)
-                        rec.skill_id = old.skill_id
+                        # Overwrite in place by reusing the id. Do NOT delete the
+                        # old files here: copy_skill_to_library rmtrees + rewrites
+                        # the same (source, slug) dir on a successful write, and
+                        # deleting up front left a dangling row if
+                        # _finalize_and_insert then discarded rec (near-dup loss)
+                        # or raised.
+                        rec.skill_id = same_src[0].skill_id
 
                     try:
                         result = self._finalize_and_insert(
