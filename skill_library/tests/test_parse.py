@@ -82,6 +82,26 @@ def test_validate_overlong_description_tolerated():
     )  # does not raise
 
 
+def test_parse_bom_and_crlf():
+    """P1-8: a UTF-8 BOM / CRLF / CR SKILL.md must parse, not REJECTED_PARSE.
+
+    The frontmatter regex is LF-only and str.lstrip() does not strip the BOM,
+    so Windows-authored files used to be silently rejected.
+    """
+    variants = {
+        "BOM": "\ufeff" + SAMPLE,
+        "CRLF": SAMPLE.replace("\n", "\r\n"),
+        "CR": SAMPLE.replace("\n", "\r"),
+        "BOM+CRLF": "\ufeff" + SAMPLE.replace("\n", "\r\n"),
+    }
+    for label, content in variants.items():
+        fm, body = parse_skill_md(content)
+        assert fm["name"] == "demo-skill", label
+        assert fm["tags"] == ["pdf", "reportlab"], label
+        assert "Body content" in body, label
+        assert "\r" not in body, f"{label}: body still has CR"
+
+
 if __name__ == "__main__":
     test_parse_ok()
     test_parse_no_frontmatter()
@@ -90,4 +110,5 @@ if __name__ == "__main__":
     test_validate_bad_name_slug()
     test_validate_missing_description()
     test_validate_overlong_description_tolerated()
+    test_parse_bom_and_crlf()
     print("ALL PARSE TESTS PASSED")

@@ -41,6 +41,10 @@ def parse_skill_md(content: str) -> tuple[dict[str, Any], str]:
 
     Body excludes the frontmatter and the delimiters.
     """
+    # Normalize a UTF-8 BOM + CRLF/CR line endings first. The frontmatter regex
+    # is LF-only and str.lstrip() does not treat the BOM as whitespace, so a
+    # Windows-authored SKILL.md would otherwise be silently REJECTED_PARSE.
+    content = content.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     if not content.lstrip().startswith("---"):
         raise ParseError("no frontmatter (content must start with '---')")
 
