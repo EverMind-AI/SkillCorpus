@@ -53,10 +53,12 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
     # 1) name_hash collisions (across sources, including multiple copies within a source)
     name_groups: dict[str, list[str]] = defaultdict(list)
     rows = conn.execute(
-        "SELECT skill_id, name_hash FROM skills WHERE deleted = 0"
+        "SELECT skill_id, name_hash, quality_score FROM skills WHERE deleted = 0"
     ).fetchall()
+    quality: dict[str, float] = {}
     for r in rows:
         name_groups[r["name_hash"]].append(r["skill_id"])
+        quality[r["skill_id"]] = r["quality_score"] or 0.0
 
     pairs: dict[tuple[str, str], tuple[float, str]] = {}
     name_pair_count = 0
@@ -67,9 +69,20 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
             _emb_cache[sid] = _load_embedding(conn, sid)
         return _emb_cache[sid]
 
+    _MAX_GROUP = 100
     for nh, ids in name_groups.items():
         if len(ids) < 2:
             continue
+        if len(ids) > _MAX_GROUP:
+            # Bound the O(k^2) pairing on pathological same-name groups (e.g.
+            # "code-review" recurring across thousands of repos would otherwise
+            # queue millions of LLM dup judgments). Keep the top-N by quality;
+            # log the rest as skipped rather than silently dropping them.
+            dropped = len(ids) - _MAX_GROUP
+            ids = sorted(ids, key=lambda s: quality.get(s, 0.0),
+                         reverse=True)[:_MAX_GROUP]
+            print(f"  [dedup] name_hash group {nh[:12]} capped to top "
+                  f"{_MAX_GROUP} by quality ({dropped} skipped)")
         for i in range(len(ids)):
             for j in range(i + 1, len(ids)):
                 a, b = sorted([ids[i], ids[j]])
