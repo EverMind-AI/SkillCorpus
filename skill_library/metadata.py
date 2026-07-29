@@ -650,27 +650,35 @@ class LLMQualityJudge:
     def __init__(self, llm: LLMClient, conn: sqlite3.Connection):
         self.llm = llm
         self.conn = conn
+        # Serialize sqlite access: one connection shared across worker threads
+        # raises InterfaceError on concurrent execute() (mirrors LLMDupJudge).
+        # Removes the reliance on a fragile "main-thread cache_put only"
+        # convention.
+        import threading
+        self._sqlite_lock = threading.Lock()
         self._init_schema()
 
     def _init_schema(self) -> None:
         # Idempotent: create new table if absent, or ALTER old table to add
         # subscores column.
-        self.conn.executescript(QUALITY_JUDGMENT_SCHEMA)
-        cols = {r[1] for r in self.conn.execute(
-            "PRAGMA table_info(quality_judgments)").fetchall()}
-        if "subscores" not in cols:
-            self.conn.execute(
-                "ALTER TABLE quality_judgments "
-                "ADD COLUMN subscores TEXT NOT NULL DEFAULT '{}'"
-            )
-        self.conn.commit()
+        with self._sqlite_lock:
+            self.conn.executescript(QUALITY_JUDGMENT_SCHEMA)
+            cols = {r[1] for r in self.conn.execute(
+                "PRAGMA table_info(quality_judgments)").fetchall()}
+            if "subscores" not in cols:
+                self.conn.execute(
+                    "ALTER TABLE quality_judgments "
+                    "ADD COLUMN subscores TEXT NOT NULL DEFAULT '{}'"
+                )
+            self.conn.commit()
 
     def _cache_get(self, content_hash: str) -> QualityJudgment | None:
-        row = self.conn.execute(
-            "SELECT score, reason, subscores FROM quality_judgments "
-            "WHERE content_hash = ?",
-            (content_hash,),
-        ).fetchone()
+        with self._sqlite_lock:
+            row = self.conn.execute(
+                "SELECT score, reason, subscores FROM quality_judgments "
+                "WHERE content_hash = ?",
+                (content_hash,),
+            ).fetchone()
         if row is None:
             return None
         score = float(row[0])
@@ -698,15 +706,16 @@ class LLMQualityJudge:
         if j.utility is not None:
             sub = {"utility": j.utility, "robustness": j.robustness,
                    "safety": j.safety, "flags": j.flags or []}
-        self.conn.execute(
-            """INSERT OR REPLACE INTO quality_judgments
-               (content_hash, score, reason, judged_at, subscores)
-               VALUES (?, ?, ?, ?, ?)""",
-            (content_hash, j.score, j.reason,
-             datetime.now(timezone.utc).isoformat(),
-             json.dumps(sub, ensure_ascii=False)),
-        )
-        self.conn.commit()
+        with self._sqlite_lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO quality_judgments
+                   (content_hash, score, reason, judged_at, subscores)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (content_hash, j.score, j.reason,
+                 datetime.now(timezone.utc).isoformat(),
+                 json.dumps(sub, ensure_ascii=False)),
+            )
+            self.conn.commit()
 
     def compute_no_cache(self, rec: SkillRecord) -> QualityJudgment | None:
         """Pure LLM call, does not read/write the cache. Thread-safe — for use by concurrent workers.
