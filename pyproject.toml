@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-library"
+version = "0.1.0"
+description = "SkillCorpus — general-purpose skill-library build pipeline (producer)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml",
+    "numpy",
+    "click",
+    "faiss-cpu",
+    "sqlite-vec",
+    "openai",
+    "fastapi",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+# reportlab is only used by tests/test_e2e.py (PDF skill fixture)
+dev = ["pytest", "reportlab"]
+
+# Flat nested layout: the importable package is <repo>/skill_library/.
+# Keeping the package name `skill_library` (not renamed) so existing
+# `python -m skill_library.*` invocations and absolute imports keep working.
+[tool.setuptools.packages.find]
+include = ["skill_library*"]
+
+[tool.setuptools.package-data]
+skill_library = ["config.yaml", "sources.yaml", "license_safe_sources.json"]

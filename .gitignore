@@ -1,15 +1,7 @@
-# Library instance data (generated after the user runs seed; large, not committed to git)
-data/
-data.bak/
-
-# Full production source registry (62 sources) — not part of the public release; the public default is sources.yaml (demo)
-sources.full.yaml
-
-# Internal one-off migration scripts — not part of the public release (of no use to external users)
-scripts/_archive/
-
-# Caches
-_cache/
-*.pyc
+# Repo-root ignores (package-level ignores live in skill_library/.gitignore)
 __pycache__/
+*.pyc
 .pytest_cache/
+*.egg-info/
+build/
+dist/
