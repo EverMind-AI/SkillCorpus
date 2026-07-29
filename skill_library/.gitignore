@@ -5,6 +5,12 @@ data.bak/
 # Full production source registry (62 sources) — not part of the public release; the public default is sources.yaml (demo)
 sources.full.yaml
 
+# GREEN-license whitelist — a GENERATED downstream product of the private
+# sources (it enumerates the ~4.8K crawled+kept owner/repo, so it leaks the
+# source inventory). Not committed; regenerate at deploy via
+# `license_audit build`. Absent at runtime => new inserts default to active=0.
+license_safe_sources.json
+
 # Internal one-off migration scripts — not part of the public release (of no use to external users)
 scripts/_archive/
 

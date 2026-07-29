@@ -30,4 +30,6 @@ dev = ["pytest", "reportlab"]
 include = ["skill_library*"]
 
 [tool.setuptools.package-data]
-skill_library = ["config.yaml", "sources.yaml", "license_safe_sources.json"]
+# license_safe_sources.json is intentionally NOT shipped: it is a private,
+# generated whitelist (see skill_library/.gitignore) regenerated at deploy.
+skill_library = ["config.yaml", "sources.yaml"]

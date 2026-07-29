@@ -101,10 +101,17 @@ source only touches the YAML.
 |---|---|---|
 | `sources.yaml` | public demo — 4 permissive git_clone sources | ✅ committed |
 | `sources.full.yaml` | full production set, 62 sources / 6 types | ❌ git-ignored, private |
+| `license_safe_sources.json` | generated GREEN-license whitelist (~4.8K owner/repo) | ❌ git-ignored, private |
+
+`license_safe_sources.json` is a downstream product of the private sources — it
+enumerates the crawled+kept repos, so it is treated as private too. It is
+regenerated at deploy with `license_audit build`; when absent at runtime the
+license gate defaults every new insert to `active=0` (safe default).
 
 **Partially open**: the public repo ships the complete code + demo `sources.yaml`
-but **not** `data/` or `sources.full.yaml`. You can run the full pipeline and
-build your own local library, but not obtain the full source inventory or the
+but **not** `data/`, `sources.full.yaml`, or `license_safe_sources.json`. You can
+run the full pipeline and build your own local library, but not obtain the full
+source inventory or the
 finished corpus.
 
 **Not bit-for-bit reproducible from an empty `data/`**: `readme_scrape` /
@@ -135,7 +142,7 @@ skill_library/                     # importable package (product name: SkillCorp
 ├── export.py      # index.db → mass_library.db (full + incremental)
 │  ── helpers / config ──
 ├── llm.py / license_audit.py
-├── sources.yaml / sources.full.yaml(private) / license_safe_sources.json
+├── sources.yaml / sources.full.yaml(private) / license_safe_sources.json(private, generated)
 │  ── ops scripts ──
 ├── scripts/       # rescan_dedup, rescan_quality, source_resync,
 │                  # refresh_loop (cron), refresh_server (:8765), lobehub_to_skills
