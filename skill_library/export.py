@@ -102,7 +102,54 @@ CREATE INDEX IF NOT EXISTS idx_skills_source       ON skills(source);
 CREATE INDEX IF NOT EXISTS idx_skills_category     ON skills(category);
 CREATE INDEX IF NOT EXISTS idx_skills_is_always    ON skills(is_always) WHERE is_always = 1;
 CREATE INDEX IF NOT EXISTS idx_skills_name_source  ON skills(name, source);
+CREATE INDEX IF NOT EXISTS idx_skills_content_hash ON skills(content_hash);
 """
+
+
+# Single source of truth for the producer-side row query used by BOTH the full
+# export() and the incremental _producer_active_rows(). The quality_judgments
+# LEFT JOIN carries the 3-facet subscores; keeping one query stops the two
+# paths from drifting (a full export used to omit the join -> lost subscores).
+_PRODUCER_ROWS_SQL = """
+    SELECT s.skill_id, s.name, s.source, s.description, s.body,
+           s.frontmatter_raw, s.source_url, s.license, s.category,
+           s.tags, s.quality_score, s.safety_flags, s.content_hash,
+           s.body_tokens, s.has_scripts, s.has_references,
+           s.added_at, s.updated_at, s.stored_path,
+           q.subscores AS subscores_json
+    FROM skills s
+    LEFT JOIN quality_judgments q ON q.content_hash = s.content_hash
+    WHERE s.deleted = 0 AND COALESCE(s.active, 1) = 1
+"""
+
+
+def _write_sentinels(dst_path: Path, refresh_endpoint: str | None) -> None:
+    """Write the consumer-facing sentinels next to mass_library.db.
+
+    - ``.refresh_endpoint`` (only when given) lets the consumer's `skill
+      refresh` auto-discover the producer URL.
+    - ``.stale`` signals "new version available"; the consumer consumes and
+      clears it on its next attach.
+
+    Called by both export() (full) and sync() (incremental) so an incremental
+    update is also visible to the consumer.
+    """
+    if refresh_endpoint:
+        endpoint_file = dst_path.parent / ".refresh_endpoint"
+        endpoint_file.write_text(refresh_endpoint.strip() + "\n", encoding="utf-8")
+        print(f"wrote {endpoint_file} = {refresh_endpoint}")
+    stale_file = dst_path.parent / ".stale"
+    stale_file.write_text("dirty\n", encoding="utf-8")
+    print(f"wrote {stale_file}")
+
+
+def _ensure_quality_judgments(conn: sqlite3.Connection) -> None:
+    """_PRODUCER_ROWS_SQL LEFT JOINs ``quality_judgments`` for subscores, but a
+    producer DB that never ran the LLM quality judge has no such table. Create
+    it (empty, idempotent) so the join yields NULL subscores instead of raising
+    ``no such table``. Reuses the judge's canonical schema to avoid drift."""
+    from skill_library.metadata import QUALITY_JUDGMENT_SCHEMA
+    conn.executescript(QUALITY_JUDGMENT_SCHEMA)
 
 
 def _load_embeddings_from_vec_skills(data_dir: Path) -> dict[str, bytes]:
@@ -403,18 +450,15 @@ def export(
     # Stream from src
     src = sqlite3.connect(str(src_db))
     src.row_factory = sqlite3.Row
+    _ensure_quality_judgments(src)
     # ``active = 1`` gates on the producer-side license classification
     # (see source_license_report.csv → GREEN bucket). ``COALESCE(active, 1)``
     # is a backstop for older index.db snapshots that pre-date the column.
-    q = """
-        SELECT skill_id, name, source, description, body,
-               frontmatter_raw, source_url, license, category, tags,
-               quality_score, safety_flags, content_hash,
-               body_tokens, has_scripts, has_references,
-               added_at, updated_at, stored_path
-        FROM skills
-        WHERE deleted = 0 AND COALESCE(active, 1) = 1
-    """
+    # Shared producer-row query (_PRODUCER_ROWS_SQL) — includes the
+    # quality_judgments LEFT JOIN so a full export carries subscores too.
+    # Previously only the incremental sync() had the join, so a full rewrite
+    # silently dropped frontmatter_json.everclaw.subscores.
+    q = _PRODUCER_ROWS_SQL
     if limit:
         q += f" LIMIT {int(limit)}"
 
@@ -471,16 +515,7 @@ def export(
     src.close()
     dst.close()
 
-    # Write refresh-endpoint sentinel for consumer auto-discovery
-    if refresh_endpoint:
-        endpoint_file = dst_path.parent / ".refresh_endpoint"
-        endpoint_file.write_text(refresh_endpoint.strip() + "\n", encoding="utf-8")
-        print(f"wrote {endpoint_file} = {refresh_endpoint}")
-
-    # Write .stale marker — consumer's next start re-attaches the updated DB
-    stale_file = dst_path.parent / ".stale"
-    stale_file.write_text("dirty\n", encoding="utf-8")
-    print(f"wrote {stale_file}")
+    _write_sentinels(dst_path, refresh_endpoint)
 
     return stats
 
@@ -510,18 +545,8 @@ def _producer_active_rows(src_db: Path):
     """
     conn = sqlite3.connect(str(src_db))
     conn.row_factory = sqlite3.Row
-    sql = """
-        SELECT s.skill_id, s.name, s.source, s.description, s.body,
-               s.frontmatter_raw, s.source_url, s.license, s.category,
-               s.tags, s.quality_score, s.safety_flags, s.content_hash,
-               s.body_tokens, s.has_scripts, s.has_references,
-               s.added_at, s.updated_at, s.stored_path,
-               q.subscores AS subscores_json
-        FROM skills s
-        LEFT JOIN quality_judgments q ON q.content_hash = s.content_hash
-        WHERE s.deleted = 0 AND COALESCE(s.active, 1) = 1
-    """
-    yield from conn.execute(sql)
+    _ensure_quality_judgments(conn)
+    yield from conn.execute(_PRODUCER_ROWS_SQL)
     conn.close()
 
 
@@ -665,6 +690,7 @@ def sync(
     embedding_dim: int | None = None,
     dry_run: bool = False,
     do_backup: bool = True,
+    refresh_endpoint: str | None = None,
 ) -> dict[str, int]:
     """Apply the producer→consumer delta to ``dst_path`` in place.
 
@@ -762,6 +788,7 @@ def sync(
         print(f"deleting {len(to_delete)} rows...", flush=True)
         del_list = list(to_delete)
         CHUNK = 500
+        deleted_total = 0
         for i in range(0, len(del_list), CHUNK):
             chunk = del_list[i : i + CHUNK]
             placeholders = ",".join(["?"] * len(chunk))
@@ -769,7 +796,11 @@ def sync(
                 f"DELETE FROM skills WHERE content_hash IN ({placeholders})",
                 chunk,
             )
-        stats["deleted"] = cur.rowcount if cur.rowcount >= 0 else len(to_delete)
+            # Accumulate per-chunk rowcount; reading it only after the loop
+            # reported just the final chunk (e.g. 500 for a 3000-row delete).
+            if cur.rowcount and cur.rowcount > 0:
+                deleted_total += cur.rowcount
+        stats["deleted"] = deleted_total if deleted_total else len(to_delete)
         dst.commit()
 
     # INSERT pass.
@@ -869,6 +900,10 @@ def sync(
         print(f"!! WARNING: final count {final_count} != expected {expected}",
               file=sys.stderr)
 
+    # Signal the update to the consumer (same sentinels as a full export) so an
+    # incremental sync is not silently invisible to the mounted consumer.
+    _write_sentinels(dst_path, refresh_endpoint)
+
     return stats
 
 
@@ -914,6 +949,7 @@ def main() -> int:
             update_existing=args.update_existing,
             assets_dir=Path(assets).resolve() if assets else None,
             dry_run=args.dry_run, do_backup=not args.no_backup,
+            refresh_endpoint=args.refresh_endpoint,
         )
         print(f"\nstats: {json.dumps(stats, indent=2)}")
         return 0
