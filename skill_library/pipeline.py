@@ -13,8 +13,8 @@ from typing import Any
 
 from .metadata import Classifier
 from .metadata import extract_tags
-from .dedup import content_hash, name_hash, short_hash
-from .dedup import LLMDupJudge
+from .core.hashing import content_hash, name_hash, short_hash
+from .curate.dedup import LLMDupJudge
 from .core.embed import EmbeddingClient, format_embedding_text
 from .core.store import SkillRecord
 from .rules import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill

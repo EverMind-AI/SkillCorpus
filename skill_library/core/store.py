@@ -323,10 +323,7 @@ class SkillStore:
         # Round A (2): recompute all name_hash to the canonical form, one-time
         cur_v = conn.execute("PRAGMA user_version").fetchone()[0]
         if cur_v < 1:
-            # TODO(layout): core must not import the dedup/curate stage; move
-            # name_hash into core when dedup migrates. (This _migrate block is
-            # itself slated for removal per the layout plan.)
-            from ..dedup import name_hash as _canonical_name_hash
+            from .hashing import name_hash as _canonical_name_hash
             rows = conn.execute("SELECT skill_id, name FROM skills").fetchall()
             updated = 0
             for r in rows:
