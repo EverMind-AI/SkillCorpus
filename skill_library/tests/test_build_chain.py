@@ -10,7 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import skill_library.export.corpus as corpus_mod
-import skill_library.scripts.refresh_loop as rl
+import skill_library.cli as rl
 
 
 def _fake_lib(tmp_path):

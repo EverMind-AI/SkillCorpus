@@ -198,20 +198,21 @@ Outputs under `<lib_root>/corpus/`: `skills.parquet` (one row per skill),
 `attachments/<skill_id>/` (the skill dir minus SKILL.md), and `README.md` (the
 dataset card). Only GREEN-licensed, non-deleted skills are exported.
 
-### Proactive refresh
+### Scheduling
+Builds are on-demand — there is no cadence / refresh state. To refresh
+periodically, run `cli build` from cron:
 ```bash
-python3 -m skill_library.scripts.refresh_server --port 8765 &   # HTTP trigger
-0 3 * * *  python3 -m skill_library.scripts.refresh_loop        # cron (only due sources)
-python3 -m skill_library.scripts.refresh_loop --source openclaw/skills --force
+0 3 * * *  python3 -m skill_library.cli build                       # nightly demo build
+python3 -m skill_library.cli build --source openclaw/skills         # just one source
 ```
-`refresh_loop` reads cadence from `sources.yaml` + `data/refresh_state.json`, then
-for due sources: git pull → fast-batch ingest → rescan_quality → export.
 
-### Whole-library backfill / license maintenance
+### Individual pipeline steps
+`cli build` runs these in order; each is also runnable on its own against an
+existing library:
 ```bash
-python3 -m skill_library.scripts.rescan_dedup   --report /tmp/rescan.json  # [--min-cos 0.92 --top-k 10 ...]
-python3 -m skill_library.scripts.rescan_quality --workers 16 --report /tmp/q.json
-python3 -m skill_library.license_audit refresh|build|validate|apply|stats  # source→license maintenance
+python3 -m skill_library.curate.quality_pass  --workers 16 --report /tmp/q.json
+python3 -m skill_library.curate.dedup_pass    --report /tmp/rescan.json  # [--min-cos 0.92 --top-k 10 ...]
+python3 -m skill_library.curate.license_audit refresh|build|validate|apply|activate|stats
 ```
 License data flow: `GitHub API (spdx_id)` → `source_license_report.csv` →
 `license_safe_sources.json` → `index.db skills.license / active`. Routine: after
