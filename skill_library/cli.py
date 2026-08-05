@@ -1,36 +1,19 @@
 """Skill Library CLI — click command-line interface.
 
 Usage examples (``--lib`` is a group option and must precede the subcommand):
-  python -m skill_library.cli --lib /tmp/lib init
-  python -m skill_library.cli --lib /tmp/lib add /path/to/pdf --source anthropics
-  python -m skill_library.cli --lib /tmp/lib add-batch /path/to/skills --source anthropics
+  python -m skill_library.cli --lib /tmp/lib build
   python -m skill_library.cli --lib /tmp/lib stats
+  python -m skill_library.cli --lib /tmp/lib export --out /tmp/corpus
 """
 
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import click
 
 from .curate.pipeline import SkillLibrary
-
-
-def _fmt_record(r) -> dict:
-    return {
-        "skill_id": r.skill_id,
-        "name": r.name,
-        "description": r.description[:100] + ("..." if len(r.description) > 100 else ""),
-        "source": r.source,
-        "category": r.category,
-        "tags": r.tags,
-        "quality": r.quality_score,
-        "safety_flags": r.safety_flags,
-        "has_scripts": r.has_scripts,
-        "body_tokens": r.body_tokens,
-    }
 
 
 _DEFAULT_LIB = str(
@@ -59,94 +42,6 @@ def init(ctx):
     click.echo(f"  Config: {lib.config_path}")
     click.echo(f"  Embedding available: {lib.embedder.is_available() if lib.embedder else False}")
     lib.close()
-
-
-@cli.command()
-@click.argument("skill_dir", type=click.Path(exists=True, file_okay=False))
-@click.option("--source", required=True, help="Source tag (anthropics/karanb192/...)")
-@click.option("--source-url", default=None)
-@click.option("--force", is_flag=True, help="Force re-ingest even if duplicate")
-@click.pass_context
-def add(ctx, skill_dir, source, source_url, force):
-    """Add a single skill directory to the library."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        result = lib.add(skill_dir, source=source, source_url=source_url, force=force)
-        click.echo(f"Status: {result.status.value}")
-        if result.reason:
-            click.echo(f"  Reason: {result.reason}")
-        if result.record:
-            click.echo(json.dumps(_fmt_record(result.record), ensure_ascii=False, indent=2))
-
-
-@cli.command("add-batch")
-@click.argument("root", type=click.Path(exists=True, file_okay=False))
-@click.option("--source", required=True)
-@click.option("--pattern", default="**/SKILL.md")
-@click.option("--limit", type=int, default=None)
-@click.pass_context
-def add_batch(ctx, root, source, pattern, limit):
-    """Batch-scan a directory and ingest the dir containing each SKILL.md."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        out = lib.add_batch(root, source=source, pattern=pattern, limit=limit)
-        samples = out.pop("rejected_samples", [])
-        added_ids = out.pop("added_ids", [])
-        click.echo(json.dumps(out, ensure_ascii=False, indent=2))
-        if samples:
-            click.echo("\nRejected samples (first 10):")
-            for path, reason in samples[:10]:
-                click.echo(f"  - {path}: {reason}")
-
-
-# NOTE: this CLI only covers ingestion / build / ops; runtime retrieval (BM25+embedding
-# search over the library) is the consumer's responsibility, so no `search` subcommand is provided here.
-
-
-@cli.command()
-@click.argument("skill_id")
-@click.pass_context
-def get(ctx, skill_id):
-    """Show the details of a single skill."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        r = lib.get(skill_id)
-        if r is None:
-            click.echo(f"not found: {skill_id}", err=True)
-            sys.exit(1)
-        d = _fmt_record(r)
-        d["body_preview"] = r.body[:500] + ("..." if len(r.body) > 500 else "")
-        d["stored_path"] = r.stored_path
-        click.echo(json.dumps(d, ensure_ascii=False, indent=2))
-
-
-@cli.command("list")
-@click.option("--category", default=None)
-@click.option("--source", default=None)
-@click.option("--tag", default=None)
-@click.option("--min-quality", default=0.0, type=float)
-@click.option("--limit", default=50, type=int)
-@click.pass_context
-def list_cmd(ctx, category, source, tag, min_quality, limit):
-    """List skills (optionally filtered by category/source/tag/quality)."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        records = lib.list(
-            category=category, source=source, tag=tag,
-            min_quality=min_quality, limit=limit,
-        )
-        click.echo(f"{len(records)} records:")
-        for r in records:
-            click.echo(f"  [{r.category:14s}] {r.skill_id}  (q={r.quality_score})")
-            click.echo(f"                   {r.description[:100]}")
-
-
-@cli.command()
-@click.argument("skill_id")
-@click.option("--hard", is_flag=True, help="Physical delete (also remove files)")
-@click.pass_context
-def delete(ctx, skill_id, hard):
-    """Delete a skill (soft by default)."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        ok = lib.delete(skill_id, soft=not hard)
-        click.echo("deleted" if ok else "not found")
-        sys.exit(0 if ok else 1)
 
 
 @cli.command()
@@ -202,54 +97,20 @@ def build(ctx, update, full, sources_config, source, dry_run):
 
 
 @cli.command()
-@click.argument("skill_id")
-@click.argument("tags")
-@click.pass_context
-def retag(ctx, skill_id, tags):
-    """Update the tag list (comma-separated)."""
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        r = lib.retag(skill_id, tag_list)
-        if r is None:
-            click.echo("not found", err=True)
-            sys.exit(1)
-        click.echo(f"tags updated: {r.tags}")
-
-
-@cli.command()
-@click.argument("skill_id")
-@click.argument("category")
-@click.pass_context
-def reclassify(ctx, skill_id, category):
-    """Change the primary category."""
-    with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        r = lib.reclassify(skill_id, category)
-        if r is None:
-            click.echo("not found", err=True)
-            sys.exit(1)
-        click.echo(f"category updated: {r.category}")
-
-
-@cli.command()
 @click.option("--out", "out_path", required=True, type=click.Path(),
-              help="Output zip path")
-@click.option("--ids", default=None, help="Comma-separated skill_ids")
-@click.option("--category", default=None)
-@click.option("--source", default=None)
-@click.option("--tag", default=None)
-@click.option("--min-quality", default=0.0, type=float)
-@click.option("--limit", default=10_000, type=int)
+              help="Output corpus directory")
 @click.pass_context
-def export(ctx, out_path, ids, category, source, tag, min_quality, limit):
-    """Export a subset of skills as a zip (containing manifest.json + skill directories)."""
-    skill_ids = [s.strip() for s in ids.split(",") if s.strip()] if ids else None
+def export(ctx, out_path):
+    """Export the corpus (parquet + attachments + dataset card) from the current library.
+
+    Same output as the final step of `build`, but without re-running the pipeline —
+    re-exports whatever is already in the library. Only GREEN-licensed, non-deleted
+    skills are written (see docs/corpus-schema.md).
+    """
+    from .export.corpus import write_corpus
     with SkillLibrary(ctx.obj["lib_root"], ctx.obj["config_path"]) as lib:
-        out = lib.export_bundle(
-            out_path=out_path, skill_ids=skill_ids,
-            category=category, source=source, tag=tag,
-            min_quality=min_quality, limit=limit,
-        )
-        click.echo(json.dumps(out, ensure_ascii=False, indent=2))
+        stats = write_corpus(lib.store.db_path, lib.lib_root, out_path)
+    click.echo(json.dumps(stats, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
