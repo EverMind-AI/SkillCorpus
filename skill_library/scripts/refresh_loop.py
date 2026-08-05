@@ -145,7 +145,7 @@ def _ingest_lobehub(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict
     if not src_subdir.is_dir():
         return {"total": 0, "added": 0, "error": f"missing src/ in {src_dir}"}
     subprocess.run(
-        [sys.executable, "-m", "skill_library.scripts.lobehub_to_skills",
+        [sys.executable, "-m", "skill_library.aggregate.converters.lobehub",
          "--src", str(src_subdir), "--out", str(out_dir)],
         check=True,
     )

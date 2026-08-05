@@ -27,7 +27,7 @@ I18n note: src/ has both `<id>.json` (English primary) and `<id>.zh-CN.json`
 (no English counterpart) are kept too.
 
 Usage:
-    python -m skill_library.scripts.lobehub_to_skills \\
+    python -m skill_library.aggregate.converters.lobehub \\
         --src /tmp/lobe-lobe-chat-agents/src \\
         --out /tmp/lobehub-converted
 """
@@ -40,7 +40,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 
