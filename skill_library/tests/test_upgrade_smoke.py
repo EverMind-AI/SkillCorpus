@@ -167,7 +167,7 @@ def test_upgrade_smoke():
 
         # ── Phase 5: license whitelist ↔ code GREEN set consistency (🔴#4) ────────
         real_json = json.loads(
-            (Path(export_mod.__file__).resolve().parent
+            (Path(export_mod.__file__).resolve().parent.parent
              / "license_safe_sources.json").read_text(encoding="utf-8"))
         assert set(real_json["green_categories"]) == set(GREEN_LICENSES), \
             "license_safe_sources.json green_categories does not match code GREEN set (🔴#4)"

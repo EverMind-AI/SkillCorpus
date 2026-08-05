@@ -51,10 +51,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "skill_library" / "data"
 DEFAULT_DST = REPO_ROOT / "mass_library.db"
-_CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
 
 def _config_embedding() -> tuple[str, int]:
