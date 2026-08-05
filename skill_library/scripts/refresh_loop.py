@@ -152,38 +152,47 @@ def _ingest_lobehub(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict
     return _ingest_source(lib, out_dir, source_label)
 
 
+def _run_module(module: str, argv: list[str]) -> int:
+    """Run a curate pass as a subprocess (isolates the heavy LLM / embedding
+    passes' memory). Returns the exit code; a non-zero pass does not abort the
+    build — a source may legitimately have nothing to score / no whitelist."""
+    return subprocess.run(
+        [sys.executable, "-m", module, *argv], check=False
+    ).returncode
+
+
 def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
-    """Run rescan_quality + sync after refresh batch is done."""
-    if dry:
-        print("[dry-run] would rescan_quality + export_to_mass_library", flush=True)
-        return
-    # The post-action subprocesses default to the package data dir, so a custom
-    # run_refresh(lib_root=...) would otherwise rescan / export the WRONG
-    # library. Thread the actual lib_root through as --lib / --src.
+    """The fixed curate -> export tail of the build pipeline, run once after all
+    sources are ingested:
+
+        quality_pass -> dedup_pass -> license_audit(activate) -> export.corpus
+
+    These used to be opt-in ops scripts (gated on config flags), which is why an
+    un-flagged build could exit 0 having exported nothing. They are unconditional
+    steps now, so ``cli build`` always ends by writing the corpus.
+    """
     lib_root = str(lib.lib_root)
-    if defaults.get("rescan_quality_after"):
-        print("\n→ rescan_quality (LLM backfill on new skills)...", flush=True)
-        subprocess.run(
-            [sys.executable, "-m", "skill_library.curate.quality_pass",
-             "--lib", lib_root, "--workers", "16"],
-            check=False,
-        )
-    if defaults.get("export_after"):
-        print("\n→ export_to_mass_library (Ever-v2 mass_library.db + .stale flag)...",
-              flush=True)
-        export_cmd = [
-            sys.executable, "-m", "skill_library.export",
-            "--src", lib_root,
-        ]
-        # Optional refresh-endpoint pass-through so the produced sentinel
-        # tells downstream consumers where to call ``skill refresh``.
-        refresh_endpoint = defaults.get("export_refresh_endpoint")
-        if refresh_endpoint:
-            export_cmd += ["--refresh-endpoint", str(refresh_endpoint)]
-        dst = defaults.get("export_dst")
-        if dst:
-            export_cmd += ["--dst", str(dst)]
-        subprocess.run(export_cmd, check=False)
+    db_path = str(lib.store.db_path)
+    corpus_out = str(defaults.get("corpus_out") or (lib.lib_root / "corpus"))
+    if dry:
+        print(f"[dry-run] would run quality_pass -> dedup_pass -> license_audit "
+              f"-> export.corpus (db={db_path}, out={corpus_out})", flush=True)
+        return
+
+    print("\n→ quality_pass (LLM 3-dim backfill)...", flush=True)
+    _run_module("skill_library.curate.quality_pass", ["--lib", lib_root, "--workers", "16"])
+
+    print("\n→ dedup_pass (cross-source near-dup merge)...", flush=True)
+    _run_module("skill_library.curate.dedup_pass", ["--lib", lib_root])
+
+    print("\n→ license_audit activate (GREEN whitelist → active)...", flush=True)
+    _run_module("skill_library.curate.license_audit", ["activate", "--db", db_path])
+
+    print("\n→ export.corpus (parquet + attachments + card)...", flush=True)
+    from skill_library.export.corpus import write_corpus
+    stats = write_corpus(db_path, lib_root, corpus_out)
+    print(f"  corpus: {stats['rows']} rows, {stats['with_attachments']} "
+          f"with attachments → {stats['out']}", flush=True)
 
 
 def run_refresh(

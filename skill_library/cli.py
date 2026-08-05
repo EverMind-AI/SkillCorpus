@@ -168,7 +168,7 @@ def stats(ctx):
 @click.option("--dry-run", is_flag=True)
 @click.pass_context
 def build(ctx, update, full, sources_config, source, dry_run):
-    """One-shot full pipeline — discover→clone→ingest→quality→export, building from scratch / incremental update.
+    """One-shot full pipeline — discover→clone→ingest→quality→dedup→license→corpus, building from scratch / incremental update.
 
     An empty library is created automatically (SkillLibrary.open has a built-in init_schema). This is the facade for refresh_loop.
     \b
