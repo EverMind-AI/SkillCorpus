@@ -40,7 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from skill_library import SkillLibrary  # noqa: E402
-from skill_library.fetch import discover_repos  # noqa: E402
+from skill_library.aggregate.fetch import discover_repos  # noqa: E402
 
 FETCHED_ROOT = REPO_ROOT / "experiment-results" / "_reference_skills" / "_fetched"
 STATE_FILE = REPO_ROOT / "skill_library" / "data" / "refresh_state.json"

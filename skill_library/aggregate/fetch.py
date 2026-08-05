@@ -33,10 +33,10 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 REF = REPO_ROOT / "experiment-results" / "_reference_skills"
 FETCHED = REF / "_fetched"
-DEFAULT_YAML = Path(__file__).resolve().parent / "sources.yaml"
+DEFAULT_YAML = Path(__file__).resolve().parents[1] / "sources.yaml"
 
 # github URL regex: extract (owner, repo), tolerating a /tree/<branch>/<path> suffix
 GH_RE = re.compile(
