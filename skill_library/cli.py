@@ -15,7 +15,7 @@ from pathlib import Path
 
 import click
 
-from .pipeline import SkillLibrary
+from .curate.pipeline import SkillLibrary
 
 
 def _fmt_record(r) -> dict:

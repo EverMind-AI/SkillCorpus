@@ -11,18 +11,18 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from .curate.classify import Classifier
-from .curate.classify import extract_tags
-from .core.hashing import content_hash, name_hash, short_hash
-from .curate.dedup import LLMDupJudge
-from .core.embed import EmbeddingClient, format_embedding_text
-from .core.store import SkillRecord
-from .curate.parse import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill
-from .curate.quality import compute_quality
-from .curate.quality import LLMQualityJudge
-from .curate.safety import check_safety, is_blocked
-from .core.store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
-from .core.llm import LLMClient
+from .classify import Classifier
+from .classify import extract_tags
+from ..core.hashing import content_hash, name_hash, short_hash
+from .dedup import LLMDupJudge
+from ..core.embed import EmbeddingClient, format_embedding_text
+from ..core.store import SkillRecord
+from .parse import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill
+from .quality import compute_quality
+from .quality import LLMQualityJudge
+from .safety import check_safety, is_blocked
+from ..core.store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
+from ..core.llm import LLMClient
 import yaml
 
 logger = logging.getLogger("skill_library.pipeline")
@@ -833,7 +833,7 @@ class Ingester:
 _DEFAULT_CONFIG_NAME = "config.yaml"
 
 
-_DEFAULT_LIB_ROOT = Path(__file__).resolve().parent / "data"
+_DEFAULT_LIB_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
 class SkillLibrary:
@@ -861,7 +861,7 @@ class SkillLibrary:
         local = self.lib_root / "config.yaml"
         if local.exists():
             return local
-        pkg_default = Path(__file__).parent / "config.yaml"
+        pkg_default = Path(__file__).parent.parent / "config.yaml"
         return pkg_default
 
     # ------------------------------------------------------------------

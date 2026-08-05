@@ -10,8 +10,8 @@ Positioned as an ingest/build pipeline — runtime retrieval (BM25+embedding sea
 """
 
 from .core.store import SkillRecord, Category, CATEGORIES
-from .pipeline import SkillLibrary
-from .pipeline import IngestResult, IngestStatus
+from .curate.pipeline import SkillLibrary
+from .curate.pipeline import IngestResult, IngestStatus
 
 __all__ = [
     "SkillRecord", "Category", "CATEGORIES",
