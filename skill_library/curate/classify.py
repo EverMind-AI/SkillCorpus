@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..core.llm import LLMClient
-from ..core.store import CATEGORIES
+from ..core.models import CATEGORIES
 
 logger = logging.getLogger("skill_library.curate.classify")
 

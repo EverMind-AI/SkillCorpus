@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from skill_library.core.store import SkillRecord
+from skill_library.core.models import SkillRecord
 from skill_library.curate.quality import compute_quality
 from skill_library.curate.quality import (
     LLMQualityJudge, QualityJudgment, _build_prompt, synthesize_score,

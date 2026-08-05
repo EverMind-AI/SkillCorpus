@@ -74,7 +74,7 @@ def main():
     skipped_cached = total - len(work_list)
     print(f"to score: {len(work_list)}  skipped_cached: {skipped_cached}")
 
-    from skill_library.core.store import SkillRecord
+    from skill_library.core.models import SkillRecord
 
     def _worker_score(row):
         """Worker: build a SkillRecord, call compute_no_cache (pure LLM, no SQLite)."""

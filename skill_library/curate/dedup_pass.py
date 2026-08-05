@@ -27,8 +27,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from skill_library import SkillLibrary  # noqa: E402
 from skill_library.core.hashing import cosine_sim  # noqa: E402
-from skill_library.core.store import VEC_TABLE_NAME  # noqa: E402
-from skill_library.core.store import remove_skill_from_library  # noqa: E402
+from skill_library.core.models import VEC_TABLE_NAME  # noqa: E402
+from skill_library.core.fsstore import remove_skill_from_library  # noqa: E402
 
 
 def _load_embedding(conn, skill_id: str) -> list[float] | None:

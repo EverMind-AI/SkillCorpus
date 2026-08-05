@@ -27,7 +27,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from ..core.llm import LLMClient
-from ..core.store import SkillRecord
+from ..core.models import SkillRecord
 
 logger = logging.getLogger("skill_library.dedup")
 

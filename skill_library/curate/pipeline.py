@@ -16,12 +16,14 @@ from .classify import extract_tags
 from ..core.hashing import content_hash, name_hash, short_hash
 from .dedup import LLMDupJudge
 from ..core.embed import EmbeddingClient, format_embedding_text
-from ..core.store import SkillRecord
+from ..core.models import SkillRecord
 from .parse import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill
 from .quality import compute_quality
 from .quality import LLMQualityJudge
 from .safety import check_safety, is_blocked
-from ..core.store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
+from ..core.store import SkillStore
+from ..core.models import Category
+from ..core.fsstore import copy_skill_to_library, remove_skill_from_library
 from ..core.llm import LLMClient
 import yaml
 

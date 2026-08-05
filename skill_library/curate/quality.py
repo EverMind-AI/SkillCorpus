@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..core.llm import LLMClient
-from ..core.store import SkillRecord
+from ..core.models import SkillRecord
 
 
 def _slice(s: str, n: int) -> str:
