@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from skill_library.rules import GREEN_LICENSES
+from skill_library.curate.license import GREEN_LICENSES
 
 
 def test_json_green_categories_matches_code():

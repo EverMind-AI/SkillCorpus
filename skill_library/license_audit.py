@@ -40,7 +40,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .rules import (
+from .curate.license import (
     GREEN_LICENSES,
     RED_LICENSES,
     YELLOW_LICENSES,

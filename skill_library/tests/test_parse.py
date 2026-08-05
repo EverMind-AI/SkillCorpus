@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from skill_library.rules import (
+from skill_library.curate.parse import (
     parse_skill_md, ParseError, ValidationError, validate_skill,
 )
 

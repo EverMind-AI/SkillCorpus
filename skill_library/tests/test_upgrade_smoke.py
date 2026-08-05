@@ -35,7 +35,7 @@ from skill_library.scripts.rescan_dedup import _collect_candidates
 from skill_library.metadata import (
     LLMQualityJudge, QualityJudgment,
 )
-from skill_library.rules import GREEN_LICENSES
+from skill_library.curate.license import GREEN_LICENSES
 
 
 def _rec(sid, name, source, body, ch) -> SkillRecord:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from skill_library.rules import check_safety, is_blocked
+from skill_library.curate.safety import check_safety, is_blocked
 
 
 def test_clean_text_has_no_flags():
