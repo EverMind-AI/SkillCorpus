@@ -1,20 +1,12 @@
-"""Upgrade end-to-end smoke test — covers several integration-boundary regressions in one pass.
+"""Producer integration-boundary smoke — several regressions in one self-contained
+pass (no network / no real LLM / no real embedder):
 
-These pitfalls (migration path / recompute scripts / producer<->consumer label handshake) all live
-at **integration boundaries** that ordinary unit tests don't reach. This file uses a fully
-self-contained (no network / no real LLM / no real embedder) mini library, walks the upgrade path
-once, and asserts that each fix point has not regressed:
-
-  Phase 1  active-column upgrade backfill (🔴#2)  — after upgrading an old library active is all 0;
-                                                     cmd_activate only activates (never deactivates)
-                                                     per the GREEN whitelist
-  Phase 2  export default label           (🔴#5)  — without --embedding-model the label comes from
-                                                     config.yaml (= consumer-side config), not hardcoded
-  Phase 2  export non-empty               (🔴#2)  — after backfill mass_library.db has rows (empty before the fix)
-  Phase 3  quality cache hit              (🔴#3)  — hit by content_hash (judge frozen, no version key)
-  Phase 4  rescan_dedup name_hash         (🔴#1)  — name_hash pairs use real cosine, no longer forced to 1.0
-                                                     auto-merge (historically 7148/68% false positives)
-  Phase 5  license whitelist consistency  (🔴#4)  — JSON green_categories == code GREEN set
+  Phase 1  active-column backfill        — after an old library is upgraded, active
+                                            is all 0; license_audit.cmd_activate only
+                                            activates (never deactivates) per the GREEN whitelist
+  Phase 3  quality cache hit             — hit by content_hash (judge frozen, no version key)
+  Phase 4  dedup_pass name_hash cosine   — name_hash pairs use real cosine, not forced to 1.0
+                                            (historically 68% false-positive auto-merges)
 """
 
 from __future__ import annotations
@@ -29,12 +21,8 @@ from skill_library import SkillLibrary
 from skill_library.core.models import SkillRecord
 from skill_library.core.hashing import name_hash, cosine_sim
 from skill_library.curate import license_audit
-from skill_library import export as export_mod
-from skill_library.export import export, _config_embedding
 from skill_library.curate.dedup_pass import _collect_candidates
-from skill_library.curate.quality import (
-    LLMQualityJudge, QualityJudgment,
-)
+from skill_library.curate.quality import LLMQualityJudge, QualityJudgment
 from skill_library.curate.license import GREEN_LICENSES
 
 
@@ -89,7 +77,7 @@ def test_upgrade_smoke():
         lib, dim = _build_lib(tmp / "lib")
         db_path = lib.lib_root / "index.db"
 
-        # ── Phase 1: active upgrade backfill (🔴#2) ──────────────────────────────
+        # ── Phase 1: active upgrade backfill ─────────────────────────────────────
         # post-upgrade symptom: all rows active=0 → export would produce an empty library.
         assert _active_count(db_path) == 0, "upgrade state should have active all 0 (precondition to reproduce the bug)"
 
@@ -114,23 +102,6 @@ def test_upgrade_smoke():
             json=str(green_json), db=str(db_path), dry_run=False))
         assert _active_count(db_path) == 2, "activate is not idempotent"
 
-        # ── Phase 2: export default label comes from config + non-empty (🔴#5 / 🔴#2) ──
-        mass = tmp / "mass_library.db"
-        cfg_model, _cfg_dim = _config_embedding()
-        export(lib.lib_root, mass)   # no embedding_model passed → should read config.yaml
-
-        mcon = sqlite3.connect(mass)
-        try:
-            n = mcon.execute("SELECT COUNT(*) FROM skills").fetchone()[0]
-            labels = {r[0] for r in mcon.execute(
-                "SELECT DISTINCT embedding_model FROM skills "
-                "WHERE embedding IS NOT NULL").fetchall()}
-        finally:
-            mcon.close()
-        assert n == 2, f"after backfill export should have 2 rows, got {n} (🔴#2: empty library after upgrade)"
-        assert labels == {cfg_model}, \
-            f"embedding_model should = config '{cfg_model}', got {labels} (🔴#5)"
-
         # ── Phase 3: quality cache hit by content_hash (judge frozen, no version key) ──
         qconn = sqlite3.connect(":memory:")
         qconn.row_factory = sqlite3.Row
@@ -147,7 +118,7 @@ def test_upgrade_smoke():
         assert judge._cache_get("h_new") is not None, "a cached content_hash should hit"
         assert judge._cache_get("h_absent") is None, "an uncached content_hash should miss"
 
-        # ── Phase 4: rescan_dedup name_hash uses real cosine (🔴#1) ──────────
+        # ── Phase 4: dedup_pass name_hash uses real cosine ───────────────────────
         # two cross-source skills with the same name but different content/embedding (cos≈0).
         ea, eb = _emb(dim, 0), _emb(dim, 1)
         lib.store.insert(_rec("d1", "dup-name", "srcA/repo",
@@ -162,20 +133,12 @@ def test_upgrade_smoke():
         cos, trigger = pairs[key]
         real = cosine_sim(ea, eb)
         assert cos < 0.99, \
-            f"name_hash pair cos={cos} should be a real low cosine (~{real:.3f}), not forced to 1.0 (🔴#1)"
+            f"name_hash pair cos={cos} should be a real low cosine (~{real:.3f}), not forced to 1.0"
         assert abs(cos - real) < 0.05, f"cos {cos} should ≈ real cosine {real}"
-
-        # ── Phase 5: license whitelist ↔ code GREEN set consistency (🔴#4) ────────
-        real_json = json.loads(
-            (Path(export_mod.__file__).resolve().parent.parent
-             / "license_safe_sources.json").read_text(encoding="utf-8"))
-        assert set(real_json["green_categories"]) == set(GREEN_LICENSES), \
-            "license_safe_sources.json green_categories does not match code GREEN set (🔴#4)"
-        assert "0BSD" in real_json["green_categories"], "0BSD missing (🔴#4)"
 
         lib.close()
 
 
 if __name__ == "__main__":
     test_upgrade_smoke()
-    print("ITER3 UPGRADE SMOKE TEST PASSED")
+    print("PRODUCER UPGRADE SMOKE TEST PASSED")

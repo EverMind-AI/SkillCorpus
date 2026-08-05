@@ -187,20 +187,16 @@ with SkillLibrary().open() as lib:      # default path: data/
     print(lib.stats())
 ```
 
-### Export to the consumer mass pool
+### Export the corpus
+The corpus is the final step of `cli build` — parquet + attachments + a dataset
+card, per `docs/corpus-schema.md`:
 ```bash
-# Same machine (assets-dir defaults to the producer data dir):
-python3 -m skill_library.export --dst <PATH_TO>/mass_library.db
-
-# Cross-machine: rsync the producer skills/ tree first, then point --assets-dir at it:
-python3 -m skill_library.export --dst /path/to/mass_library.db --assets-dir /path/to/consumer
-
-# Write the .refresh_endpoint sentinel (consumer `skill refresh` auto-discovers it):
-python3 -m skill_library.export --refresh-endpoint http://producer-host:8765
+python3 -m skill_library.cli build                              # demo build from scratch
+python3 -m skill_library.cli build --sources-config my_registry.yaml
 ```
-Outputs: `mass_library.db` (body / embedding / frontmatter_json / path /
-is_always / requires_json), `.stale` (consumed on the consumer's next attach),
-and optional `.refresh_endpoint`.
+Outputs under `<lib_root>/corpus/`: `skills.parquet` (one row per skill),
+`attachments/<skill_id>/` (the skill dir minus SKILL.md), and `README.md` (the
+dataset card). Only GREEN-licensed, non-deleted skills are exported.
 
 ### Proactive refresh
 ```bash

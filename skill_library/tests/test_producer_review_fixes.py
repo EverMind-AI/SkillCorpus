@@ -1,26 +1,22 @@
-"""Regression tests for the full-codebase review round (R1–R10).
+"""Producer store / embed regression tests (from the full-codebase review round).
 
-Covers the integration-boundary / stateful / silent-degradation classes that
-unit tests historically missed — including failure conditions (short embed
-batch, stale-dim blob) reproduced via small manual patches so they're permanent
-guards, not inspection-only claims. Plain asserts + manual patching (no pytest),
-matching the rest of the suite.
+Covers integration-boundary / stateful behaviours that ordinary unit tests miss:
+the embed batch alignment guard, faiss rebuild/insert alignment, and the
+active-column anti-clobber. Failure conditions are reproduced via small manual
+patches so they are permanent guards. Plain asserts + manual patching (no
+pytest fixtures), matching the rest of the suite.
 """
 
 from __future__ import annotations
 
-import sqlite3
-import struct
 import tempfile
 from pathlib import Path
 
-from skill_library import SkillLibrary
+from skill_library import SkillLibrary  # noqa: F401  (kept: exercises package import path)
 from skill_library.core.store import SkillStore
 from skill_library.core.models import SkillRecord
 from skill_library.core.hashing import name_hash
 from skill_library.core import embed as embed_mod
-from skill_library import export as export_mod
-from skill_library.export import _truthy_always, _valid_emb_blob, export
 
 DIM = 8
 
@@ -45,56 +41,6 @@ def _store():
     st = SkillStore(Path(tmp) / "t.db", embedding_dim=DIM)
     st.init_schema()
     return st
-
-
-# ----------------------------------------------------------------------
-# R10 — is_always truthy tolerant of YAML string forms
-# ----------------------------------------------------------------------
-def test_r10_truthy_always():
-    for v in (True, "true", "True", "TRUE", "yes", "on", "1", 1):
-        assert _truthy_always(v) == 1, f"{v!r} should be truthy"
-    for v in (False, "false", "no", "off", "0", 0, None, "", "maybe"):
-        assert _truthy_always(v) == 0, f"{v!r} should be falsy"
-
-
-# ----------------------------------------------------------------------
-# R4 — _valid_emb_blob + export drops a stale-dim blob
-# ----------------------------------------------------------------------
-def test_r4_valid_emb_blob():
-    assert _valid_emb_blob(b"\x00" * (DIM * 4), DIM) is True
-    assert _valid_emb_blob(b"\x00" * ((DIM + 1) * 4), DIM) is False
-    assert _valid_emb_blob(None, DIM) is False
-    assert _valid_emb_blob(b"", DIM) is False
-
-
-def test_r4_export_drops_dim_mismatch():
-    with tempfile.TemporaryDirectory() as tmp:
-        lib = SkillLibrary(Path(tmp) / "lib").open()
-        lib.store.insert(_rec("good", "good-skill"))
-        lib.store.insert(_rec("bad", "bad-skill"))
-        c = lib.store._connect()
-        c.execute("UPDATE skills SET active=1")
-        c.commit()
-
-        good_blob = struct.pack(f"{DIM}f", *_emb(0))                  # correct
-        bad_blob = struct.pack(f"{DIM + 1}f", *([0.1] * (DIM + 1)))   # wrong dim
-        orig = export_mod._load_embeddings_from_vec_skills
-        export_mod._load_embeddings_from_vec_skills = (
-            lambda data_dir: {"good": good_blob, "bad": bad_blob})
-        try:
-            mass = Path(tmp) / "mass.db"
-            stats = export(lib.lib_root, mass, embedding_model="m", embedding_dim=DIM)
-        finally:
-            export_mod._load_embeddings_from_vec_skills = orig
-            lib.close()
-
-        assert stats.get("emb_dim_mismatch", 0) == 1, stats
-        con = sqlite3.connect(mass)
-        rows = {r[0]: (r[1], r[2]) for r in con.execute(
-            "SELECT content_hash, embedding, embedding_model FROM skills")}
-        con.close()
-        assert rows["h_good"][0] is not None and rows["h_good"][1] == "m"
-        assert rows["h_bad"][0] is None and rows["h_bad"][1] is None
 
 
 # ----------------------------------------------------------------------
@@ -153,10 +99,6 @@ def test_r1_rebuild_alignment():
         assert hits and hits[0][1] >= 0.99
 
 
-# (store has no runtime vector_search — that's the consumer runtime's job; this
-#  store's faiss path is dedup-only and is covered by find_near_duplicates tests.)
-
-
 # ----------------------------------------------------------------------
 # R7 — re-inserting an existing id doesn't duplicate it in faiss
 # ----------------------------------------------------------------------
@@ -188,83 +130,10 @@ def test_r8_active_anticlobber():
     assert after == 1, "re-insert must not clobber operator-set active=1"
 
 
-# ----------------------------------------------------------------------
-# Fix B — _row_to_insert_tuple UPDATE pass doesn't double-count stats
-# ----------------------------------------------------------------------
-def test_fixb_update_pass_no_double_count():
-    from collections import defaultdict
-    from skill_library.export import _row_to_insert_tuple
-    st = _store()
-    st.insert(_rec("s", "n"))
-    row = st._connect().execute("SELECT * FROM skills WHERE skill_id='s'").fetchone()
-    stats = defaultdict(int)
-    kw = dict(assets_dir=Path("/nonexistent"), embedding_model="m",
-              embedding_dim=DIM, embedding_dtype="float32", stats=stats, now=0)
-    _row_to_insert_tuple(row, None, count_stats=True, **kw)    # insert pass counts
-    snap = dict(stats)
-    _row_to_insert_tuple(row, None, count_stats=False, **kw)   # update pass: no count
-    assert dict(stats) == snap, f"update pass double-counted: {dict(stats)} vs {snap}"
-    assert snap.get("without_embedding") == 1 and snap.get("db_only") == 1
-
-
-# ----------------------------------------------------------------------
-# P1-6/7/9/10 — full export carries subscores + writes .stale; sync writes
-# .stale and reports an accumulated delete count; consumer has a hash index.
-# ----------------------------------------------------------------------
-def test_p1_export_subscores_stale_and_delete_count():
-    import json
-    with tempfile.TemporaryDirectory() as tmp:
-        lib = SkillLibrary(Path(tmp) / "lib").open()
-        lib.store.insert(_rec("s1", "demo-skill"))          # content_hash = "h_s1"
-        c = lib.store._connect()
-        c.execute("UPDATE skills SET active=1")
-        c.executescript(
-            "CREATE TABLE IF NOT EXISTS quality_judgments("
-            "content_hash TEXT PRIMARY KEY, score REAL NOT NULL, reason TEXT, "
-            "judged_at TEXT NOT NULL, subscores TEXT NOT NULL DEFAULT '{}')")
-        c.execute("INSERT OR REPLACE INTO quality_judgments VALUES(?,?,?,?,?)",
-                  ("h_s1", 8.5, "ok", "2026-01-01T00:00:00Z",
-                   json.dumps({"utility": 8, "robustness": 9, "safety": 8, "flags": []})))
-        c.commit()
-
-        mass = Path(tmp) / "mass.db"
-        orig = export_mod._load_embeddings_from_vec_skills
-        export_mod._load_embeddings_from_vec_skills = lambda data_dir: {}
-        try:
-            export(lib.lib_root, mass, embedding_model="m", embedding_dim=DIM)
-            con = sqlite3.connect(mass)
-            idx = {r[0] for r in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'")}
-            assert "idx_skills_content_hash" in idx, f"P1-10: {idx}"   # P1-10
-            fmj = con.execute(
-                "SELECT frontmatter_json FROM skills WHERE content_hash='h_s1'"
-            ).fetchone()[0]
-            sub = (json.loads(fmj).get("everclaw") or {}).get("subscores")
-            assert sub and sub.get("robustness") == 9, f"P1-6: {sub}"    # P1-6
-            con.close()
-            assert (mass.parent / ".stale").exists(), "P1-7 export: no .stale"  # P1-7
-
-            (mass.parent / ".stale").unlink()
-            c.execute("UPDATE skills SET active=0 WHERE skill_id='s1'")
-            c.commit()
-            stats = export_mod.sync(lib.lib_root, mass, embedding_model="m",
-                                    embedding_dim=DIM, do_backup=False)
-            assert (mass.parent / ".stale").exists(), "P1-7 sync: no .stale"    # P1-7
-            assert stats["deleted"] == 1, f"P1-9: {stats['deleted']}"           # P1-9
-        finally:
-            export_mod._load_embeddings_from_vec_skills = orig
-            lib.close()
-
-
 if __name__ == "__main__":
-    test_r10_truthy_always()
-    test_r4_valid_emb_blob()
-    test_r4_export_drops_dim_mismatch()
     test_r2_short_batch_returns_none()
     test_r2_full_batch_ok()
     test_r1_rebuild_alignment()
     test_r7_reinsert_no_faiss_dup()
     test_r8_active_anticlobber()
-    test_fixb_update_pass_no_double_count()
-    test_p1_export_subscores_stale_and_delete_count()
-    print("ALL PRODUCER REVIEW-FIX TESTS PASSED")
+    print("ALL PRODUCER STORE/EMBED REGRESSION TESTS PASSED")
