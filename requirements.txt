@@ -11,5 +11,3 @@ click
 faiss-cpu
 sqlite-vec
 openai
-fastapi
-uvicorn

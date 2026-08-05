@@ -15,8 +15,6 @@ dependencies = [
     "faiss-cpu",
     "sqlite-vec",
     "openai",
-    "fastapi",
-    "uvicorn",
 ]
 
 [project.optional-dependencies]
