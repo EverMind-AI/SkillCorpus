@@ -122,7 +122,7 @@ def main():
     # this branch and passed as placeholders. Skills without a cached judgment
     # (LLM failed) are not in the JOIN, so they keep their structural score.
     from datetime import datetime, timezone
-    from skill_library.metadata import compute_quality
+    from skill_library.curate.quality import compute_quality
     sw = lib.config.get("source_weights", {}) or {}
     now_iso = datetime.now(timezone.utc).isoformat()
     wb_rows = conn.execute(

@@ -11,15 +11,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from .metadata import Classifier
-from .metadata import extract_tags
+from .curate.classify import Classifier
+from .curate.classify import extract_tags
 from .core.hashing import content_hash, name_hash, short_hash
 from .curate.dedup import LLMDupJudge
 from .core.embed import EmbeddingClient, format_embedding_text
 from .core.store import SkillRecord
 from .curate.parse import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill
-from .metadata import compute_quality
-from .metadata import LLMQualityJudge
+from .curate.quality import compute_quality
+from .curate.quality import LLMQualityJudge
 from .curate.safety import check_safety, is_blocked
 from .core.store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
 from .core.llm import LLMClient

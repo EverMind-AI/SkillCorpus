@@ -148,7 +148,7 @@ def _ensure_quality_judgments(conn: sqlite3.Connection) -> None:
     producer DB that never ran the LLM quality judge has no such table. Create
     it (empty, idempotent) so the join yields NULL subscores instead of raising
     ``no such table``. Reuses the judge's canonical schema to avoid drift."""
-    from skill_library.metadata import QUALITY_JUDGMENT_SCHEMA
+    from skill_library.curate.quality import QUALITY_JUDGMENT_SCHEMA
     conn.executescript(QUALITY_JUDGMENT_SCHEMA)
 
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from skill_library.metadata import (
+from skill_library.curate.classify import (
     Classifier, VOCAB, _parse_classify_response,
 )
-from skill_library.metadata import extract_tags
+from skill_library.curate.classify import extract_tags
 from skill_library.core.store import Category, CATEGORIES
 
 
