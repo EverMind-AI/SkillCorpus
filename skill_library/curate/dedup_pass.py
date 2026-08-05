@@ -8,7 +8,7 @@ Flow:
   5. for confirmed-duplicate pairs: compare quality_score + source_weight, supersede the loser
 
 Usage:
-    python -m skill_library.scripts.rescan_dedup [--lib PATH] [--dry-run] [--limit N]
+    python -m skill_library.curate.dedup_pass [--lib PATH] [--dry-run] [--limit N]
 """
 
 from __future__ import annotations

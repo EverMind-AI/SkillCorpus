@@ -31,7 +31,7 @@ from skill_library.core.hashing import name_hash, cosine_sim
 from skill_library import license_audit
 from skill_library import export as export_mod
 from skill_library.export import export, _config_embedding
-from skill_library.scripts.rescan_dedup import _collect_candidates
+from skill_library.curate.dedup_pass import _collect_candidates
 from skill_library.curate.quality import (
     LLMQualityJudge, QualityJudgment,
 )

@@ -13,7 +13,7 @@ ranking / dedup / export. Fast-batch ingest leaves skills.quality_score at the
 structural fallback (llm_quality_at_ingest=false); this backfill upgrades it.
 
 Usage:
-    python -m skill_library.scripts.rescan_quality [--lib PATH] [--limit N] [--workers 8]
+    python -m skill_library.curate.quality_pass [--lib PATH] [--limit N] [--workers 8]
 """
 
 from __future__ import annotations

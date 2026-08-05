@@ -164,7 +164,7 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     if defaults.get("rescan_quality_after"):
         print("\n→ rescan_quality (LLM backfill on new skills)...", flush=True)
         subprocess.run(
-            [sys.executable, "-m", "skill_library.scripts.rescan_quality",
+            [sys.executable, "-m", "skill_library.curate.quality_pass",
              "--lib", lib_root, "--workers", "16"],
             check=False,
         )
