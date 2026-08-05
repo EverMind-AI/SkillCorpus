@@ -40,7 +40,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .curate.license import (
+from .license import (
     GREEN_LICENSES,
     RED_LICENSES,
     YELLOW_LICENSES,
@@ -59,7 +59,7 @@ _NON_LICENSE_CATEGORIES = frozenset(
 # ---------------------------------------------------------------------------
 # Paths — single source of truth
 # ---------------------------------------------------------------------------
-_PKG_DIR = Path(__file__).resolve().parent              # skill_library/
+_PKG_DIR = Path(__file__).resolve().parent.parent              # skill_library/
 _REPO_ROOT = _PKG_DIR.parent                            # skill/
 DEFAULT_DB = _PKG_DIR / "data" / "index.db"
 DEFAULT_CSV = _REPO_ROOT / "source_license_report.csv"
