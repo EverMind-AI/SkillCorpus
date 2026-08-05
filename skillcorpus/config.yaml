@@ -1,0 +1,99 @@
+# skillcorpus configuration
+
+# Source weights (used for quality_score)
+source_weights:
+  anthropics: 1.00      # official, highest
+  karanb192:  0.90      # verified badge
+  clawhub:    0.85      # VirusTotal + manual review
+  voltagent:  0.80      # curated list
+  antigravity: 0.75     # community bundled, mixed quality
+  skillsbench: 0.70     # academic corpus, not necessarily practical
+  community:  0.60      # other community sources
+  custom:     0.50      # user-uploaded
+
+# Quality filter thresholds (Phase 1 rules)
+thresholds:
+  body_min_chars: 300      # reject if body is too short
+  body_max_chars: 50000    # reject if body is abnormally large
+  description_min_chars: 20
+  description_max_chars: 1024   # agentskills.io spec upper limit
+  # Phase 2 LLM judge minimum score
+  llm_judge_min: 6.0
+
+# Quality scoring policy
+quality:
+  # V3 (2026-05-07): disable the inline LLM judge during large-batch ingest — single-threaded at 2-5s/skill,
+  # 174K majiayu would take an estimated 100h+ with inline. With it off, ingest uses rule-based quality only,
+  # then backfill the LLM scores in parallel afterwards with `rescan_quality.py --workers 16`.
+  llm_quality_at_ingest: false
+
+# Deduplication thresholds
+dedup:
+  # Cross-source near-duplicate detection: embedding cosine >= near_dup_min_cosine enters LLM dedup judgment
+  # (the threshold for pure-embedding auto-judgment is set higher to avoid false positives)
+  near_dup_min_cosine: 0.90        # lower bound for entering LLM secondary confirmation
+  near_dup_auto_cosine: 0.995      # above this value, mark as a duplicate directly, skipping the LLM
+  near_dup_top_k: 3                # max number of neighbors checked per new skill (2026-04-29: 5->3 to speed up D-5, missed judgments <3%)
+  # Switch: whether to run near-duplicate detection at ingest (when off, only content_hash + name_hash)
+  # V3 (2026-05-07): disabled during large-batch ingest — ~90% of majiayu000's 174K overlap with the existing 71K,
+  # running each through an LLM judgment x1.5s = infeasible. With it off, ingest only does content_hash + name_hash dedup (fast),
+  # then run a whole-library scan afterwards with `rescan_dedup.py` to backfill the LLM judgments.
+  enable_near_dup: false
+  # Policy when a name_hash conflicts: keep_higher_quality | keep_newer | keep_existing
+  name_conflict_policy: "keep_higher_quality"
+
+# Note: this library only handles ingest/build; runtime retrieval is configured on the consumer side and is not included here.
+
+# Embedding — V4 (2026-05-07) switched to a shared GPU endpoint (aligned with the everclaw consumer)
+# 2026-05-18: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (down)
+# 2026-05-20: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (down)
+# 2026-05-28: <EMBEDDING_HOST> -> <EMBEDDING_HOST> (/v6 self-trained model)
+# 2026-05-30: <EMBEDDING_HOST>/v6 -> <EMBEDDING_HOST>/new (new self-trained model).
+#             /new is a new model, incompatible with the old /v6 vector space -> a full re-embedding
+#             (c9_reembed) was done alongside it + a re-export of the consumer-side mass pool, with the
+#             label bumped to embedding-our-new. The model field is only an identifier and does not
+#             take part in routing, but it must align with the embedding model used by the mass_library DB.
+embedding:
+  provider: "skillrouter_remote"
+  model: "embedding-our-new"  # new self-trained model (/new endpoint, replaces v6)
+  dim: 1024
+  base_url: "http://<EMBEDDING_HOST>/new"
+  api_key: "<EMBEDDING_API_KEY>"
+  # NOTE: embeddings are computed one text at a time on purpose. The producer
+  # only ever calls embed() (single), and the shared embed server's left-pad +
+  # last-token pooling would contaminate short texts if batched. This knob is
+  # therefore NOT a speed lever; raising it does nothing. Kept only as a ceiling
+  # for any future explicit embed_batch() call.
+  batch_size: 32
+  timeout: 60
+# Legacy config (when running local vLLM):
+# embedding:
+#   provider: "openai_compatible"
+#   model: "Qwen/Qwen3-Embedding-0.6B"
+#   dim: 1024
+#   base_url: "http://localhost:8100/v1"
+
+# LLM classification/tag/fallback — uses the **first** endpoint in the endpoints list (single endpoint).
+# Listing multiple does not load-balance; only [0] is used. To switch endpoints, change the first entry.
+llm:
+  provider: "openai_compatible"
+  endpoints:
+    - { base_url: "https://<LLM_GATEWAY_HOST>/v1", model: "Qwen3.5-397B-A17B-GPTQ-Int4", api_key: "dummy" }
+
+  # Fallback fields when endpoints is empty
+  model: "qwen3"
+  base_url: "http://localhost:8211/v1"
+  api_key: "dummy"
+
+  temperature: 0.1
+  max_tokens: 512
+  timeout: 60
+  # Classification strategy: llm_primary | rule_primary | embedding_primary
+  classify_strategy: "llm_primary"
+  tag_strategy: "llm"
+  # Concurrency — roughly endpoint count x 4
+  concurrency: 32
+
+# Classification — LLM classifier (2026-05-20)
+# All classification logic is built into the prompt in classify.py, no longer configured via yaml.
+# 16 classes + OTHER fallback, see docs/16_classification.md for details.

@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "skill-library"
+name = "skillcorpus"
 version = "0.1.0"
 description = "SkillCorpus — general-purpose skill-library build pipeline (producer)"
 readme = "README.md"
@@ -22,13 +22,13 @@ dependencies = [
 # reportlab is only used by tests/test_e2e.py (PDF skill fixture)
 dev = ["pytest", "reportlab"]
 
-# Flat nested layout: the importable package is <repo>/skill_library/.
-# Keeping the package name `skill_library` (not renamed) so existing
-# `python -m skill_library.*` invocations and absolute imports keep working.
+# Flat nested layout: the importable package is <repo>/skillcorpus/.
+# Keeping the package name `skillcorpus` (not renamed) so existing
+# `python -m skillcorpus.*` invocations and absolute imports keep working.
 [tool.setuptools.packages.find]
-include = ["skill_library*"]
+include = ["skillcorpus*"]
 
 [tool.setuptools.package-data]
 # license_safe_sources.json is intentionally NOT shipped: it is a private,
-# generated whitelist (see skill_library/.gitignore) regenerated at deploy.
-skill_library = ["config.yaml", "sources.yaml"]
+# generated whitelist (see skillcorpus/.gitignore) regenerated at deploy.
+skillcorpus = ["config.yaml", "sources.yaml"]

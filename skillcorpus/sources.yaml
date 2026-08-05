@@ -1,0 +1,49 @@
+# Source registry (public default = demo) — fetch.py / refresh_loop.py read this file by default.
+#
+# This is the **public release version**: it lists only a few reliable, permissive public repos so that
+# users who obtain the code can run the entire producer pipeline end to end (fetch -> ingest -> quality
+# -> classify -> embed -> store -> export) and build a small library to verify it.
+#
+# The full production registry (62 sources, 6 types) lives in sources.full.yaml — it is excluded by
+# .gitignore and not provided with the public release. To run the full set on the production side:
+#   python -m skillcorpus.fetch --config skillcorpus/sources.full.yaml
+#
+# The data/ artifacts (index.db / skills/ / mass_library.db) are also excluded by .gitignore; what users
+# get after a run is a small library built from the few sources below, not the finished corpus.
+#
+# Usage (the default is demo):
+#   python -m skillcorpus.fetch
+#   python -m skillcorpus.scripts.refresh_loop --force
+#
+# All are of git_clone type (deterministic, fast, no dynamic expansion) and are OSI-permissive public repos.
+
+defaults:
+  rescan_quality_after: true
+  rescan_dedup_after: false
+  export_after: true
+  parallel_clones: 4
+
+sources:
+  - name: anthropics/skills
+    repo: anthropics/skills
+    type: git_clone
+    pull_cadence: weekly
+    source_label: anthropics/skills        # official Agent Skills repo (anchor)
+
+  - name: vercel-labs/skills
+    repo: vercel-labs/skills
+    type: git_clone
+    pull_cadence: weekly
+    source_label: vercel-labs/skills        # Vercel official dogfood
+
+  - name: addyosmani/agent-skills
+    repo: addyosmani/agent-skills
+    type: git_clone
+    pull_cadence: monthly
+    source_label: addyosmani/agent-skills   # well-known frontend engineer, TDD/debugging/CI
+
+  - name: K-Dense-AI/scientific-agent-skills
+    repo: K-Dense-AI/scientific-agent-skills
+    type: git_clone
+    pull_cadence: monthly
+    source_label: K-Dense-AI/scientific-agent-skills  # academic: biology/chemistry/medicine/engineering

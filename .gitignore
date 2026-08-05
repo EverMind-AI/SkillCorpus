@@ -1,4 +1,4 @@
-# Repo-root ignores (package-level ignores live in skill_library/.gitignore)
+# Repo-root ignores (package-level ignores live in skillcorpus/.gitignore)
 __pycache__/
 *.pyc
 .pytest_cache/
