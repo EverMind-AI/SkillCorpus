@@ -11,3 +11,4 @@ click
 faiss-cpu
 sqlite-vec
 openai
+pyarrow

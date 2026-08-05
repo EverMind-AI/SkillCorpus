@@ -15,6 +15,7 @@ dependencies = [
     "faiss-cpu",
     "sqlite-vec",
     "openai",
+    "pyarrow",
 ]
 
 [project.optional-dependencies]
