@@ -15,14 +15,14 @@ from .metadata import Classifier
 from .metadata import extract_tags
 from .dedup import content_hash, name_hash, short_hash
 from .dedup import LLMDupJudge
-from .embed import EmbeddingClient, format_embedding_text
-from .store import SkillRecord
+from .core.embed import EmbeddingClient, format_embedding_text
+from .core.store import SkillRecord
 from .rules import ParseError, ValidationError, find_skill_md, parse_skill_file, validate_skill
 from .metadata import compute_quality
 from .metadata import LLMQualityJudge
 from .rules import check_safety, is_blocked
-from .store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
-from .llm import LLMClient
+from .core.store import SkillStore, copy_skill_to_library, Category, remove_skill_from_library
+from .core.llm import LLMClient
 import yaml
 
 logger = logging.getLogger("skill_library.pipeline")

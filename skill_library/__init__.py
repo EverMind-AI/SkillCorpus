@@ -9,7 +9,7 @@ Core capabilities:
 Positioned as an ingest/build pipeline — runtime retrieval (BM25+embedding search over the library) is handled by the consumer side.
 """
 
-from .store import SkillRecord, Category, CATEGORIES
+from .core.store import SkillRecord, Category, CATEGORIES
 from .pipeline import SkillLibrary
 from .pipeline import IngestResult, IngestStatus
 

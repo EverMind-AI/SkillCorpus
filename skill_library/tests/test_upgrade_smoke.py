@@ -26,7 +26,7 @@ from argparse import Namespace
 from pathlib import Path
 
 from skill_library import SkillLibrary
-from skill_library.store import SkillRecord
+from skill_library.core.store import SkillRecord
 from skill_library.dedup import name_hash, cosine_sim
 from skill_library import license_audit
 from skill_library import export as export_mod

@@ -9,7 +9,7 @@ from pathlib import Path
 from skill_library import SkillLibrary, IngestStatus
 from skill_library.dedup import canonical_name, name_hash
 from skill_library.dedup import LLMDupJudge, DupJudgment, _pair_key
-from skill_library.store import SkillRecord
+from skill_library.core.store import SkillRecord
 
 
 # ----------------------------------------------------------------------

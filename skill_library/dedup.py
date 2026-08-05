@@ -94,8 +94,8 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 
-from .llm import LLMClient
-from .store import SkillRecord
+from .core.llm import LLMClient
+from .core.store import SkillRecord
 
 logger = logging.getLogger("skill_library.dedup")
 

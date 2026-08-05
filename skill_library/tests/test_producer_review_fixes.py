@@ -15,9 +15,9 @@ import tempfile
 from pathlib import Path
 
 from skill_library import SkillLibrary
-from skill_library.store import SkillStore, SkillRecord
+from skill_library.core.store import SkillStore, SkillRecord
 from skill_library.dedup import name_hash
-from skill_library import embed as embed_mod
+from skill_library.core import embed as embed_mod
 from skill_library import export as export_mod
 from skill_library.export import _truthy_always, _valid_emb_blob, export
 

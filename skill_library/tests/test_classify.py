@@ -8,7 +8,7 @@ from skill_library.metadata import (
     Classifier, VOCAB, _parse_classify_response,
 )
 from skill_library.metadata import extract_tags
-from skill_library.store import Category, CATEGORIES
+from skill_library.core.store import Category, CATEGORIES
 
 
 # ─────────────────────────────────────────────────────────────────────────

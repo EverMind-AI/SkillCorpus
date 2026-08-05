@@ -12,8 +12,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .llm import LLMClient
-from .store import CATEGORIES, SkillRecord
+from .core.llm import LLMClient
+from .core.store import CATEGORIES, SkillRecord
 
 
 

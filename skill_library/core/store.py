@@ -323,7 +323,10 @@ class SkillStore:
         # Round A (2): recompute all name_hash to the canonical form, one-time
         cur_v = conn.execute("PRAGMA user_version").fetchone()[0]
         if cur_v < 1:
-            from .dedup import name_hash as _canonical_name_hash
+            # TODO(layout): core must not import the dedup/curate stage; move
+            # name_hash into core when dedup migrates. (This _migrate block is
+            # itself slated for removal per the layout plan.)
+            from ..dedup import name_hash as _canonical_name_hash
             rows = conn.execute("SELECT skill_id, name FROM skills").fetchall()
             updated = 0
             for r in rows:
@@ -369,7 +372,7 @@ class SkillStore:
         # license_safe_sources.json lives at the package root (sibling
         # of config.yaml / sources.yaml), not under data/. Resolve from
         # this module's location rather than the DB path.
-        json_path = Path(__file__).resolve().parent / 'license_safe_sources.json'
+        json_path = Path(__file__).resolve().parents[1] / 'license_safe_sources.json'
         try:
             mtime = json_path.stat().st_mtime
         except FileNotFoundError:
