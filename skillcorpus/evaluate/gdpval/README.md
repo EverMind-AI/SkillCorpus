@@ -1,5 +1,7 @@
 # gdpval-grader
 
+> Part of the **[SkillCorpus](../../../README.md)** framework — the `evaluate` stage.
+
 Standalone **LLM-judge grader** for [GDPval](https://huggingface.co/datasets/openai/gdpval)
 deliverables. Point it at a directory of files an agent (or a human) produced for
 a GDPval task, and it scores them against that task's official rubric with an LLM

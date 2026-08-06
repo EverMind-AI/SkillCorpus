@@ -1,5 +1,7 @@
 # SkillRouter Embedding
 
+> Part of the **[SkillCorpus](../../README.md)** framework — the `match` stage (skill retrieval).
+
 SkillRouter training recipe (3 random negatives, in-batch InfoNCE with temp=0.05,
 global batch 32, seed 42, 1 epoch) with **max_length=2048**, fine-tuning
 Qwen3-Embedding-0.6B as the bi-encoder.

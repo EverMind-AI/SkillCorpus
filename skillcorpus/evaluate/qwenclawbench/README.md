@@ -1,5 +1,7 @@
 # QwenClawBench — minimal evaluator
 
+> Part of the **[SkillCorpus](../../../README.md)** framework — the `evaluate` stage.
+
 A self-contained harness that **scores agent results** on QwenClawBench (QCB), a
 100-task benchmark of agentic skill-creation / tool-use tasks. Each task ships its
 own automated checks and an LLM-judge rubric; the final score is a hybrid of the two.
@@ -9,7 +11,7 @@ with whatever agent you want, then grade them here. See **[RESULTS_FORMAT.md](RE
 
 ## Layout
 ```
-qcb-eval/
+qwenclawbench/
 ├── data/qwenclawbench-v1.1-100/tasks/*.md   # the benchmark (100 tasks)
 ├── qcb_eval/
 │   ├── tasks.py       # TaskLoader — parses the task .md files
