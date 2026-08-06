@@ -25,7 +25,8 @@ from ..core.store import SkillStore
 from ..core.models import Category
 from ..core.fsstore import copy_skill_to_library, remove_skill_from_library
 from ..core.llm import LLMClient
-import yaml
+from ..core.paths import SKILLCORPUS_HOME
+from ..core.config import load_config
 
 logger = logging.getLogger("skillcorpus.pipeline")
 
@@ -835,7 +836,7 @@ class Ingester:
 _DEFAULT_CONFIG_NAME = "config.yaml"
 
 
-_DEFAULT_LIB_ROOT = Path(__file__).resolve().parent.parent / "data"
+_DEFAULT_LIB_ROOT = SKILLCORPUS_HOME
 
 
 class SkillLibrary:
@@ -872,7 +873,7 @@ class SkillLibrary:
 
     def open(self) -> "SkillLibrary":
         """Initialize the DB + load config + components."""
-        self.config = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
+        self.config = load_config(self.config_path)
 
         # --- Embedding ---
         embed_cfg = self.config.get("embedding", {})

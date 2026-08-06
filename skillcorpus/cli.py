@@ -19,12 +19,11 @@ from typing import Any
 import click
 
 from .curate.pipeline import SkillLibrary
+from .core.paths import SKILLCORPUS_HOME
 from .aggregate.fetch import discover_repos, FETCHED as FETCHED_ROOT
 
 
-_DEFAULT_LIB = str(
-    (Path(__file__).resolve().parent / "data").resolve()
-)
+_DEFAULT_LIB = str(SKILLCORPUS_HOME)
 
 
 # ---------------------------------------------------------------------------
