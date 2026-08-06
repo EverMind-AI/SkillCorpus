@@ -3,7 +3,7 @@
 ## Layout: what goes where
 
 - **Repo inputs** (hand-written, code-reviewed): `configs/` (default.yaml,
-  production.yaml, sources.demo.yaml) and `audit/` (the license whitelist).
+  sources.demo.yaml) and `audit/` (the license whitelist).
 - **Data** (everything the pipeline writes) lives under `SKILLCORPUS_HOME`,
   outside the repo — default `~/.skillcorpus`, override with the env var:
 

@@ -124,7 +124,7 @@ class Ingester:
         self._dedup_min_cos = float(d.get("near_dup_min_cosine", 0.90))
         self._dedup_auto_cos = float(d.get("near_dup_auto_cosine", 0.995))
         self._dedup_top_k = int(d.get("near_dup_top_k", 5))
-        # quality judge (Round B): whether to compute the LLM score inline during ingest
+        # quality judge: whether to compute the LLM score inline during ingest
         self.quality_judge = quality_judge
         q = quality_cfg or {}
         self._llm_quality_at_ingest = bool(q.get("llm_quality_at_ingest", True))
@@ -156,14 +156,12 @@ class Ingester:
 
         trigger ∈ {'name_hash', 'name_hash_no_emb', 'embedding', 'both'}.
 
-        Historical lesson (2026-05): cosine used to be a 1.0 placeholder on the
-        name_hash path, which combined with auto_cos=0.995 short-circuited →
-        ``_judge_duplicate`` skipped the LLM and auto-merged directly. This
-        produced 7,148 (68%) cross-source name_hash supersedes that were false
-        positives (different content with real cos<0.90 wrongly merged). It now
-        explicitly computes the real cos: numpy dot of the two embeddings. When
-        an embedding is missing it falls back to ``_dedup_min_cos`` to force the
-        LLM second-pass judgment instead of bypassing it.
+        The name_hash path computes the real cosine (numpy dot of the two
+        embeddings), never a 1.0 placeholder: a 1.0 combined with auto_cos=0.995
+        would short-circuit ``_judge_duplicate`` and auto-merge across sources
+        (same name, different content). When an embedding is missing it falls
+        back to ``_dedup_min_cos`` to force the LLM second-pass judgment instead
+        of bypassing it.
         """
         import numpy as _np
 
@@ -241,7 +239,7 @@ class Ingester:
           - cross-source same-name canonical
           - embedding near-dup
         """
-        # persist source_url onto the row (previously it only went into the FS meta, the DB column was missed)
+        # persist source_url onto the DB row (not only the FS meta)
         if source_url and not rec.source_url:
             rec.source_url = source_url
         # near-dup decision — only triggered when dedup is enabled + an LLM judge exists
@@ -305,9 +303,9 @@ class Ingester:
                 f"(trigger={trigger}, cos={cos:.3f})"
             )
 
-        # status is decided directly by whether this run superseded anything — no longer
-        # queries the superseded_by COUNT (which would misreport a merge when a skill_id
-        # that historically won a merge is ingested again).
+        # status is decided directly by whether this run superseded anything, not by a
+        # superseded_by COUNT (which would misreport a merge when a skill_id that already
+        # won a merge is ingested again).
         status = IngestStatus.MERGED_KEPT_NEW if did_supersede else IngestStatus.ADDED
         return IngestResult(status=status, record=rec, skill_dir=str(skill_dir))
 
@@ -371,7 +369,7 @@ class Ingester:
         # active is set by curate.license_audit; export filters WHERE active=1.
 
         # ------------------------------------------------------------
-        # 3. Quality filter (Phase 1 rules)
+        # 3. Quality filter (structural rules)
         # ------------------------------------------------------------
         body_len = len(body)
         desc_len = len(description)
@@ -627,13 +625,12 @@ class Ingester:
 
         ~N times faster than ingest_batch (N=concurrency); no benefit at small scale.
 
-        Sub-skill suppression (V4, 2026-05-08): when ``rglob`` finds two
-        SKILL.md where one's parent directory is an ancestor of another's,
-        only the **shallowest** one is ingested. The deeper SKILL.md
-        becomes an auxiliary file inside the parent's bundle (carried
-        along by ``copytree`` at copy time, but not registered as its own
-        skill). This prevents the historical "promote nested SKILL.md to
-        a top-level sibling skill" artifact.
+        Sub-skill suppression: when ``rglob`` finds two SKILL.md where one's
+        parent directory is an ancestor of another's, only the **shallowest**
+        one is ingested. The deeper SKILL.md becomes an auxiliary file inside
+        the parent's bundle (carried along by ``copytree`` at copy time, but
+        not registered as its own skill). This prevents promoting a nested
+        SKILL.md to a top-level sibling skill.
         """
         root = Path(root)
         skill_md_paths = _glob_skill_md(root, pattern)
@@ -756,7 +753,7 @@ class Ingester:
         skill_md_paths = _glob_skill_md(root, pattern)
         # exclude workspaces / temporary skills (common in crawlers / intermediate artifacts)
         skill_md_paths = [p for p in skill_md_paths if "/workspaces/" not in str(p)]
-        # V4 (2026-05-08) sub-skill suppression — same rule as
+        # sub-skill suppression — same rule as
         # ingest_batch_concurrent above; see _drop_subskill_paths.
         skill_md_paths = _drop_subskill_paths(skill_md_paths)
         if limit:

@@ -14,10 +14,7 @@ from typing import Any
 
 
 class Category(str, Enum):
-    """Primary LLM category — 16 classes (including the OTHER fallback).
-
-    History: the old 15+1 classes (CODING/BACKEND/AUTOMATION/...) were replaced on 2026-05-20.
-    """
+    """Primary LLM category — 16 classes (including the OTHER fallback)."""
     # software development stack, 5 classes
     DEV = "DEV"
     FRONTEND_UI = "FRONTEND-UI"

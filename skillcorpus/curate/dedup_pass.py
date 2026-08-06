@@ -1,4 +1,4 @@
-"""Run one near-duplicate scan over the whole library — Round A backfill.
+"""Full-library cross-source near-duplicate scan.
 
 Flow:
   1. GROUP BY canonical name_hash to find same-name candidates across sources
@@ -88,9 +88,10 @@ def _collect_candidates(lib: SkillLibrary, min_cos: float, top_k: int, limit: in
                 a, b = sorted([ids[i], ids[j]])
                 key = (a, b)
                 if key not in pairs:
-                    # use the **real cosine**, no longer hardcoded to 1.0 (lesson: 1.0 + auto_cos
-                    # short-circuit → 7148/68% cross-source false-positive merges). missing embedding
-                    # → use min_cos so it goes to the LLM second judgment, not an auto-merge.
+                    # use the **real cosine**, not a hardcoded 1.0: a 1.0 + auto_cos
+                    # short-circuit would auto-merge different-content same-name skills.
+                    # Missing embedding -> use min_cos so the pair goes to the LLM judge,
+                    # not an auto-merge.
                     ea, eb = _emb(a), _emb(b)
                     cos = cosine_sim(ea, eb) if (ea is not None and eb is not None) else min_cos
                     pairs[key] = (cos, "name_hash")
@@ -205,11 +206,9 @@ def main():
     print(f"[3/4] total candidate pairs: {len(pairs)}, "
           f"elapsed={time.time()-t0:.1f}s")
 
-    # LLM judge + merge
-    # Phase 4 splits into 2 sub-phases:
-    #   4a. concurrent LLM judge (the remote endpoint has plenty of capacity, single-threaded
-    #       serial only used 1/8); 8 workers call the LLM at once, throughput ~5-8x
-    #   4b. serial apply_merge (DB writes are serial, also avoids races)
+    # LLM judge + merge, in two passes:
+    #   1. concurrent LLM judge (workers call the LLM at once for throughput)
+    #   2. serial apply_merge (DB writes are serial, avoids races)
     pairs_sorted = sorted(pairs.items(), key=lambda kv: -kv[1][0])  # cos descending
     if args.max_pairs:
         pairs_sorted = pairs_sorted[:args.max_pairs]

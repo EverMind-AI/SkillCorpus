@@ -113,9 +113,9 @@ class SkillLibrary:
             else:
                 logger.warning("LLM unavailable; ingest will set category=OTHER")
 
-        # --- LLM dup judge (Round A — LLM arbitration for cross-source near-dup) ---
+        # --- LLM dup judge — LLM arbitration for cross-source near-dup ---
         self.dup_judge: LLMDupJudge | None = None
-        # --- LLM quality judge (Round B — quality 0-10 scoring) ---
+        # --- LLM quality judge — quality 0-10 scoring ---
         self.quality_judge: LLMQualityJudge | None = None
         if self.llm is not None and self.llm.is_available():
             try:
@@ -229,7 +229,7 @@ class SkillLibrary:
                 s["quality_histogram"] = self.quality_judge.histogram()
             except Exception as e:
                 logger.debug("quality_judge.stats() unavailable: %s", e)
-        # superseded count — the payoff of Round A near-dup detection
+        # superseded count — the payoff of near-dup detection
         conn = self.store._connect()
         row = conn.execute(
             "SELECT COUNT(*) FROM skills WHERE superseded_by IS NOT NULL"
@@ -312,7 +312,7 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
               f"-> export.corpus (db={db_path}, out={corpus_out})", flush=True)
         return
 
-    print("\n→ quality_pass (LLM 3-dim backfill)...", flush=True)
+    print("\n→ quality_pass (LLM 3-dim quality over the library)...", flush=True)
     _run_module("skillcorpus.curate.quality_pass", ["--lib", lib_root, "--workers", "16"])
 
     print("\n→ dedup_pass (cross-source near-dup merge)...", flush=True)

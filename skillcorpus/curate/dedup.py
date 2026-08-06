@@ -1,4 +1,4 @@
-"""curate.dedup — LLM-assisted near-duplicate adjudication (Round A).
+"""curate.dedup — LLM-assisted near-duplicate adjudication.
 
 The pure hashes / cosine moved to core.hashing; this module keeps the
 SQLite-cached LLMDupJudge that the ingest pipeline calls on embedding-near

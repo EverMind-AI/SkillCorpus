@@ -17,10 +17,10 @@ from .models import SCHEMA_SQL, VEC_TABLE_NAME, SkillRecord
 #   - keeps the skills table + vector index
 #   - synchronous (sync) interface, not async
 #
-# Vector retrieval path (optimized 2026-04-29):
+# Vector retrieval path:
 #   - writes still go through sqlite-vec (the vec_skills table is the source of truth, never lost)
 #   - reads (vector_search / find_near_duplicates) prefer the faiss HNSW index
-#     (measured on 80K rows, cosine top-5: sqlite-vec 800ms → faiss 0.4ms, ~2000x)
+#     (much faster than sqlite-vec for cosine top-k at scale)
 #   - the faiss index files ``<db_dir>/skill_index.faiss`` + ``skill_index_ids.json``
 #     are rebuilt automatically from vec_skills when missing; long-term accumulated drift can be manually fixed with rebuild_faiss_index()
 
@@ -181,8 +181,8 @@ class SkillStore:
         # Retry on transient SQLite write contention. busy_timeout=30s waits
         # passively; explicit backoff retries handle the rare cases where
         # the wait still fires (e.g. very long-running peer transaction
-        # or contention from external connections). Without this the
-        # 2026-05-20 540K-skill batch dropped 152K rows silently.
+        # or contention from external connections). Without this, a large
+        # batch can silently drop rows under lock contention.
         import time
         last_err = None
         conn = None
@@ -239,11 +239,9 @@ class SkillStore:
 
     def get_embedding(self, skill_id: str) -> list[float] | None:
         """Return the L2-normalized embedding for ``skill_id``, or ``None`` if
-        no vector is stored. Used by dedup name-hash path to compute the
-        real cosine vs candidate (instead of relying on the cos=1.0
-        placeholder, which historically caused ~7K cross-source false-positive
-        merges where same name + different content tripped the auto-merge
-        gate).
+        no vector is stored. Used by the dedup name-hash path to compute the
+        real cosine vs candidate instead of a cos=1.0 placeholder, which would
+        auto-merge same-name / different-content skills across sources.
         """
         conn = self._connect()
         row = conn.execute(

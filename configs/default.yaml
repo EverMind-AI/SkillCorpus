@@ -11,13 +11,13 @@ source_weights:
   community:  0.60      # other community sources
   custom:     0.50      # user-uploaded
 
-# Quality filter thresholds (Phase 1 rules)
+# Quality filter thresholds (structural rules)
 thresholds:
   body_min_chars: 300      # reject if body is too short
   body_max_chars: 50000    # reject if body is abnormally large
   description_min_chars: 20
   description_max_chars: 1024   # agentskills.io spec upper limit
-  # Phase 2 LLM judge minimum score
+  # LLM judge minimum score
   llm_judge_min: 6.0
 
 # Quality scoring policy

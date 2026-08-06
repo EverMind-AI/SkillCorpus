@@ -34,10 +34,8 @@ v2 (3-dim LLM judge):
   Step 3: base = 0.85*content + 0.15*source_prior
   Step 4: bonus (has_scripts +0.05, has_references +0.02)
 
-  (Removed 2026-05-21: regex suspicious_* penalty. 100-sample audit
-   showed 98% FP rate across 6 patterns; LLM judge with 19-flag vocab
-   provides context-aware coverage.  safety_flags still recorded for
-   audit but no longer affect the score.)
+  (The rule-based safety_flags are recorded for audit only and do not affect
+   the score; the LLM judge's safety dimension carries the safety signal.)
 """
 
 
@@ -126,12 +124,9 @@ def compute_quality(
         Step 3: source prior — base = 0.85*content + 0.15*src_prior
         Step 4: bonus — has_scripts +0.05, has_references +0.02
 
-    Note (2026-05-21): regex `suspicious_*` penalty removed.
-    Empirical FP-rate audit (100 stratified samples) found 98% false
-    positives across 6 patterns; the LLM judge (with 19-flag vocab)
-    subsumes the same signal with context awareness.  We retain the
-    regex flags in `safety_flags` for audit trail but no longer penalize
-    quality based on them.
+    The rule-based `safety_flags` are recorded for audit only and do not
+    penalize quality; the LLM judge's safety dimension carries the safety
+    signal with context awareness.
     """
     # ─── Step 1: regex hard gate ─────────────────────────────────────
     if any(f.startswith("blocked") for f in safety_flags):
@@ -160,9 +155,8 @@ def compute_quality(
     base = 0.85 * content_q + 0.15 * source_prior
 
     # ─── Step 4: bonus ───────────────────────────────────────────────
-    # (regex_penalty removed 2026-05-21 — 100-sample audit showed 98% FP
-    # rate; LLM judge with 19-flag vocab now provides context-aware
-    # equivalents.  `safety_flags` is still recorded for audit trail.)
+    # (safety_flags are recorded for audit only and do not affect the score;
+    # the LLM judge's safety dimension carries the safety signal.)
     bonus = (0.05 if has_scripts else 0.0) + (0.02 if has_references else 0.0)
 
     return round(max(0.0, min(1.0, base + bonus)), 3)
@@ -417,7 +411,7 @@ from this exact list. Do NOT invent new flag names. If a relevant issue
 doesn't match any flag below, mention it in `reason` instead — don't make
 up a flag for it.
 
-# EVIDENCE RULE (★ v5, 2026-05-21) — read carefully before emitting any flag
+# EVIDENCE RULE — read carefully before emitting any flag
 
 For every flag you emit, your `reason` field MUST literally QUOTE the
 specific line, code snippet, or substring from the **body** that justifies

@@ -1,4 +1,4 @@
-"""Round B backfill — run LLM quality scoring over all active skills.
+"""Full-library LLM quality pass — score every active skill.
 
 Flow:
   1. iterate over all deleted=0 skills
@@ -8,9 +8,11 @@ Flow:
      every skill that now has a cached LLM judgment
   5. output a score histogram + avg/min/max
 
-Step 4 is what makes the LLM score actually reach the column that drives
-ranking / dedup / export. Fast-batch ingest leaves skills.quality_score at the
-structural fallback (llm_quality_at_ingest=false); this backfill upgrades it.
+Step 4 is what makes the LLM score reach the column that drives ranking / dedup
+/ export. Inline ingest already scores skills when an LLM is reachable; this pass
+re-scores the whole library (idempotent via the judgment cache) and upgrades any
+skill left at the structural fallback (ingested while no LLM was reachable, or
+with ``llm_quality_at_ingest`` off).
 
 Usage:
     python -m skillcorpus.curate.quality_pass [--lib PATH] [--limit N] [--workers 8]
@@ -116,7 +118,7 @@ def main():
 
     elapsed = time.time() - t0
 
-    # --- Round B-3: write skills.quality_score from the cached LLM judgments ---
+    # --- write skills.quality_score from the cached LLM judgments ---
     # Folded in here (not a separate script) so the score the judge just
     # computed reaches the column that drives ranking / dedup / export, instead
     # of staying the structural fallback set at fast-batch ingest.
@@ -162,7 +164,7 @@ def main():
     hist = lib.quality_judge.histogram()
 
     print()
-    print(f"=== Round B — quality backfill done in {elapsed:.1f}s ===")
+    print(f"=== quality pass done in {elapsed:.1f}s ===")
     print(f"  processed: {done}")
     print(f"  new llm_calls: {len(new_scores)}")
     print(f"  cached hits:   {skipped}")
