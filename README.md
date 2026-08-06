@@ -1,268 +1,96 @@
+<!-- Placeholder links marked `#` — fill in: Corpus (HF dataset),
+     Embedding model (HF), Code (repo). -->
+
 # SkillCorpus
 
-General-purpose skill-library build pipeline: multi-source aggregation → ingest
-filtering → CRUD → proactive refresh. SkillCorpus is the **producer**; it builds
-a local SQLite + faiss + file tree and exports a `mass_library.db` that the
-**consumer** (Raven's `skill_forge`) attaches as a dense mass pool.
+**SkillCorpus is:**
 
-> Naming note: the product/repo is **SkillCorpus**; the importable Python
-> package is still `skill_library` (kept for compatibility), so CLI/`-m` commands
-> and imports below use `skill_library`.
+1. **A corpus** — **96,000+** permissively-licensed agent skills, consolidated from ~821,000 crawled from public `SKILL.md` repositories.
+2. **A pipeline** — the producer that builds it (fetch → safety/license filter → classify/quality → dedup → license-gate → export).
+3. **A retrieval stack** — SkillRouter, a bi-encoder + reranker for searching skills.
+4. **An embedding model** — `Qwen3-Embedding-0.6B` fine-tuned for skill retrieval.
 
-LLM is the primary classification path with rule-based fallback; embeddings go
-through the shared SkillRouter remote endpoint. Runtime retrieval lives on the
-consumer side, not here.
+[Paper](https://arxiv.org/abs/2607.15557) · [Corpus](#) · [Embedding model](#) · [Code](#)
 
----
+Every skill keeps its **original upstream license**: only permissively (GREEN: MIT / Apache-2.0 / BSD / ISC / …) licensed skills are included, none are relicensed, and each row carries its `source`, `source_url`, and `license`. The corpus is one row per skill plus attachments and a dataset card ([schema](docs/corpus-schema.md)); full terms under [License](#license).
 
-## Quick Start
+## Released artifacts
 
-```bash
-pip install -r requirements.txt              # deps (or: pip install .  for the package)
-python3 -m skill_library.cli build            # build from scratch (demo, 4 sources) -> data/index.db
-python3 -m skill_library.cli stats            # library stats
-python3 -m skill_library.cli build --update   # incremental update (only sources due per cadence)
-```
+| | Artifact | Deliverable | Link |
+|---|---|---|---|
+| 📚 | **Corpus** | `skills.parquet` + `attachments/` + dataset card | [🤗 HuggingFace](#) |
+| 🔡 | **Embedding model** | 2048-ctx bi-encoder checkpoint (Qwen3-Embedding-0.6B) | [🤗 HuggingFace](#) |
+| 🧭 | **Retrieval stack** | bi-encoder + reranker training / eval recipe | [`match/`](skillcorpus/match) |
+| 🛠️ | **Code** | producer pipeline + three evaluation benchmarks | [GitHub](#) |
 
-- **Build and update are one command** (`cli build`, distinguished by `--update`).
-- The public default reads `sources.yaml` (demo: 4 permissive sources). The full
-  62-source set lives in the private `sources.full.yaml` (`--full`); `data/`
-  artifacts are git-ignored and not published.
-- Endpoints are in `config.yaml`. **Endpoints degrade gracefully** when
-  unreachable: classification → `OTHER`, retrieval → BM25-only, so the pipeline
-  still runs end to end.
+## License
 
----
+- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
+- **Corpus** — every skill keeps its **original upstream license**; only GREEN (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
 
-## Architecture
-
-```
-┌─ PRODUCER (this repo) ──────────────────────┐
-│  data/index.db          SQLite metadata      │
-│  data/skill_index.faiss HNSW (dedup speedup) │
-│  data/skills/<source>/<name>/{scripts,refs}  │
-│      ↓ ingest pipeline (concurrency 8)       │
-│  parse → safety → quality gate → sub-skill   │
-│  filter → 3-layer dedup → classify → LLM     │
-│  quality → embed → store                     │
-└──────────┬───────────────────────────────────┘
-           │ export_to_mass_library
-           │   ├─→ mass_library.db  (body + embedding + meta)
-           │   └─→ skills/<src>/<n>/ (scripts/refs only; body is in the DB)
-           │   + .stale + .refresh_endpoint sentinels
-           ▼
-┌─ CONSUMER (Raven skill_forge) ───────────────┐
-│  attaches mass_library.db via SqliteStore     │
-│  dense mass pool + local BM25 pool → RRF      │
-└───────────────────────────────────────────────┘
-```
-
-### Three-layer ingest dedup
-1. **Exact** — `content_hash` (SHA-256 of the normalized body) → DUPLICATE.
-2. **Same-source canonical name** — `name_hash` hit → overwrite the old record.
-3. **Cross-source near-duplicate** — name_hash conflict across sources OR
-   cosine ≥ 0.90 → `LLMDupJudge` confirmation; cosine ≥ 0.995 auto-marks a
-   duplicate (cached).
-
-### `{baseDir}` resolution
-On export, the producer fills `mass_library.db.path` only for skills whose body
-actually references filesystem attachments (~40%, via
-`export._dir_referenced_assets`). The consumer then replaces `{baseDir}` in the
-body with the real directory, so the agent receives an accessible absolute path.
-A sqlite-only row (`path=NULL`) skips the replacement.
-
----
-
-## Classification (LLM classifier, 16 classes)
-
-| Group | Categories |
-|---|---|
-| Software dev stack (5) | DEV, FRONTEND-UI, DEVOPS-INFRA, TESTING, SECURITY |
-| Data / AI (2) | DATA, AI-ML |
-| Auth (1) | AUTH |
-| Content output (4) | DOC-PROC, WRITING, MULTIMEDIA, COMMS |
-| Workflow / office (2) | WORKFLOW, PRODUCTIVITY |
-| Meta-tooling (1) | META |
-| Fallback (1) | OTHER |
-
-The classification prompt is built into `metadata.py` (self-trained
-Qwen3.5-397B). Tags (3-5 keywords) are extracted by rules, independent of the
-main classification.
-
----
-
-## Sources & reproducibility
-
-All source entries live in a single YAML registry read by both `fetch.py` (full
-crawl) and `scripts/refresh_loop.py` (scheduled refresh); adding/removing a
-source only touches the YAML.
-
-| File | Content | Published |
-|---|---|---|
-| `sources.yaml` | public demo — 4 permissive git_clone sources | ✅ committed |
-| `sources.full.yaml` | full production set, 62 sources / 6 types | ❌ git-ignored, private |
-| `license_safe_sources.json` | generated GREEN-license whitelist (~4.8K owner/repo) | ❌ git-ignored, private |
-
-`license_safe_sources.json` is a downstream product of the private sources — it
-enumerates the crawled+kept repos, so it is treated as private too. It is
-regenerated at deploy with `license_audit build`; when absent at runtime the
-license gate defaults every new insert to `active=0` (safe default).
-
-**Partially open**: the public repo ships the complete code + demo `sources.yaml`
-but **not** `data/`, `sources.full.yaml`, or `license_safe_sources.json`. You can
-run the full pipeline and build your own local library, but not obtain the full
-source inventory or the
-finished corpus.
-
-**Not bit-for-bit reproducible from an empty `data/`**: `readme_scrape` /
-`index_api` / `sitemap_scrape` entries expand dynamically, and five independent
-factors prevent byte-identical rebuilds — upstream list churn, in-repo drift
-(`--depth 1`, no pinned SHA), LLM non-determinism (`temperature=0.1`), dedup
-winner flips, and embedding drift. LLM/dedup judgments are cached by
-`content_hash`, so **re-running from a frozen `data/skills/` + cache tables** is
-largely reproducible; **re-fetching from empty** is not. The producer's goal is
-to continuously absorb the latest skills, not to be a replayable experiment;
-`data/source_manifest.csv` keeps the sources auditable.
-
----
-
-## File layout
-
-```
-skill_library/                     # importable package (product name: SkillCorpus)
-├── cli.py / __init__.py / config.yaml
-│  ── ingest pipeline ──
-├── fetch.py       # source registry + multi-source git clone (Stage 0)
-├── pipeline.py    # coordinator + SkillLibrary top-level API
-├── rules.py       # SKILL.md parse + safety regex + license GREEN gate
-├── dedup.py       # hash/cosine dedup + LLM dup judge
-├── metadata.py    # LLM quality judge + 16-class classify + tag
-├── embed.py       # SkillRouter remote embedding client
-├── store.py       # SQLite + sqlite-vec + faiss (SkillRecord schema)
-├── export.py      # index.db → mass_library.db (full + incremental)
-│  ── helpers / config ──
-├── llm.py / license_audit.py
-├── sources.yaml / sources.full.yaml(private) / license_safe_sources.json(private, generated)
-│  ── ops scripts ──
-├── scripts/       # rescan_dedup, rescan_quality, source_resync,
-│                  # refresh_loop (cron), refresh_server (:8765), lobehub_to_skills
-└── tests/         # 9 unit tests
-```
-
----
-
-## Usage
-
-### One-command pipeline — `cli build`
-Create and incremental-update share one entry point (distinguished by
-`--update`); an empty library auto-inits. Chain: discover → clone → ingest →
-quality → export.
+## Quickstart
 
 ```bash
-python3 -m skill_library.cli build                    # from scratch (demo, 4 sources)
-python3 -m skill_library.cli build --update           # incremental (only due sources)
-python3 -m skill_library.cli build --full             # full 62-source registry
-python3 -m skill_library.cli build --source anthropics/skills   # single source
-python3 -m skill_library.cli build --dry-run          # discover + print only
+# install — Python >= 3.10
+git clone <repo-url> skillcorpus && cd skillcorpus
+pip install -e .
+
+# build the demo corpus: clone 4 public skill repos -> curate -> export
+python -m skillcorpus.cli build              # -> <lib>/corpus/{skills.parquet, attachments/, README.md}
+python -m skillcorpus.cli stats              # counts by source / category / license
+
+# re-export the corpus from an existing library, without rebuilding
+python -m skillcorpus.cli export --out ./corpus
 ```
 
-### CRUD
-```bash
-python3 -m skill_library.cli stats
-python3 -m skill_library.cli list --source anthropics/skills
-python3 -m skill_library.cli get <skill_id>
-python3 -m skill_library.cli retag <skill_id> "pdf,reportlab,financial"
-python3 -m skill_library.cli reclassify <skill_id> DOC-PROC
-python3 -m skill_library.cli delete <skill_id> [--hard]
-python3 -m skill_library.cli export --category DOC-PROC --out /tmp/doc.zip
+Only GREEN-licensed skills are exported. The demo ships the 4-source `sources.yaml`; use `--sources-config your.yaml` for your own registry, or `--source <name>` for a single source. Output contract: [`docs/corpus-schema.md`](docs/corpus-schema.md).
+
+## How it works
+
+```
+aggregate ─────────────► curate ──────────────────────────────────► export
+ fetch public repos       parse · safety · license                   skills.parquet
+                          classify · quality · dedup · license-gate   + attachments/ + card
 ```
 
-### Python API
-```python
-from skill_library import SkillLibrary
+`cli build` runs the whole chain (`ingest → quality_pass → dedup_pass → license_audit → export.corpus`). LLM classification and quality scoring degrade gracefully to rules when no model endpoint is reachable, so the pipeline always runs end to end.
 
-with SkillLibrary().open() as lib:      # default path: data/
-    lib.add("/path/to/skill", source="anthropics")
-    lib.add_batch("/path/to/skills/", source="anthropics")
-    print(lib.stats())
+## Repository layout
+
+```
+skillcorpus/
+├── core/       data models · SQLite/faiss store · LLM & embedding clients
+├── aggregate/  source registry + multi-repo clone
+├── curate/     parse · safety · license · classify · quality · dedup + full-library passes
+├── export/     corpus writer (parquet + attachments + dataset card)
+├── match/      SkillRouter — retrieval stack (bi-encoder + reranker)   ← isolated deps
+├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
+└── cli.py      build · stats · export
 ```
 
-### Export the corpus
-The corpus is the final step of `cli build` — parquet + attachments + a dataset
-card, per `docs/corpus-schema.md`:
-```bash
-python3 -m skill_library.cli build                              # demo build from scratch
-python3 -m skill_library.cli build --sources-config my_registry.yaml
-```
-Outputs under `<lib_root>/corpus/`: `skills.parquet` (one row per skill),
-`attachments/<skill_id>/` (the skill dir minus SKILL.md), and `README.md` (the
-dataset card). Only GREEN-licensed, non-deleted skills are exported.
+`match/` and `evaluate/` are standalone toolkits with their own `requirements.txt` (torch / transformers, per benchmark); they are **not** pulled in by `pip install` of the producer.
 
-### Scheduling
-Builds are on-demand — there is no cadence / refresh state. To refresh
-periodically, run `cli build` from cron:
-```bash
-0 3 * * *  python3 -m skill_library.cli build                       # nightly demo build
-python3 -m skill_library.cli build --source openclaw/skills         # just one source
-```
+## Retrieval & evaluation
 
-### Individual pipeline steps
-`cli build` runs these in order; each is also runnable on its own against an
-existing library:
-```bash
-python3 -m skill_library.curate.quality_pass  --workers 16 --report /tmp/q.json
-python3 -m skill_library.curate.dedup_pass    --report /tmp/rescan.json  # [--min-cos 0.92 --top-k 10 ...]
-python3 -m skill_library.curate.license_audit refresh|build|validate|apply|activate|stats
-```
-License data flow: `GitHub API (spdx_id)` → `source_license_report.csv` →
-`license_safe_sources.json` → `index.db skills.license / active`. Routine: after
-adding sources run `refresh && build && apply`; run `validate` as a release gate.
-
----
+- **Retrieval** — [`skillcorpus/match/`](skillcorpus/match): fine-tune the Qwen3 bi-encoder + reranker on synthetic queries, then rank skills for a query. Retrieval metrics (nDCG / MRR / Hit / Recall) via `eval_compare.py`.
+- **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`, `qwenclawbench`, `gdpval` — each self-contained with its own README and dependencies.
 
 ## Testing
 
-9 unit tests under `tests/` (also runnable standalone via `__main__`):
-
 ```bash
-# skill_library must be importable (e.g. from the parent dir, or via PYTHONPATH)
-python3 -m pytest tests/ --import-mode=importlib
+pip install -e ".[dev]"
+python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
-| Test | Coverage |
-|---|---|
-| `test_parse.py` | SKILL.md frontmatter parse + validate |
-| `test_safety.py` | safety regex + `is_blocked` |
-| `test_license_filter.py` | GREEN/RED/YELLOW + `is_green_license` |
-| `test_classify.py` | 16-class classifier + tag extraction |
-| `test_dedup_round_a.py` | canonical_name / LLMDupJudge cache / cross-source merge |
-| `test_quality_round_b.py` | LLMQualityJudge cache/clamp + compute_quality weights |
-| `test_e2e.py` | CRUD + quality rejection + export_bundle + reindex |
-| `test_upgrade_smoke.py` | full export path smoke (index.db → mass_library.db) |
-| `test_producer_review_fixes.py` | faiss alignment / short-batch rejection / stale-dim drop regressions |
+## Citation
 
----
-
-## Consumer integration (Raven skill_forge)
-
-The producer emits `mass_library.db` + filesystem assets; the consumer attaches
-them with `SqliteStore` and runs dense retrieval, fused with a local BM25 pool
-via RRF. Producer and consumer share the SkillRouter remote endpoint, so
-CPU-only nodes work too. The user's `skill refresh <src>` on the consumer
-remotely triggers the producer's git pull → ingest → export (the
-`.refresh_endpoint` sentinel sits next to `mass_library.db`, so it is
-zero-config).
-
-Consumer config keys (all default in current code): `mass_library_db`,
-`embedding_model` (must match the DB's embedding model, e.g. `embedding-our-new`),
-`embedding_url` / `reranker_url`, `injection_mode` (`full_body` default; `summary`
-is more token-efficient but lower recall).
-
----
-
-## Scope
-
-**In scope**: one-time ingest-time filtering, dedup, classification, and scoring;
-export to the consumer mass pool. **Out of scope**: skill evolution / runtime
-quality tracking — those are consumer/runtime concerns. Adding a source only
-touches `sources.yaml`, no code changes needed.
+```bibtex
+@article{wang2026skillcorpus,
+  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  year          = {2026},
+  eprint        = {2607.15557},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2607.15557}
+}
+```
