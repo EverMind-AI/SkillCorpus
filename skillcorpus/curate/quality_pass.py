@@ -37,8 +37,8 @@ def main():
     ap.add_argument("--limit", type=int, default=None,
                     help="only process the first N active skills (for debugging)")
     ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--skip-cached", action="store_true", default=True,
-                    help="skip already-judged content_hash (default True, cache hit)")
+    ap.add_argument("--skip-cached", action=argparse.BooleanOptionalAction, default=True,
+                    help="skip already-judged content_hash (default on; --no-skip-cached to re-judge)")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 

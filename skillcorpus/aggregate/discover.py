@@ -108,6 +108,8 @@ def _index_api_repos(
             break
         if limit and len(seen_out) >= limit:
             break
+        if page >= 5000:  # runaway guard for a misbehaving has_next
+            break
         page += 1
         _time.sleep(0.25)  # be polite
     return seen_out[:limit] if limit > 0 else seen_out

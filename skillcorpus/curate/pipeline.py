@@ -456,9 +456,12 @@ class Ingester:
                 skill_id="", name=name, description=description,
                 body=body, content_hash=c_hash,
             )
-            j = self.quality_judge.score(probe_rec)
-            if j is not None:
-                llm_quality_norm = j.normalized
+            try:
+                j = self.quality_judge.score(probe_rec)
+                if j is not None:
+                    llm_quality_norm = j.normalized
+            except Exception as e:
+                logger.debug("quality judge failed at ingest: %s", e)
 
         q_score = compute_quality(
             source=source, source_weights=self.source_weights,

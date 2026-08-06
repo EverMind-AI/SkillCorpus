@@ -54,9 +54,9 @@ def clone_or_pull(owner: str, repo: str, timeout: int = 180,
                 timeout=timeout, capture_output=True, env=env, check=True,
             )
             return dst, "pulled"
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            err = (getattr(e, "stderr", b"") or b"").decode("utf-8", "replace")[:200]
-            return None, f"fail: {err}"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            # a broken cache dir should not fail the repo forever — wipe and re-clone
+            shutil.rmtree(dst, ignore_errors=True)
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     url = f"https://github.com/{owner}/{repo}.git"
