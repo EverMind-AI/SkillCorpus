@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+
+from skillcorpus.curate import safety
 from skillcorpus.curate.safety import check_safety, is_blocked
 
 
@@ -10,10 +13,22 @@ def test_clean_text_has_no_flags():
     assert is_blocked([]) is False
 
 
-def test_blocked_malware_pattern():
-    flags = check_safety("Uses ClawdAuthenticatorTool for evil purposes.")
-    assert any(f.startswith("blocked.malware") for f in flags)
-    assert is_blocked(flags)
+def test_default_ruleset_is_empty():
+    """The default ships no regex hard-block rules (substring blocklists proved
+    ~98% FP; the LLM judge is the safety gate), so arbitrary text is clean."""
+    assert check_safety("Uses some AuthenticatorTool for evil purposes.") == []
+
+
+def test_operator_rule_blocks(monkeypatch):
+    """Operators may register their own ``blocked.*`` patterns; the convention
+    forces rejection at ingest."""
+    monkeypatch.setattr(
+        safety, "_SAFETY_RULES",
+        [("blocked.custom", re.compile(r"FORBIDDEN_TOKEN"))],
+    )
+    flags = safety.check_safety("this body contains a FORBIDDEN_TOKEN marker")
+    assert flags == ["blocked.custom"]
+    assert safety.is_blocked(flags)
 
 
 def test_unknown_flag_not_blocked():
@@ -39,7 +54,7 @@ def test_no_suspicious_patterns_remaining():
 
 if __name__ == "__main__":
     test_clean_text_has_no_flags()
-    test_blocked_malware_pattern()
+    test_default_ruleset_is_empty()
     test_unknown_flag_not_blocked()
     test_no_suspicious_patterns_remaining()
     print("ALL SAFETY TESTS PASSED")

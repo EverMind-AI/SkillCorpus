@@ -72,7 +72,8 @@ def _make_db(path: Path) -> None:
     conn.execute(
         "INSERT INTO quality_judgments (content_hash, score, reason, judged_at, subscores) "
         "VALUES (?, ?, ?, ?, ?)",
-        ("h1", 8.0, "ok", _TS, '{"utility": 9, "robustness": 8, "safety": 7, "flags": []}'),
+        ("h1", 8.0, "ok", _TS,
+         '{"utility": 9, "robustness": 8, "safety": 7, "flags": ["cmd_injection"]}'),
     )
     # excluded: soft-deleted, and not-yet-license-gated (active=0)
     _insert(conn, skill_id="s__deleted__x", content_hash="h2", name_hash="nh2",
@@ -112,8 +113,8 @@ def test_write_corpus_full():
 
         assert rec["skill_id"] == "anthropics__demo__abcd1234"
         assert rec["tags"] == ["pdf", "reportlab"]          # native list<string>
-        assert rec["safety_flags"] == []
-        assert rec["quality_subscores"] == {"utility": 9, "robustness": 8, "safety": 7}
+        assert rec["quality_subscores"] == {
+            "utility": 9, "robustness": 8, "safety": 7, "flags": ["cmd_injection"]}
         assert abs(rec["quality_score"] - 0.8) < 1e-9
         assert rec["added_at"].isoformat().startswith("2026-08-05T12:00:00")
         assert rec["attachment_path"] == "anthropics__demo__abcd1234"

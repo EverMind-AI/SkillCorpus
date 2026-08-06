@@ -50,15 +50,14 @@ Types are Arrow/Parquet logical types.
 | 10 | `category` | string | no | One of the 16 classes (see enum below). |
 | 11 | `tags` | list&lt;string&gt; | no | Free-form tags; may be empty. |
 | 12 | `quality_score` | float64 | no | Aggregate quality, 0.0–1.0. |
-| 13 | `quality_subscores` | struct&lt;utility:int8, robustness:int8, safety:int8&gt; | yes | LLM judge sub-scores, 0–10 each. Null when never LLM-judged. |
-| 14 | `safety_flags` | list&lt;string&gt; | no | Rule-based safety-scan flags. The current rule set is minimal (blocking rules reject at ingest, so they never reach the corpus) — **published rows are effectively always empty**; kept for forward-compatibility. |
-| 15 | `content_hash` | string | no | SHA-256 of the normalized body (dedup / provenance). |
-| 16 | `body_tokens` | int32 | no | Rough token estimate of the body. |
-| 17 | `has_scripts` | bool | no | Whether the skill bundles a `scripts/` dir (under its member in the tarball). |
-| 18 | `has_references` | bool | no | Whether the skill bundles a `references/` dir (under its member in the tarball). |
-| 19 | `added_at` | timestamp[us, UTC] | no | First ingested into the corpus. |
-| 20 | `updated_at` | timestamp[us, UTC] | no | Last updated in the corpus. |
-| 21 | `attachment_path` | string | yes | The skill's flat member prefix inside `attachments.tar.zst` (= `skill_id` with any `/` replaced by `__`, since `source` may be `owner/repo`); set iff it bundles any file besides `SKILL.md`. |
+| 13 | `quality_subscores` | struct&lt;utility:int8, robustness:int8, safety:int8, flags:list&lt;string&gt;&gt; | yes | LLM judge 3-dim sub-scores (0–10 each) plus the anti-signal `flags` it labelled — the safety signal lives here (e.g. `cmd_injection`, `destructive_no_confirm`); `[]` when none. Null when never LLM-judged. |
+| 14 | `content_hash` | string | no | SHA-256 of the normalized body (dedup / provenance). |
+| 15 | `body_tokens` | int32 | no | Rough token estimate of the body. |
+| 16 | `has_scripts` | bool | no | Whether the skill bundles a `scripts/` dir (under its member in the tarball). |
+| 17 | `has_references` | bool | no | Whether the skill bundles a `references/` dir (under its member in the tarball). |
+| 18 | `added_at` | timestamp[us, UTC] | no | First ingested into the corpus. |
+| 19 | `updated_at` | timestamp[us, UTC] | no | Last updated in the corpus. |
+| 20 | `attachment_path` | string | yes | The skill's flat member prefix inside `attachments.tar.zst` (= `skill_id` with any `/` replaced by `__`, since `source` may be `owner/repo`); set iff it bundles any file besides `SKILL.md`. |
 
 ### `category` enum (16)
 
@@ -66,14 +65,12 @@ Types are Arrow/Parquet logical types.
 plus the remaining classes through `OTHER` (authoritative list:
 `core.models.Category`).
 
-### `safety_flags` values
+### Safety signal
 
-Emitted by the rule-based scan (`curate.safety`). That scan was intentionally
-narrowed to a single blocking rule (`blocked.malware`) that **rejects** a skill
-at ingest rather than tagging it, so exported rows carry an empty list. The richer
-safety signal lives in the LLM judge's flags, which are not part of the corpus
-(see decision 3). Treat this column as a forward-compatible placeholder, and an
-empty list as **not** a guarantee of safety.
+Safety is one of the LLM judge's three dimensions, carried in
+`quality_subscores`: the numeric `safety` (0–10) plus the anti-signal `flags`
+it labelled (e.g. `cmd_injection`, `destructive_no_confirm`, `prompt_injection`).
+An empty `flags` list is **not** a guarantee of safety.
 
 ## Fields intentionally NOT published
 
@@ -85,7 +82,8 @@ These exist in the producer DB but are internal and are dropped from the corpus:
 | `superseded_by` | Internal merge lineage; only set on soft-deleted losers, which are not exported. |
 | `deleted`, `active` | Export filter conditions, not data (all rows are `deleted=0, active=1`). |
 | raw `stored_path` | Producer-local library path; replaced by the portable `attachment_path`. |
-| LLM judge `reason` / `flags` (inside `subscores`) | Verbose free text / redundant with `safety_flags`. See decision 3. |
+| LLM judge `reason` (inside `subscores`) | Verbose prose rationale; the numeric dims + `flags` are published, the rationale is not. See decision 3. |
+| `safety_flags` (rule-based scan) | Internal audit column; the published safety signal is `quality_subscores.flags`. |
 
 ## Dataset card (`README.md`) contents
 
@@ -97,8 +95,8 @@ These exist in the producer DB but are internal and are dropped from the corpus:
 - **Generation**: produced by `skillcorpus` via `cli build` (pipeline:
   discover → clone → curate → quality → dedup → license-audit → export).
 - **Caveats**: `quality_score`/`quality_subscores` are LLM-judged (noisy);
-  `safety_flags` are heuristic, not a security guarantee; near-duplicates across
-  sources are merged (one winner kept).
+  `quality_subscores.flags` mark anti-signals (incl. safety), not a security
+  guarantee; near-duplicates across sources are merged (one winner kept).
 
 ## Decisions (signed off)
 
@@ -106,10 +104,11 @@ Signed off 2026-08-05.
 
 1. **`body` — inline.** The body is the primary content and Parquet handles
    large strings well.
-2. **`tags` / `safety_flags` — native `list<string>`** (not JSON strings):
-   analytics-friendly and self-describing.
-3. **`quality_subscores` — `struct` of the 3 numeric dims**
-   (utility/robustness/safety); the LLM judge `reason` is dropped (verbose).
+2. **`tags` — native `list<string>`** (not JSON strings): analytics-friendly
+   and self-describing.
+3. **`quality_subscores` — `struct` of the 3 numeric dims
+   (utility/robustness/safety) + the judge's anti-signal `flags`** (the safety
+   signal). Only the prose `reason` is dropped (verbose).
 4. **Provenance columns `frontmatter_raw` / `source_path` / `content_hash` —
    kept** (all three): decoupling-safe and aid reproducibility.
 5. **Timestamps — Parquet `timestamp[us, UTC]`** (the DB stores ISO strings;

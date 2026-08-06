@@ -3,7 +3,7 @@
 Contract: docs/corpus-schema.md. One row per skill, only ``deleted = 0 AND
 active = 1`` (the GREEN-license gate). Reads the producer SQLite DB and writes::
 
-    <out>/skills.parquet              one row per skill (21 columns)
+    <out>/skills.parquet              one row per skill (20 columns)
     <out>/attachments.tar.zst         per-skill dirs (minus SKILL.md), <skill_id>/ prefix
     <out>/README.md                   dataset card
 
@@ -27,7 +27,7 @@ import zstandard
 _CORPUS_ROWS_SQL = """
     SELECT s.skill_id, s.name, s.description, s.body, s.frontmatter_raw,
            s.source, s.source_url, s.source_path, s.license, s.category,
-           s.tags, s.quality_score, s.safety_flags, s.content_hash,
+           s.tags, s.quality_score, s.content_hash,
            s.body_tokens, s.has_scripts, s.has_references,
            s.added_at, s.updated_at, s.stored_path,
            q.subscores AS subscores_json
@@ -38,7 +38,8 @@ _CORPUS_ROWS_SQL = """
 """
 
 _SUBSCORES_TYPE = pa.struct(
-    [("utility", pa.int8()), ("robustness", pa.int8()), ("safety", pa.int8())]
+    [("utility", pa.int8()), ("robustness", pa.int8()), ("safety", pa.int8()),
+     ("flags", pa.list_(pa.string()))]
 )
 
 CORPUS_SCHEMA = pa.schema([
@@ -55,7 +56,6 @@ CORPUS_SCHEMA = pa.schema([
     ("tags", pa.list_(pa.string())),
     ("quality_score", pa.float64()),
     ("quality_subscores", _SUBSCORES_TYPE),
-    ("safety_flags", pa.list_(pa.string())),
     ("content_hash", pa.string()),
     ("body_tokens", pa.int32()),
     ("has_scripts", pa.bool_()),
@@ -77,9 +77,10 @@ def _json_list(raw: Any) -> list[str]:
     return [str(x) for x in val] if isinstance(val, list) else []
 
 
-def _subscores(raw: Any) -> dict[str, int | None] | None:
-    """Extract the {utility, robustness, safety} 0-10 dims from the judge's
-    subscores JSON. None when absent so the struct cell is null."""
+def _subscores(raw: Any) -> dict[str, Any] | None:
+    """Extract the LLM judge's 3 dims ({utility, robustness, safety}, 0-10) plus
+    its anti-signal ``flags`` from the subscores JSON. None when absent so the
+    struct cell is null; ``flags`` is [] when the judge labelled none."""
     if not raw:
         return None
     try:
@@ -95,7 +96,10 @@ def _subscores(raw: Any) -> dict[str, int | None] | None:
         except (ValueError, TypeError):
             return None
 
-    return {k: _clip(val.get(k)) for k in ("utility", "robustness", "safety")}
+    out: dict[str, Any] = {k: _clip(val.get(k)) for k in ("utility", "robustness", "safety")}
+    flags = val.get("flags")
+    out["flags"] = [str(x) for x in flags] if isinstance(flags, list) else []
+    return out
 
 
 def _ts(raw: Any) -> datetime | None:
@@ -178,8 +182,9 @@ def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:
         "",
         "## Caveats",
         "",
-        "- `quality_score` / `quality_subscores` are LLM-judged and noisy.",
-        "- `safety_flags` are heuristic, not a security guarantee.",
+        "- `quality_score` / `quality_subscores` are LLM-judged and noisy; "
+        "`quality_subscores.flags` mark anti-signals (incl. safety) the judge "
+        "labelled — not a security guarantee.",
         "- Near-duplicates across sources are merged (one winner kept).",
         "",
     ]
@@ -223,7 +228,6 @@ def write_corpus(
             cols["tags"].append(_json_list(r["tags"]))
             cols["quality_score"].append(float(r["quality_score"] or 0.0))
             cols["quality_subscores"].append(_subscores(r["subscores_json"]))
-            cols["safety_flags"].append(_json_list(r["safety_flags"]))
             cols["content_hash"].append(r["content_hash"])
             cols["body_tokens"].append(int(r["body_tokens"] or 0))
             cols["has_scripts"].append(bool(r["has_scripts"]))
