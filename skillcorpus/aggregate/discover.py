@@ -246,6 +246,3 @@ def discover_repos(entry: dict, timeout: int = 180, limit: int = 0) -> list[tupl
 
 
 
-def count_skills(repo_dir: Path) -> int:
-    return sum(1 for _ in repo_dir.rglob("SKILL.md"))
-

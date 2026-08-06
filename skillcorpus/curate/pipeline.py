@@ -831,4 +831,3 @@ class Ingester:
 
 
 # ════════════ SkillLibrary top-level API ════════════
-_DEFAULT_CONFIG_NAME = "config.yaml"

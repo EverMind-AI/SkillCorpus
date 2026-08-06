@@ -20,9 +20,6 @@ SKILLCORPUS_HOME = Path(
 # The library root == SKILLCORPUS_HOME; the store/fsstore hang their files off it.
 CACHE_DIR = SKILLCORPUS_HOME / "cache"      # <owner>/<repo> git clone cache
 INDEX_DB = SKILLCORPUS_HOME / "index.db"    # SQLite + vec_skills + faiss sidecar
-SKILLS_DIR = SKILLCORPUS_HOME / "skills"    # <source>/<name>/ attachment tree
-STATE_DIR = SKILLCORPUS_HOME / "state"      # run state
-EXPORT_DIR = SKILLCORPUS_HOME / "export"    # export staging
 
 
 # --- Repo-relative inputs (hand-written configs + license audit artifacts) ---

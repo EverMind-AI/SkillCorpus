@@ -1,36 +1,10 @@
 """curate.license — GREEN/RED/YELLOW license policy + normalization."""
 from __future__ import annotations
 
-import csv
 import re
-from pathlib import Path
 
 
 # ======================== license GREEN gate ========================
-"""License filter — enforce GREEN-only (commercially redistributable) active set.
-
-Adds a hard-gate step on top of safety filtering: a skill is admitted
-to the released `active` set only if its source repository's
-GitHub-API `spdx_id` falls in the GREEN allow-list, OR its per-skill
-licence string normalises to a GREEN identifier.
-
-Use:
-    from skillcorpus.curate.license import (
-        is_green_license,
-        normalize_license,
-        load_source_license_map,
-    )
-
-    src_lic = load_source_license_map("source_license_report.csv")
-    # ... during ingest, after LLM judging:
-    if not is_green_license(record, src_lic):
-        record.active = 0
-        record.reason = "non-green license"
-
-The GREEN allow-list mirrors the consumer-side mass-pool policy
-(see docs/15_consumer_skillcorpus_status.md) and matches the paper's
-released artifact.
-"""
 
 
 
@@ -95,8 +69,6 @@ def normalize_license(lic: str | None) -> str | None:
         return "MIT-0"
     if re.match(r"^mit($|\s|\.|,|;)", sl):
         return "MIT"
-    if sl in ("mit", "mit license", "mit licence"):
-        return "MIT"
 
     # Apache
     if sl in (
@@ -156,46 +128,5 @@ def normalize_license(lic: str | None) -> str | None:
     # Unknown — return None so caller falls back to source-level
     return None
 
-
-def load_source_license_map(csv_path: str | Path) -> dict[str, str]:
-    """Load source → license_category mapping from the enrichment CSV
-    produced by `scripts/enrich_unmapped_licenses.py`."""
-    out: dict[str, str] = {}
-    with open(csv_path) as f:
-        for row in csv.DictReader(f):
-            out[row["source"]] = row["license_category"]
-    return out
-
-
-def is_green_license(
-    record_license: str | None,
-    source: str,
-    source_license_map: dict[str, str],
-) -> bool:
-    """Return True iff the skill is commercially redistributable.
-
-    Resolution order:
-      1. Normalise the per-skill licence string.  If it resolves to a
-         GREEN identifier, return True.
-      2. Otherwise fall back to the source repository's GitHub
-         `spdx_id` from `source_license_map`.  If that is GREEN, return
-         True.
-      3. Otherwise return False (NO_LICENSE / fetch failed / RED /
-         YELLOW / Custom / unparseable).
-
-    Note that an explicit NON-GREEN per-skill string overrides any
-    source-level GREEN inference, to honour the most restrictive
-    declaration.  If the per-skill string is parseable AND non-GREEN,
-    return False regardless of source-level licence.
-    """
-    norm = normalize_license(record_license)
-    if norm is not None:
-        if norm in GREEN_LICENSES:
-            return True
-        # Explicit non-green per-skill declaration: reject even if source-green
-        return False
-    # Per-skill string unparseable → fall back to source-level
-    src_lic = source_license_map.get(source)
-    return src_lic in GREEN_LICENSES if src_lic else False
 
 # For maintaining the active status of skills by license in bulk, see ``license_audit.py``.

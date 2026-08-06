@@ -68,8 +68,7 @@ DEFAULT_JSON = LICENSE_WHITELIST
 def _load_csv_map(csv_path: Path) -> dict[str, str]:
     """source → license_category from the report CSV; {} if file absent.
 
-    Tolerant of a missing file (refresh may run before the CSV exists),
-    unlike license_filter.load_source_license_map which opens unconditionally.
+    Tolerant of a missing file (refresh may run before the CSV exists).
     """
     if not csv_path.exists():
         return {}

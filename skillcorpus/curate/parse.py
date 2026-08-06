@@ -120,6 +120,3 @@ def validate_skill(fm: dict[str, Any], body: str) -> None:
             f"name '{name}' does not match slug spec (lowercase letters/digits/hyphens, ≤64)"
         )
 
-    if len(description) > 1024:
-        # agentskills.io cap; truncate but don't reject
-        pass
