@@ -39,9 +39,12 @@ v2 (3-dim LLM judge):
 """
 
 
-# active-harm flags — a hit forces quality=0 (regardless of the safety numeric score)
-# acts as a fallback safety net for the LLM safety numeric score: if the LLM score is
-# lenient but a specific threat is already matched, it is still blocked.
+# The LLM judge emits a 19-flag vocabulary partitioned across the three facets
+# (2 utility-bound, 6 robustness-bound, 11 safety-bound); a fired flag constrains
+# its facet's score. The five below are the safety hard-gate flags — a hit forces
+# quality=0 regardless of the safety numeric score, a fallback safety net for a
+# lenient LLM score when a specific threat is already matched. Excluding these
+# skills from the active set is done by curate.safety_gate.
 HARD_GATE_FLAGS = frozenset({
     "prompt_injection",
     "cmd_injection",

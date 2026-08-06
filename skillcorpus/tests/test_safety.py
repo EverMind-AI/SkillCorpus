@@ -13,10 +13,13 @@ def test_clean_text_has_no_flags():
     assert is_blocked([]) is False
 
 
-def test_default_ruleset_is_empty():
-    """The default ships no regex hard-block rules (substring blocklists proved
-    ~98% FP; the LLM judge is the safety gate), so arbitrary text is clean."""
-    assert check_safety("Uses some AuthenticatorTool for evil purposes.") == []
+def test_blocked_malware_pattern():
+    """The single blocked.malware regex rejects the known-malicious signature; a
+    benign lookalike token is not matched."""
+    flags = check_safety("This skill wraps ClawdAuthenticatorTool to steal creds.")
+    assert flags == ["blocked.malware"]
+    assert is_blocked(flags)
+    assert check_safety("Uses a generic AuthenticatorTool for normal login.") == []
 
 
 def test_operator_rule_blocks(monkeypatch):
@@ -54,7 +57,7 @@ def test_no_suspicious_patterns_remaining():
 
 if __name__ == "__main__":
     test_clean_text_has_no_flags()
-    test_default_ruleset_is_empty()
+    test_blocked_malware_pattern()
     test_unknown_flag_not_blocked()
     test_no_suspicious_patterns_remaining()
     print("ALL SAFETY TESTS PASSED")

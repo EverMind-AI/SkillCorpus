@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import skillcorpus.export.corpus as corpus_mod
+import skillcorpus.curate.safety_gate as safety_gate_mod
 import skillcorpus.cli as rl
 
 
@@ -32,24 +33,30 @@ def test_post_actions_chain_order(tmp_path, monkeypatch):
         lambda db, lib_root, out: calls.append(("corpus", str(db), str(out)))
         or {"rows": 0, "with_attachments": 0, "out": str(out)},
     )
+    monkeypatch.setattr(
+        safety_gate_mod, "run_safety_gate",
+        lambda db: calls.append(("safety", str(db))) or 0,
+    )
 
     lib = _fake_lib(tmp_path)
     rl._post_actions(lib, {}, dry=False)
 
-    # exactly the four steps, in pipeline order
+    # exactly the five steps, in pipeline order (safety_gate after license activate)
     assert [c[1] if c[0] == "run" else c[0] for c in calls] == [
         "skillcorpus.curate.quality_pass",
         "skillcorpus.curate.dedup_pass",
         "skillcorpus.curate.license_audit",
+        "safety",
         "corpus",
     ], calls
 
-    quality, dedup, license_audit, corpus = calls
+    quality, dedup, license_audit, safety, corpus = calls
     lib_root = str(lib.lib_root)
     db_path = str(lib.store.db_path)
     assert quality[2] == ["--lib", lib_root, "--workers", "16"]
     assert dedup[2] == ["--lib", lib_root]
     assert license_audit[2] == ["activate", "--db", db_path]
+    assert safety[1] == db_path
     # corpus is written from the producer DB into <lib_root>/corpus by default
     assert corpus[1] == db_path
     assert corpus[2] == str(lib.lib_root / "corpus")
@@ -58,6 +65,7 @@ def test_post_actions_chain_order(tmp_path, monkeypatch):
 def test_post_actions_respects_corpus_out(tmp_path, monkeypatch):
     seen = {}
     monkeypatch.setattr(rl, "_run_module", lambda module, argv: 0)
+    monkeypatch.setattr(safety_gate_mod, "run_safety_gate", lambda db: 0)
     monkeypatch.setattr(
         corpus_mod, "write_corpus",
         lambda db, lib_root, out: seen.update(out=str(out))

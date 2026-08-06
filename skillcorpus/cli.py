@@ -321,6 +321,10 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     print("\n→ license_audit activate (GREEN whitelist → active)...", flush=True)
     _run_module("skillcorpus.curate.license_audit", ["activate", "--db", db_path])
 
+    print("\n→ safety_gate (exclude safety<3 / hard-gate flags)...", flush=True)
+    from skillcorpus.curate.safety_gate import run_safety_gate
+    print(f"  safety_gate: excluded {run_safety_gate(db_path)} skills", flush=True)
+
     print("\n→ export.corpus (parquet + attachments + card)...", flush=True)
     from skillcorpus.export.corpus import write_corpus
     stats = write_corpus(db_path, lib_root, corpus_out)

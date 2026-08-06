@@ -11,9 +11,11 @@ what is described here. The sign-off record is in [Decisions](#decisions-signed-
   `.refresh_endpoint`), no incremental-`sync()` artifacts, no consumer-specific
   columns. The corpus is a self-contained snapshot, not a live feed.
 - **Safe by default.** Only rows with `deleted = 0 AND active = 1` are exported.
-  `active = 1` is the GREEN-license gate, so **every published row is
-  permissively licensed**, and merged/near-duplicate losers (soft-deleted) are
-  excluded.
+  `active = 1` is the release gate — a row passed both the **safety hard-gate**
+  (no `blocked.malware` match, no LLM hard-gate flag, safety subscore ≥ 3) and
+  the **GREEN-license** filter — so **every published row is permissively
+  licensed and safety-vetted**, and merged/near-duplicate losers (soft-deleted)
+  are excluded.
 
 ## Published layout
 

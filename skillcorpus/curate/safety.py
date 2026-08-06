@@ -1,28 +1,24 @@
-"""curate.safety — regex hard-block safety gate (pure, no LLM)."""
+"""curate.safety — regex hard-block safety gate (pure, no LLM).
+
+Stage-5 safety hard-gate, condition 1 of 3 (paper §3.3): a single pre-judge
+``blocked.malware`` regex that rejects known-malicious skills at ingest, before
+the LLM judge runs. Conditions 2-3 — firing any of the five LLM hard-gate flags,
+or an LLM safety subscore < 3 — are applied post-judge by curate.safety_gate.
+
+The former suspicious-* substring heuristics are NOT gates: a stratified audit
+measured their false-positive rate above 90%, so they add no value as filters,
+and the LLM judge's safety dimension plus its 19-flag vocabulary cover the rest.
+Operators may register additional ``blocked.<name>`` patterns here; any
+``blocked.*`` flag rejects.
+"""
 from __future__ import annotations
 
 import re
 
 
-# ======================== safety regex hard-block ========================
-"""Safety check — regex hard-block with an empty default rule set.
-
-The default ships **no** patterns: context-free substring blocklists proved
-unusable (their false-positive rate measured near 98%), so the safety gate is
-the LLM judge instead — its `safety` dimension plus anti-signal `flags`,
-enforced in quality.py:
-  - numeric hard-gate: LLM safety < 3 → quality = 0
-  - flag hard-gate:    prompt_injection / cmd_injection / unsafe_exec /
-                       auth_bypass / csam_risk → quality = 0
-
-This module stays as an extension hook: an operator can register their own
-``blocked.<name>`` patterns to force-reject known-bad content at ingest, and
-any ``blocked.*`` flag rejects.
-"""
-
-
-
-_SAFETY_RULES: list[tuple[str, re.Pattern]] = []
+_SAFETY_RULES: list[tuple[str, re.Pattern]] = [
+    ("blocked.malware", re.compile(r"ClawdAuthenticatorTool", re.IGNORECASE)),
+]
 
 
 def check_safety(text: str) -> list[str]:
