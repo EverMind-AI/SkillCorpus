@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_YAML = Path(__file__).resolve().parents[1] / "sources.yaml"
+from ..core.paths import DEFAULT_SOURCES as DEFAULT_YAML
 
 VALID_TYPES = {
     "git_clone", "readme_scrape", "index_api",

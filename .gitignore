@@ -5,3 +5,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# top-level inputs/artifacts (private / generated)
+configs/sources.full.yaml
+audit/source_license_report.csv
+audit/source_manifest.csv

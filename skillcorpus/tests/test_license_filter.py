@@ -7,10 +7,11 @@ import json
 from pathlib import Path
 
 from skillcorpus.curate.license import GREEN_LICENSES
+from skillcorpus.core.paths import LICENSE_WHITELIST
 
 
 def test_json_green_categories_matches_code():
-    json_path = Path(__file__).resolve().parents[1] / "license_safe_sources.json"
+    json_path = LICENSE_WHITELIST
     if not json_path.exists():
         # license_safe_sources.json is a private, generated whitelist (not
         # committed — produced by `license_audit build` from the private

@@ -43,7 +43,3 @@ eval = [
 [tool.setuptools.packages.find]
 include = ["skillcorpus*"]
 
-[tool.setuptools.package-data]
-# license_safe_sources.json is intentionally NOT shipped: it is a private,
-# generated whitelist (see skillcorpus/.gitignore) regenerated at deploy.
-skillcorpus = ["config.yaml", "sources.yaml"]

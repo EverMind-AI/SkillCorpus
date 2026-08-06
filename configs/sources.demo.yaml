@@ -6,7 +6,7 @@
 #
 # The full production registry (62 sources, 6 types) lives in sources.full.yaml — it is excluded by
 # .gitignore and not provided with the public release. To run the full set on the production side:
-#   python -m skillcorpus.cli build --sources-config skillcorpus/sources.full.yaml
+#   python -m skillcorpus.cli build --sources-config configs/sources.full.yaml
 #
 # The data/ artifacts (index.db / skills/ / corpus/) are also excluded by .gitignore; what users
 # get after a run is a small library built from the few sources below, not the finished corpus.

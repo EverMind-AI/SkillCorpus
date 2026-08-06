@@ -23,3 +23,14 @@ INDEX_DB = SKILLCORPUS_HOME / "index.db"    # SQLite + vec_skills + faiss sideca
 SKILLS_DIR = SKILLCORPUS_HOME / "skills"    # <source>/<name>/ attachment tree
 STATE_DIR = SKILLCORPUS_HOME / "state"      # run state
 EXPORT_DIR = SKILLCORPUS_HOME / "export"    # export staging
+
+
+# --- Repo-relative inputs (hand-written configs + license audit artifacts) ---
+# Resolvable only in a cloned / editable checkout; NOT shipped as package data.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONFIGS_DIR = REPO_ROOT / "configs"
+AUDIT_DIR = REPO_ROOT / "audit"
+DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
+DEFAULT_SOURCES = CONFIGS_DIR / "sources.demo.yaml"
+SOURCES_FULL = CONFIGS_DIR / "sources.full.yaml"
+LICENSE_WHITELIST = AUDIT_DIR / "license_safe_sources.json"

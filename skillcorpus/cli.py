@@ -27,7 +27,7 @@ from .curate.classify import Classifier
 from .curate.dedup import LLMDupJudge
 from .curate.quality import LLMQualityJudge
 from .curate.pipeline import Ingester, IngestResult
-from .core.paths import SKILLCORPUS_HOME
+from .core.paths import SKILLCORPUS_HOME, DEFAULT_CONFIG, DEFAULT_SOURCES, SOURCES_FULL
 from .aggregate.discover import discover_repos
 from .aggregate.clone import clone_or_pull
 from .aggregate.registry import load_registry
@@ -62,7 +62,7 @@ class SkillLibrary:
         local = self.lib_root / "config.yaml"
         if local.exists():
             return local
-        pkg_default = Path(__file__).parent / "config.yaml"
+        pkg_default = DEFAULT_CONFIG
         return pkg_default
 
     # ------------------------------------------------------------------
@@ -249,7 +249,7 @@ class SkillLibrary:
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_YAML = Path(__file__).resolve().parent / "sources.yaml"
+DEFAULT_YAML = DEFAULT_SOURCES
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -453,7 +453,7 @@ def build(ctx, full, sources_config, source, dry_run):
     if sources_config:
         config = Path(sources_config)
     elif full:
-        config = Path(__file__).resolve().parent / "sources.full.yaml"
+        config = SOURCES_FULL
     else:
         config = DEFAULT_YAML
     if not config.exists():

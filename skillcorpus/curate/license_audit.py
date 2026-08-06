@@ -59,11 +59,10 @@ _NON_LICENSE_CATEGORIES = frozenset(
 # ---------------------------------------------------------------------------
 # Paths — single source of truth
 # ---------------------------------------------------------------------------
-_PKG_DIR = Path(__file__).resolve().parent.parent              # skillcorpus/
-_REPO_ROOT = _PKG_DIR.parent                            # skill/
-DEFAULT_DB = _PKG_DIR / "data" / "index.db"
-DEFAULT_CSV = _REPO_ROOT / "source_license_report.csv"
-DEFAULT_JSON = _PKG_DIR / "license_safe_sources.json"
+from ..core.paths import AUDIT_DIR, LICENSE_WHITELIST, INDEX_DB  # noqa: E402
+DEFAULT_DB = INDEX_DB
+DEFAULT_CSV = AUDIT_DIR / "source_license_report.csv"
+DEFAULT_JSON = LICENSE_WHITELIST
 
 
 def _load_csv_map(csv_path: Path) -> dict[str, str]:
