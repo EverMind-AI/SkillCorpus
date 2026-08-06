@@ -90,7 +90,6 @@ def _build_skill_md(rec: dict) -> tuple[str, str]:
         f"name: {name}",
         f"description: {_yaml_str(description)}",
         f"tags: {_yaml_list(tags)}",
-        "license: MIT",
     ]
     if author:
         fm_lines.append(f'author: {_yaml_str(author)}')

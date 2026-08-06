@@ -33,7 +33,7 @@ _CORPUS_ROWS_SQL = """
            q.subscores AS subscores_json
     FROM skills s
     LEFT JOIN quality_judgments q ON q.content_hash = s.content_hash
-    WHERE s.deleted = 0 AND COALESCE(s.active, 1) = 1
+    WHERE s.deleted = 0 AND s.active = 1
     ORDER BY s.skill_id
 """
 

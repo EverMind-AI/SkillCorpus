@@ -356,7 +356,8 @@ def cmd_apply(args: argparse.Namespace) -> int:
         if cat and cat not in _NON_LICENSE_CATEGORIES:
             updates.append((cat, src))
 
-    print(f"would update {len(updates):,} rows (junk → CSV category)")
+    updates = sorted(set(updates))  # one UPDATE per (source, category), not per row
+    print(f"would update {len(updates):,} sources (junk license → CSV category)")
 
     if args.dry_run:
         # show sample
@@ -388,11 +389,10 @@ def cmd_apply(args: argparse.Namespace) -> int:
 def cmd_activate(args: argparse.Namespace) -> int:
     """Align the skills.active column with the GREEN whitelist (active=1 iff source ∈ whitelist, deleted=0).
 
-    Purpose: store.insert sets active per GREEN only for **newly inserted** rows; when an
-    old DB is upgraded, the active column added by `_migrate` defaults to all 0, and no path
-    sets existing GREEN rows back to 1, so after the upgrade export (WHERE active=1) produces
-    an empty library. Run this command once after an upgrade to fix it.
-    Idempotent: rerunning yields the same result. The whitelist comes from license_safe_sources.json (same source as store).
+    store.insert lands every row active=0; this command is the sole place that sets
+    active=1 (per the GREEN whitelist), run as a step of `cli build` after ingest so it
+    always reflects the current whitelist. Idempotent: rerunning yields the same result.
+    The whitelist comes from license_safe_sources.json.
     """
     json_path = Path(args.json)
     db_path = Path(args.db)
