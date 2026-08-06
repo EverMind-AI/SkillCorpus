@@ -51,7 +51,7 @@ Types are Arrow/Parquet logical types.
 | 11 | `tags` | list&lt;string&gt; | no | Free-form tags; may be empty. |
 | 12 | `quality_score` | float64 | no | Aggregate quality, 0.0–1.0. |
 | 13 | `quality_subscores` | struct&lt;utility:int8, robustness:int8, safety:int8&gt; | yes | LLM judge sub-scores, 0–10 each. Null when never LLM-judged. |
-| 14 | `safety_flags` | list&lt;string&gt; | no | Rule-based safety-scan flags; empty = clean. |
+| 14 | `safety_flags` | list&lt;string&gt; | no | Rule-based safety-scan flags. The current rule set is minimal (blocking rules reject at ingest, so they never reach the corpus) — **published rows are effectively always empty**; kept for forward-compatibility. |
 | 15 | `content_hash` | string | no | SHA-256 of the normalized body (dedup / provenance). |
 | 16 | `body_tokens` | int32 | no | Rough token estimate of the body. |
 | 17 | `has_scripts` | bool | no | Whether the skill bundles a `scripts/` dir (under its member in the tarball). |
@@ -68,9 +68,12 @@ plus the remaining classes through `OTHER` (authoritative list:
 
 ### `safety_flags` values
 
-Emitted by the rule-based scan (`curate.safety`), e.g. `cmd_injection`,
-`destructive_no_confirm`, `secret_material`. An empty list means no rule fired
-(it is **not** a guarantee of safety — see caveats).
+Emitted by the rule-based scan (`curate.safety`). That scan was intentionally
+narrowed to a single blocking rule (`blocked.malware`) that **rejects** a skill
+at ingest rather than tagging it, so exported rows carry an empty list. The richer
+safety signal lives in the LLM judge's flags, which are not part of the corpus
+(see decision 3). Treat this column as a forward-compatible placeholder, and an
+empty list as **not** a guarantee of safety.
 
 ## Fields intentionally NOT published
 
