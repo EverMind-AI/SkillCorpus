@@ -82,6 +82,12 @@ class EmbeddingClient:
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY") or "dummy"
         self._available: bool | None = None
 
+    def _headers(self) -> dict[str, str]:
+        h = {"Content-Type": "application/json"}
+        if self.api_key and self.api_key != "dummy":
+            h["Authorization"] = f"Bearer {self.api_key}"
+        return h
+
     def is_available(self) -> bool:
         """Whether the endpoint is reachable (one fast single-shot probe).
 
@@ -105,7 +111,7 @@ class EmbeddingClient:
             req = urllib.request.Request(
                 f"{base}/embed",
                 data=_json.dumps({"texts": ["test"]}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=self._headers(),
             )
             resp = opener.open(req, timeout=5)
             embs = _json.loads(resp.read()).get("embeddings")
@@ -153,7 +159,7 @@ class EmbeddingClient:
                 try:
                     req = urllib.request.Request(
                         url, data=data,
-                        headers={"Content-Type": "application/json"},
+                        headers=self._headers(),
                     )
                     resp = opener.open(req, timeout=self.timeout)
                     payload = _json.loads(resp.read())

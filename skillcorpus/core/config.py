@@ -15,6 +15,11 @@ import yaml
 def load_config(path: str | Path) -> dict[str, Any]:
     """Parse config.yaml into a dict, validating the shapes the pipeline relies on."""
     p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(
+            f"config not found: {p}. Configs live in configs/ at the repo root; run from a "
+            "clone / editable install (pip install -e .), or pass --config explicitly."
+        )
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
         raise ValueError(f"config must be a mapping, got {type(data).__name__}: {p}")

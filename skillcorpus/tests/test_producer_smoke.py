@@ -100,7 +100,7 @@ def test_producer_smoke():
 
         # scripts/ becomes an attachment; SKILL.md is not duplicated
         assert rec["has_scripts"] is True
-        assert rec["attachment_path"] == rec["skill_id"]
+        assert rec["attachment_path"] == rec["skill_id"].replace("/", "__")
         names = _tar_names(out / "attachments.tar.zst")
         assert f"{rec['skill_id']}/scripts/run.py" in names
         assert f"{rec['skill_id']}/SKILL.md" not in names

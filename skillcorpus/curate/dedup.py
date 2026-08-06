@@ -170,9 +170,10 @@ class LLMDupJudge:
         return j
 
     def stats(self) -> dict[str, int]:
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS total, SUM(is_duplicate) AS n_dup FROM dedup_judgments"
-        ).fetchone()
+        with self._sqlite_lock:
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS total, SUM(is_duplicate) AS n_dup FROM dedup_judgments"
+            ).fetchone()
         total = int(row[0] or 0)
         n_dup = int(row[1] or 0)
         return {"total_judgments": total, "confirmed_duplicates": n_dup}

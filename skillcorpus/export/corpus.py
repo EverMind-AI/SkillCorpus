@@ -132,13 +132,14 @@ def _add_attachments(
     src = Path(lib_root) / stored_path
     if not src.is_dir():
         return None
+    prefix = skill_id.replace("/", "__")  # source can be owner/repo -> keep one flat member
     added = False
     for item in sorted(src.iterdir()):
         if item.name == "SKILL.md" or item.name.startswith("."):
             continue
-        tar.add(item, arcname=f"{skill_id}/{item.name}")
+        tar.add(item, arcname=f"{prefix}/{item.name}")
         added = True
-    return skill_id if added else None
+    return prefix if added else None
 
 
 def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:

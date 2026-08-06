@@ -58,7 +58,7 @@ Types are Arrow/Parquet logical types.
 | 18 | `has_references` | bool | no | Whether the skill bundles a `references/` dir (under its member in the tarball). |
 | 19 | `added_at` | timestamp[us, UTC] | no | First ingested into the corpus. |
 | 20 | `updated_at` | timestamp[us, UTC] | no | Last updated in the corpus. |
-| 21 | `attachment_path` | string | yes | The skill's `<skill_id>/` member prefix inside `attachments.tar.zst`; set iff it bundles any file besides `SKILL.md`. |
+| 21 | `attachment_path` | string | yes | The skill's flat member prefix inside `attachments.tar.zst` (= `skill_id` with any `/` replaced by `__`, since `source` may be `owner/repo`); set iff it bundles any file besides `SKILL.md`. |
 
 ### `category` enum (16)
 
