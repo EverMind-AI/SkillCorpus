@@ -1,0 +1,63 @@
+"""aggregate.clone — clone-or-pull a GitHub repo into the SKILLCORPUS_HOME cache.
+
+Merges the two former clone paths (fetch.clone_repo + refresh_loop._git_pull_or_clone)
+into one: pull if already cached, else clone with retry.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+from ..core.paths import CACHE_DIR as FETCHED
+
+# Permanent failures (404 / private / auth) are not worth retrying.
+_PERMANENT = (
+    "not found", "Repository not found", "could not read Username",
+    "Authentication failed", "remote: error: This repository",
+)
+
+
+def clone_or_pull(owner: str, repo: str, timeout: int = 180,
+                  max_attempts: int = 2) -> tuple[Path | None, str]:
+    """Pull if already cached, else clone github.com/<owner>/<repo> into FETCHED/.
+
+    Returns (path, status), status in {pulled, cloned, fail}. GIT_TERMINAL_PROMPT=0
+    + GIT_ASKPASS=true make a private / auth-required repo fail fast instead of
+    hanging; permanent failures are not retried, transient ones retried once.
+    """
+    dst = FETCHED / owner / repo
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "true"}
+
+    if (dst / ".git").is_dir():
+        try:
+            subprocess.run(
+                ["git", "-C", str(dst), "pull", "--quiet", "--rebase=false"],
+                timeout=timeout, capture_output=True, env=env, check=True,
+            )
+            return dst, "pulled"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            err = (getattr(e, "stderr", b"") or b"").decode("utf-8", "replace")[:200]
+            return None, f"fail: {err}"
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    url = f"https://github.com/{owner}/{repo}.git"
+    last_err = ""
+    for _attempt in range(1, max_attempts + 1):
+        if dst.exists():
+            shutil.rmtree(dst, ignore_errors=True)
+        try:
+            subprocess.run(
+                ["git", "clone", "--depth", "1", "--quiet", url, str(dst)],
+                timeout=timeout, check=True, capture_output=True, env=env,
+            )
+            return dst, "cloned"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            err_s = (getattr(e, "stderr", b"") or b"").decode("utf-8", "replace")
+            last_err = err_s[:200]
+            if any(s in err_s for s in _PERMANENT):
+                break
+    if dst.exists():
+        shutil.rmtree(dst, ignore_errors=True)
+    return None, f"fail: {last_err}"

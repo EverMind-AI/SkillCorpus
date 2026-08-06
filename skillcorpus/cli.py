@@ -9,7 +9,6 @@ Usage examples (``--lib`` is a group option and must precede the subcommand):
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 import time
@@ -20,7 +19,9 @@ import click
 
 from .curate.pipeline import SkillLibrary
 from .core.paths import SKILLCORPUS_HOME
-from .aggregate.fetch import discover_repos, FETCHED as FETCHED_ROOT
+from .aggregate.discover import discover_repos
+from .aggregate.clone import clone_or_pull
+from .aggregate.registry import load_registry
 
 
 _DEFAULT_LIB = str(SKILLCORPUS_HOME)
@@ -37,41 +38,6 @@ DEFAULT_YAML = Path(__file__).resolve().parent / "sources.yaml"
 def _load_yaml(path: Path) -> dict[str, Any]:
     import yaml
     return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-def _git_pull_or_clone(repo: str, timeout: int = 300) -> tuple[Path | None, str]:
-    """Returns (path, status) where status ∈ {cloned, pulled, no_change, failed}."""
-    import os as _os
-    owner, name = repo.split("/", 1)
-    dst = FETCHED_ROOT / owner / name
-    env = {**_os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "true"}
-
-    if (dst / ".git").is_dir():
-        # pull
-        try:
-            r = subprocess.run(
-                ["git", "-C", str(dst), "pull", "--quiet", "--rebase=false"],
-                timeout=timeout, capture_output=True, env=env, check=True,
-            )
-            return dst, "pulled"
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            err = (e.stderr or b"").decode("utf-8", "replace")[:200] if hasattr(e, "stderr") else str(e)
-            return None, f"failed: {err}"
-    else:
-        # clone
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        url = f"https://github.com/{repo}.git"
-        try:
-            subprocess.run(
-                ["git", "clone", "--depth", "1", "--quiet", url, str(dst)],
-                timeout=timeout, capture_output=True, env=env, check=True,
-            )
-            return dst, "cloned"
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            if dst.exists():
-                shutil.rmtree(dst, ignore_errors=True)
-            err = (e.stderr or b"").decode("utf-8", "replace")[:200] if hasattr(e, "stderr") else str(e)
-            return None, f"failed: {err}"
 
 
 def _ingest_source(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict:
@@ -153,9 +119,8 @@ def run_refresh(config=DEFAULT_YAML, source=None, dry_run=False,
     auto-inits (SkillLibrary.open runs init_schema). Every listed source is
     processed; there is no cadence / incremental refresh state.
     """
-    cfg = _load_yaml(Path(config))
-    sources = cfg.get("sources", []) or []
-    defaults = cfg.get("defaults", {}) or {}
+    sources = load_registry(config)
+    defaults = _load_yaml(Path(config)).get("defaults", {}) or {}
     if source:
         sources = [s for s in sources if s.get("name") == source]
         if not sources:
@@ -191,7 +156,7 @@ def run_refresh(config=DEFAULT_YAML, source=None, dry_run=False,
         added_total = 0
         ok = 0
         for owner, repo in repos:
-            src_dir, git_status = _git_pull_or_clone(f"{owner}/{repo}")
+            src_dir, git_status = clone_or_pull(owner, repo)
             if src_dir is None:
                 continue
             label = (s.get("source_label") or s["repo"]) if typ in self_types else f"{owner}/{repo}"
