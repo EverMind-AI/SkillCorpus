@@ -165,7 +165,8 @@ CREATE INDEX IF NOT EXISTS idx_skills_content_hash ON skills(content_hash);
 CREATE INDEX IF NOT EXISTS idx_skills_name_hash    ON skills(name_hash);
 CREATE INDEX IF NOT EXISTS idx_skills_name         ON skills(name);
 CREATE INDEX IF NOT EXISTS idx_skills_deleted      ON skills(deleted);
--- the superseded_by index is created by store._migrate() after the ALTER TABLE
+CREATE INDEX IF NOT EXISTS idx_skills_active       ON skills(active);
+CREATE INDEX IF NOT EXISTS idx_skills_superseded_by ON skills(superseded_by);
 """
 
 # Vector table (sqlite-vec). Created separately in store.py since it

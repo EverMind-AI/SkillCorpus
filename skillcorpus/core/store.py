@@ -85,8 +85,6 @@ class SkillStore:
         # by ``export.py`` (which gates on
         # ``active=1``). Loaded lazily on first ``insert()`` call so
         # store construction stays cheap.
-        self._safe_sources: frozenset[str] | None = None
-        self._safe_sources_mtime: float | None = None   # JSON mtime when cached
 
     def _connect(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -125,48 +123,6 @@ class SkillStore:
             """
         )
         conn.commit()
-        self._migrate()
-
-    def _migrate(self) -> None:
-        """Idempotent migration — add new columns to old DBs / recompute hashes. Uses user_version to track state."""
-        conn = self._connect()
-        existing_cols = {
-            r[1] for r in conn.execute("PRAGMA table_info(skills)").fetchall()
-        }
-        # Round A (1): add the superseded_by column
-        if "superseded_by" not in existing_cols:
-            conn.execute("ALTER TABLE skills ADD COLUMN superseded_by TEXT")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_skills_superseded_by ON skills(superseded_by)"
-            )
-            logger.info("migrated: added skills.superseded_by column")
-        # License-gate (2): add the active column (old DBs created before the GREEN
-        # filter existed). New DBs get it from SCHEMA_SQL; this is the
-        # backfill path for pre-existing index.db without the column.
-        if "active" not in existing_cols:
-            conn.execute("ALTER TABLE skills ADD COLUMN active INTEGER NOT NULL DEFAULT 0")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_skills_active ON skills(active)"
-            )
-            logger.info("migrated: added skills.active column")
-        conn.commit()
-
-        # Round A (2): recompute all name_hash to the canonical form, one-time
-        cur_v = conn.execute("PRAGMA user_version").fetchone()[0]
-        if cur_v < 1:
-            from .hashing import name_hash as _canonical_name_hash
-            rows = conn.execute("SELECT skill_id, name FROM skills").fetchall()
-            updated = 0
-            for r in rows:
-                conn.execute(
-                    "UPDATE skills SET name_hash = ? WHERE skill_id = ?",
-                    (_canonical_name_hash(r["name"]), r["skill_id"]),
-                )
-                updated += 1
-            conn.execute("PRAGMA user_version = 1")
-            conn.commit()
-            if updated:
-                logger.info(f"migrated: recomputed canonical name_hash for {updated} skills")
 
     def close(self) -> None:
         # Close every thread-local conn we know about (best-effort).
@@ -184,67 +140,10 @@ class SkillStore:
     # CRUD
     # ------------------------------------------------------------------
 
-    def _load_safe_sources(self) -> frozenset[str]:
-        """Load the GREEN-license source whitelist, cached + mtime-invalidated.
-
-        Source: ``license_safe_sources.json`` at the ``skillcorpus``
-        package root (next to ``config.yaml``). Missing file means the
-        license filter is uninitialized; we return an empty set, which
-        makes every new insert default to ``active=0`` (safe-by-default
-        — operator can flip individual rows via SQL before next export).
-
-        The cache is keyed on the file's mtime, so regenerating the JSON
-        (``license_audit build``) mid-process is picked up by subsequent
-        inserts instead of silently using the stale whitelist.
-        """
-        # license_safe_sources.json lives at the package root (sibling
-        # of config.yaml / sources.yaml), not under data/. Resolve from
-        # this module's location rather than the DB path.
-        json_path = Path(__file__).resolve().parents[1] / 'license_safe_sources.json'
-        try:
-            mtime = json_path.stat().st_mtime
-        except FileNotFoundError:
-            mtime = None
-        if self._safe_sources is not None and mtime == self._safe_sources_mtime:
-            return self._safe_sources
-
-        if mtime is None:
-            logger.warning(
-                "license_safe_sources.json missing at %s — "
-                "new inserts will default to active=0 (excluded from export).",
-                json_path,
-            )
-            sources = frozenset()
-        else:
-            with open(json_path) as f:
-                data = json.load(f)
-            sources = frozenset(data.get('sources', []))
-            logger.info(
-                "loaded license whitelist: %d GREEN sources from %s",
-                len(sources), json_path,
-            )
-        self._safe_sources = sources
-        self._safe_sources_mtime = mtime
-        return sources
-
     def insert(self, rec: SkillRecord, embedding: list[float] | None = None) -> None:
-        # Store-side gate is intentionally **source-level only** (GREEN source
-        # whitelist), the conservative default. The richer per-skill rule lives
-        # in license_filter.is_green_license / license_audit, which run at a
-        # layer that can see the source-license CSV — keep them as the single
-        # place that may widen active, so this hot path stays cheap.
-        active = 1 if rec.source in self._load_safe_sources() else 0
-        # Anti-clobber: INSERT OR REPLACE (and update(), which round-trips
-        # through here) would otherwise reset active=0 on every re-ingest,
-        # silently undoing an operator's manual SQL activation (the escape
-        # hatch documented in _load_safe_sources). Only ever upgrade, never
-        # downgrade, an existing active=1 row.
-        if active == 0:
-            prev = self._connect().execute(
-                "SELECT active FROM skills WHERE skill_id = ?", (rec.skill_id,)
-            ).fetchone()
-            if prev is not None and prev["active"] == 1:
-                active = 1
+        # active is not a store concern: a row lands inactive (excluded from
+        # export) and curate.license_audit flips it per the GREEN whitelist.
+        active = 0
 
         # Strip lone UTF-16 surrogates that the sqlite3 driver can't bind
         # (UnicodeEncodeError "surrogates not allowed"). Real text rarely

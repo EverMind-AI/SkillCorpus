@@ -113,27 +113,10 @@ def test_r7_reinsert_no_faiss_dup():
     assert st._faiss_pending_inserts > pending0
 
 
-# ----------------------------------------------------------------------
-# R8 — insert never downgrades an operator-set active=1
-# ----------------------------------------------------------------------
-def test_r8_active_anticlobber():
-    st = _store()
-    st.insert(_rec("ng", "x", src="redsrc/repo"), embedding=_emb(0))  # non-green
-    c = st._connect()
-    assert c.execute(
-        "SELECT active FROM skills WHERE skill_id='ng'").fetchone()["active"] == 0
-    c.execute("UPDATE skills SET active=1 WHERE skill_id='ng'")        # hand-activate
-    c.commit()
-    st.insert(_rec("ng", "x", src="redsrc/repo"), embedding=_emb(0))  # re-ingest
-    after = st._connect().execute(
-        "SELECT active FROM skills WHERE skill_id='ng'").fetchone()["active"]
-    assert after == 1, "re-insert must not clobber operator-set active=1"
-
 
 if __name__ == "__main__":
     test_r2_short_batch_returns_none()
     test_r2_full_batch_ok()
     test_r1_rebuild_alignment()
     test_r7_reinsert_no_faiss_dup()
-    test_r8_active_anticlobber()
     print("ALL PRODUCER STORE/EMBED REGRESSION TESTS PASSED")

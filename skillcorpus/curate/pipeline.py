@@ -368,7 +368,7 @@ class Ingester:
         # Note: the GREEN-license gate is not at the ingest layer — store.insert()
         # sets active=0/1 by source (non-GREEN is kept but active=0), and export
         # then filters by active=1.
-        # See store._load_safe_sources + export's WHERE active=1.
+        # active is set by curate.license_audit; export filters WHERE active=1.
 
         # ------------------------------------------------------------
         # 3. Quality filter (Phase 1 rules)
