@@ -20,20 +20,17 @@ what is described here. The sign-off record is in [Decisions](#decisions-signed-
 ```
 corpus/
 ├── skills.parquet              # the table below, one row per skill
-├── attachments/
-│   └── <skill_id>/             # the whole skill dir, minus SKILL.md
-│       ├── scripts/…
-│       ├── references/…
-│       └── …                   # any other bundled files (assets, templates, data, images, …)
+├── attachments.tar.zst         # zstd tarball; each skill under an <skill_id>/ member
+│   #   <skill_id>/scripts/…   <skill_id>/references/…   <skill_id>/… (assets, …)
 └── README.md                   # dataset card (see below)
 ```
 
-`attachments/<skill_id>/` mirrors the **entire skill directory except
-`SKILL.md`** — `scripts/`, `references/`, and any other files the skill bundles
-(assets, templates, data, images, …), at their original relative paths.
-`SKILL.md` is deliberately **not** duplicated: its body is the inline `body`
-column and its frontmatter is `frontmatter_raw`, so the file is fully
-reconstructable.
+`attachments.tar.zst` is a zstd-compressed tarball; each skill's extra files go
+under an `<skill_id>/` member prefix — mirroring the **entire skill directory
+except `SKILL.md`** (`scripts/`, `references/`, and any other bundled files), at
+their original relative paths. `SKILL.md` is deliberately **not** duplicated: its
+body is the inline `body` column and its frontmatter is `frontmatter_raw`, so the
+file is fully reconstructable.
 
 ## `skills.parquet` columns
 
@@ -57,11 +54,11 @@ Types are Arrow/Parquet logical types.
 | 14 | `safety_flags` | list&lt;string&gt; | no | Rule-based safety-scan flags; empty = clean. |
 | 15 | `content_hash` | string | no | SHA-256 of the normalized body (dedup / provenance). |
 | 16 | `body_tokens` | int32 | no | Rough token estimate of the body. |
-| 17 | `has_scripts` | bool | no | Whether `attachments/<skill_id>/scripts/` exists. |
-| 18 | `has_references` | bool | no | Whether `attachments/<skill_id>/references/` exists. |
+| 17 | `has_scripts` | bool | no | Whether the skill bundles a `scripts/` dir (under its member in the tarball). |
+| 18 | `has_references` | bool | no | Whether the skill bundles a `references/` dir (under its member in the tarball). |
 | 19 | `added_at` | timestamp[us, UTC] | no | First ingested into the corpus. |
 | 20 | `updated_at` | timestamp[us, UTC] | no | Last updated in the corpus. |
-| 21 | `attachment_path` | string | yes | Dir under `attachments/` for this skill; set iff the skill bundles any file besides `SKILL.md`. |
+| 21 | `attachment_path` | string | yes | The skill's `<skill_id>/` member prefix inside `attachments.tar.zst`; set iff it bundles any file besides `SKILL.md`. |
 
 ### `category` enum (16)
 
@@ -114,7 +111,8 @@ Signed off 2026-08-05.
    kept** (all three): decoupling-safe and aid reproducibility.
 5. **Timestamps — Parquet `timestamp[us, UTC]`** (the DB stores ISO strings;
    convert on export).
-6. **Attachments — the whole skill directory minus `SKILL.md`.** Every bundled
-   file is kept at its original relative path (not just `scripts/` /
-   `references/`); `SKILL.md` is not duplicated (reconstructable from `body` +
+6. **Attachments — a single `attachments.tar.zst` (zstd tarball).** Each skill's
+   files go under an `<skill_id>/` member; the whole skill directory minus
+   `SKILL.md` is kept at original relative paths (not just `scripts/` /
+   `references/`). `SKILL.md` is not duplicated (reconstructable from `body` +
    `frontmatter_raw`).

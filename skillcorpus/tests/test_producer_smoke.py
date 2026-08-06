@@ -52,6 +52,14 @@ Always validate that the output file exists before returning success.
 """
 
 
+def _tar_names(path):
+    import tarfile
+    import zstandard
+    with open(path, "rb") as f, zstandard.ZstdDecompressor().stream_reader(f) as z, \
+            tarfile.open(fileobj=z, mode="r|") as tar:
+        return [m.name for m in tar]
+
+
 def _make_src(root: Path) -> Path:
     d = root / "src" / "pdf-generator"
     (d / "scripts").mkdir(parents=True)
@@ -92,10 +100,10 @@ def test_producer_smoke():
 
         # scripts/ becomes an attachment; SKILL.md is not duplicated
         assert rec["has_scripts"] is True
-        assert rec["attachment_path"] == f"attachments/{rec['skill_id']}"
-        adir = out / rec["attachment_path"]
-        assert (adir / "scripts" / "run.py").exists()
-        assert not (adir / "SKILL.md").exists()
+        assert rec["attachment_path"] == rec["skill_id"]
+        names = _tar_names(out / "attachments.tar.zst")
+        assert f"{rec['skill_id']}/scripts/run.py" in names
+        assert f"{rec['skill_id']}/SKILL.md" not in names
 
         assert (out / "README.md").read_text(encoding="utf-8").startswith("# SkillCorpus")
 

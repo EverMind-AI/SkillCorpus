@@ -20,6 +20,14 @@ from skillcorpus.export.corpus import CORPUS_SCHEMA, write_corpus
 _TS = "2026-08-05T12:00:00+00:00"
 
 
+def _tar_names(path):
+    import tarfile
+    import zstandard
+    with open(path, "rb") as f, zstandard.ZstdDecompressor().stream_reader(f) as z, \
+            tarfile.open(fileobj=z, mode="r|") as tar:
+        return [m.name for m in tar]
+
+
 def _insert(conn: sqlite3.Connection, **over: object) -> None:
     row = {
         "skill_id": "anthropics__demo__abcd1234",
@@ -108,13 +116,13 @@ def test_write_corpus_full():
         assert rec["quality_subscores"] == {"utility": 9, "robustness": 8, "safety": 7}
         assert abs(rec["quality_score"] - 0.8) < 1e-9
         assert rec["added_at"].isoformat().startswith("2026-08-05T12:00:00")
-        assert rec["attachment_path"] == "attachments/anthropics__demo__abcd1234"
+        assert rec["attachment_path"] == "anthropics__demo__abcd1234"
 
-        # attachments: scripts copied, SKILL.md and dotfiles skipped
-        adir = out / "attachments" / "anthropics__demo__abcd1234"
-        assert (adir / "scripts" / "run.py").exists()
-        assert not (adir / "SKILL.md").exists()
-        assert not (adir / ".meta.json").exists()
+        # attachments: scripts added, SKILL.md and dotfiles skipped
+        names = _tar_names(out / "attachments.tar.zst")
+        assert "anthropics__demo__abcd1234/scripts/run.py" in names
+        assert "anthropics__demo__abcd1234/SKILL.md" not in names
+        assert "anthropics__demo__abcd1234/.meta.json" not in names
 
         assert (out / "README.md").read_text(encoding="utf-8").startswith("# SkillCorpus")
 

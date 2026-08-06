@@ -4,7 +4,7 @@ Contract: docs/corpus-schema.md. One row per skill, only ``deleted = 0 AND
 active = 1`` (the GREEN-license gate). Reads the producer SQLite DB and writes::
 
     <out>/skills.parquet              one row per skill (21 columns)
-    <out>/attachments/<skill_id>/...  the skill dir minus SKILL.md
+    <out>/attachments.tar.zst         per-skill dirs (minus SKILL.md), <skill_id>/ prefix
     <out>/README.md                   dataset card
 
 This is the final step of ``cli build``.
@@ -12,14 +12,15 @@ This is the final step of ``cli build``.
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
+import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import zstandard
 
 # Only rows that are not soft-deleted and pass the GREEN-license gate. The
 # LEFT JOIN pulls the LLM judge's sub-scores when present (NULL otherwise).
@@ -120,29 +121,24 @@ def _ensure_quality_judgments(conn: sqlite3.Connection) -> None:
     conn.executescript(QUALITY_JUDGMENT_SCHEMA)
 
 
-def _copy_attachments(
-    lib_root: Path | None, stored_path: str, skill_id: str, out_dir: Path
+def _add_attachments(
+    tar: tarfile.TarFile, lib_root: Path | None, stored_path: str, skill_id: str
 ) -> str | None:
-    """Mirror the skill directory (minus SKILL.md and dotfiles like .meta.json)
-    into attachments/<skill_id>/. Returns the relative attachment dir, or None
-    when the skill bundles nothing beyond SKILL.md."""
+    """Add the skill directory (minus SKILL.md and dotfiles like .meta.json) to
+    the tarball under ``<skill_id>/``. Returns that member prefix, or None when
+    the skill bundles nothing beyond SKILL.md."""
     if not lib_root or not stored_path:
         return None
     src = Path(lib_root) / stored_path
     if not src.is_dir():
         return None
-    dst = out_dir / "attachments" / skill_id
-    copied = False
+    added = False
     for item in sorted(src.iterdir()):
         if item.name == "SKILL.md" or item.name.startswith("."):
             continue
-        dst.mkdir(parents=True, exist_ok=True)
-        if item.is_dir():
-            shutil.copytree(item, dst / item.name, dirs_exist_ok=True)
-        else:
-            shutil.copy2(item, dst / item.name)
-        copied = True
-    return f"attachments/{skill_id}" if copied else None
+        tar.add(item, arcname=f"{skill_id}/{item.name}")
+        added = True
+    return skill_id if added else None
 
 
 def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:
@@ -170,8 +166,8 @@ def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:
         "## Layout",
         "",
         "- `skills.parquet` — metadata + inline `body` (see the schema doc).",
-        "- `attachments/<skill_id>/` — the skill directory minus `SKILL.md` "
-        "(scripts, references, assets), at their original relative paths.",
+        "- `attachments.tar.zst` — a zstd tarball; each skill's extra files "
+        "(the dir minus `SKILL.md`) under an `<skill_id>/` member prefix.",
         "",
         "## Caveats",
         "",
@@ -191,19 +187,20 @@ def write_corpus(
     Returns a small stats dict: rows written, skills with attachments, out dir.
     """
     out_dir = Path(out_dir)
-    (out_dir / "attachments").mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     cols: dict[str, list[Any]] = {name: [] for name in CORPUS_SCHEMA.names}
     n_attach = 0
 
+    raw = open(out_dir / "attachments.tar.zst", "wb")
+    zf = zstandard.ZstdCompressor().stream_writer(raw)
+    tar = tarfile.open(fileobj=zf, mode="w|")
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     try:
         _ensure_quality_judgments(conn)
         for r in conn.execute(_CORPUS_ROWS_SQL):
-            attach = _copy_attachments(
-                lib_root, r["stored_path"], r["skill_id"], out_dir
-            )
+            attach = _add_attachments(tar, lib_root, r["stored_path"], r["skill_id"])
             if attach:
                 n_attach += 1
             cols["skill_id"].append(r["skill_id"])
@@ -229,6 +226,9 @@ def write_corpus(
             cols["attachment_path"].append(attach)
     finally:
         conn.close()
+        tar.close()
+        zf.close()
+        raw.close()
 
     table = pa.table(
         {name: pa.array(cols[name], type=CORPUS_SCHEMA.field(name).type)

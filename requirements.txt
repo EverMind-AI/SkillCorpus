@@ -12,3 +12,4 @@ faiss-cpu
 sqlite-vec
 openai
 pyarrow
+zstandard

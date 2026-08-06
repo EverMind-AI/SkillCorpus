@@ -16,6 +16,7 @@ dependencies = [
     "sqlite-vec",
     "openai",
     "pyarrow",
+    "zstandard",
 ]
 
 [project.optional-dependencies]
