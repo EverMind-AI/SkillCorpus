@@ -334,7 +334,7 @@ def count_skills(repo_dir: Path) -> int:
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="python -m skillcorpus.fetch")
+    ap = argparse.ArgumentParser(prog="python -m skillcorpus.aggregate.fetch")
     ap.add_argument("--dry-run", action="store_true",
                     help="only discover and list the repos to clone, without actually cloning "
                          "(still scrapes awesome lists / hits APIs / fetches sitemaps to build the full list)")
