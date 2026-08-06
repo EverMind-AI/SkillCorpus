@@ -3,25 +3,26 @@
 
 # SkillCorpus
 
-**SkillCorpus is:**
+**SkillCorpus is a framework that aggregates, curates, matches, and evaluates the open agent-skill ecosystem at scale** — consolidating ~821,000 crawled skills into a 96,000-skill, permissively-licensed corpus, and releasing the retrieval stack and evaluation suite built around it.
 
-1. **A corpus** — **96,000+** permissively-licensed agent skills, consolidated from ~821,000 crawled from public `SKILL.md` repositories.
-2. **A pipeline** — the producer that builds it (fetch → safety/license filter → classify/quality → dedup → license-gate → export).
-3. **A retrieval stack** — SkillRouter, a bi-encoder + reranker for searching skills.
-4. **An embedding model** — `Qwen3-Embedding-0.6B` fine-tuned for skill retrieval.
+Its four stages are the package's subpackages:
+
+1. **`aggregate`** — discover + clone skills from public `SKILL.md` repositories.
+2. **`curate`** — parse · safety · license-gate · dedup · 16-class classify · quality scoring (utility / robustness / safety).
+3. **`match`** — SkillRouter: a fine-tuned bi-encoder + reranker that retrieves skills for a task.
+4. **`evaluate`** — three benchmarks: `skillsbench` · `qwenclawbench` · `gdpval`.
 
 [Paper](https://arxiv.org/abs/2607.15557) · [Corpus](#) · [Embedding model](#) · [Code](#)
 
-Every skill keeps its **original upstream license**: only permissively (GREEN: MIT / Apache-2.0 / BSD / ISC / …) licensed skills are included, none are relicensed, and each row carries its `source`, `source_url`, and `license`. The corpus is one row per skill plus attachments and a dataset card ([schema](docs/corpus-schema.md)); full terms under [License](#license).
+The framework **releases** three artifacts: the **corpus** (parquet + attachments + dataset card), the fine-tuned **embedding model**, and this **code**. Every skill keeps its **original upstream license** — only permissively (GREEN: MIT / Apache-2.0 / BSD / ISC / …) licensed skills are included, none relicensed, and each row carries its `source` / `source_url` / `license`; full terms under [License](#license).
 
 ## Released artifacts
 
-| | Artifact | Deliverable | Link |
+| | Artifact | What | Link |
 |---|---|---|---|
 | 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
-| 🔡 | **Embedding model** | 2048-ctx bi-encoder checkpoint (Qwen3-Embedding-0.6B) | [🤗 HuggingFace](#) |
-| 🧭 | **Retrieval stack** | bi-encoder + reranker training / eval recipe | [`match/`](skillcorpus/match) |
-| 🛠️ | **Code** | producer pipeline + three evaluation benchmarks | [GitHub](#) |
+| 🔡 | **Embedding model** | `Qwen3-Embedding-0.6B` fine-tuned for skill retrieval (2048-ctx) | [🤗 HuggingFace](#) |
+| 🛠️ | **Code** | the framework — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
 
 ## License
 
