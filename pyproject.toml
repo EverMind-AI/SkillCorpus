@@ -22,6 +22,21 @@ dependencies = [
 # reportlab is only used by tests/test_e2e.py (PDF skill fixture)
 dev = ["pytest", "reportlab"]
 
+# eval / match toolkits (skillcorpus/match + skillcorpus/evaluate). A base
+# `pip install .` skips these; `pip install .[eval]` adds them. Each benchmark
+# also keeps its own requirements.txt with the exact pins.
+eval = [
+    "torch>=2.8",
+    "transformers>=5.2",
+    "datasets>=2.14.0",
+    "litellm",
+    "python-docx>=1.0.0",
+    "openpyxl>=3.1.0",
+    "pdf2image>=1.16.0",
+    "Pillow>=10.0.0",
+    "PyMuPDF>=1.23.0",
+]
+
 # Flat nested layout: the importable package is <repo>/skillcorpus/.
 # Keeping the package name `skillcorpus` (not renamed) so existing
 # `python -m skillcorpus.*` invocations and absolute imports keep working.

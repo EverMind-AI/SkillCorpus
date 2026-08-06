@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: "If you use SkillCorpus, please cite the paper below."
+title: "SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents"
+authors:
+  - family-names: Wang
+    given-names: Yanze
+  - family-names: Yao
+    given-names: Pengfei
+  - family-names: Sun
+    given-names: Tianyi
+  - family-names: Hu
+    given-names: Chuanrui
+  - family-names: Xiao
+    given-names: Yan
+  - family-names: Han
+    given-names: Yunyun
+  - family-names: Chen
+    given-names: Yifan
+  - family-names: Sun
+    given-names: Jun
+  - family-names: Deng
+    given-names: Yafeng
+date-released: 2026
+url: "https://arxiv.org/abs/2607.15557"
+preferred-citation:
+  type: article
+  title: "SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents"
+  year: 2026
+  url: "https://arxiv.org/abs/2607.15557"
+  notes: "arXiv:2607.15557"
+  authors:
+    - family-names: Wang
+      given-names: Yanze
+    - family-names: Yao
+      given-names: Pengfei
+    - family-names: Sun
+      given-names: Tianyi
+    - family-names: Hu
+      given-names: Chuanrui
+    - family-names: Xiao
+      given-names: Yan
+    - family-names: Han
+      given-names: Yunyun
+    - family-names: Chen
+      given-names: Yifan
+    - family-names: Sun
+      given-names: Jun
+    - family-names: Deng
+      given-names: Yafeng
