@@ -18,7 +18,7 @@ Every skill keeps its **original upstream license**: only permissively (GREEN: M
 
 | | Artifact | Deliverable | Link |
 |---|---|---|---|
-| 📚 | **Corpus** | `skills.parquet` + `attachments/` + dataset card | [🤗 HuggingFace](#) |
+| 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
 | 🔡 | **Embedding model** | 2048-ctx bi-encoder checkpoint (Qwen3-Embedding-0.6B) | [🤗 HuggingFace](#) |
 | 🧭 | **Retrieval stack** | bi-encoder + reranker training / eval recipe | [`match/`](skillcorpus/match) |
 | 🛠️ | **Code** | producer pipeline + three evaluation benchmarks | [GitHub](#) |
@@ -28,6 +28,8 @@ Every skill keeps its **original upstream license**: only permissively (GREEN: M
 - **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
 - **Corpus** — every skill keeps its **original upstream license**; only GREEN (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
 
+Full GREEN/RED/YELLOW policy, license data flow, and opt-out: [`docs/licence-and-governance.md`](docs/licence-and-governance.md).
+
 ## Quickstart
 
 ```bash
@@ -36,21 +38,21 @@ git clone <repo-url> skillcorpus && cd skillcorpus
 pip install -e .
 
 # build the demo corpus: clone 4 public skill repos -> curate -> export
-python -m skillcorpus.cli build              # -> <lib>/corpus/{skills.parquet, attachments/, README.md}
+python -m skillcorpus.cli build              # -> <lib>/corpus/{skills.parquet, attachments.tar.zst, README.md}
 python -m skillcorpus.cli stats              # counts by source / category / license
 
 # re-export the corpus from an existing library, without rebuilding
 python -m skillcorpus.cli export --out ./corpus
 ```
 
-Only GREEN-licensed skills are exported. The demo ships the 4-source `sources.yaml`; use `--sources-config your.yaml` for your own registry, or `--source <name>` for a single source. Output contract: [`docs/corpus-schema.md`](docs/corpus-schema.md).
+Only GREEN-licensed skills are exported. The demo ships the 4-source `configs/sources.demo.yaml`; use `--sources-config your.yaml` for your own registry, or `--source <name>` for a single source. Full config / endpoints / reproducibility: [`docs/running.md`](docs/running.md). Output contract: [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
 ## How it works
 
 ```
 aggregate ─────────────► curate ──────────────────────────────────► export
  fetch public repos       parse · safety · license                   skills.parquet
-                          classify · quality · dedup · license-gate   + attachments/ + card
+                          classify · quality · dedup · license-gate   + attachments.tar.zst + card
 ```
 
 `cli build` runs the whole chain (`ingest → quality_pass → dedup_pass → license_audit → export.corpus`). LLM classification and quality scoring degrade gracefully to rules when no model endpoint is reachable, so the pipeline always runs end to end.
