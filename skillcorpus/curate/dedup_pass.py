@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from skillcorpus import SkillLibrary  # noqa: E402
 from skillcorpus.core.hashing import cosine_sim  # noqa: E402
-from skillcorpus.core.models import VEC_TABLE_NAME  # noqa: E402
+from skillcorpus.core.models import VEC_TABLE_NAME, SkillRecord  # noqa: E402
 from skillcorpus.core.fsstore import remove_skill_from_library  # noqa: E402
 
 

@@ -11,7 +11,7 @@ import time as _time
 import urllib.request
 from pathlib import Path
 
-from .clone import clone_or_pull
+from .clone import clone_or_pull, FETCHED
 
 
 GH_RE = re.compile(
@@ -125,7 +125,7 @@ def _json_catalog_repos(
     o, r = owner_repo
     repo_dir = FETCHED / o / r
     if not repo_dir.exists():
-        clone_repo(o, r)
+        clone_or_pull(o, r)
     jp = repo_dir / json_path
     gz = Path(str(jp) + ".gz")  # same-name .gz fallback (some commits ship only the gzip version)
     if jp.exists():
