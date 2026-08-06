@@ -220,6 +220,8 @@ def discover_repos(entry: dict, timeout: int = 180, limit: int = 0) -> list[tupl
         return [(o, r.split("/")[0])]
     if t == "readme_scrape":
         repo = entry["repo"]
+        if "/" not in repo:
+            return []
         o, r = repo.split("/", 1)
         dst, _status = clone_or_pull(o, r, timeout=timeout)
         if dst is None:

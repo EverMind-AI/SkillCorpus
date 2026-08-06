@@ -119,7 +119,9 @@ class EmbeddingClient:
                                and isinstance(embs[0], list)
                                and len(embs[0]) == self.dim)
         except Exception:
-            self._available = False
+            # transient probe failure — do NOT cache, so a later call can retry
+            # (one startup blip must not disable embeddings for the whole build)
+            return False
         return self._available
 
     def embed(self, text: str) -> list[float] | None:

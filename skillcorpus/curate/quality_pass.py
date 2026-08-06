@@ -82,7 +82,10 @@ def main():
             skill_id=row["skill_id"], content_hash=row["content_hash"],
             name=row["name"], description=row["description"], body=row["body"],
         )
-        j = lib.quality_judge.compute_no_cache(rec)
+        try:
+            j = lib.quality_judge.compute_no_cache(rec)
+        except Exception:
+            j = None  # counted as failed below; the run + score writes continue
         return (rec.skill_id, rec.content_hash, j)
 
     t0 = time.time()
