@@ -82,6 +82,8 @@ class SkillLibrary:
             api_key=embed_cfg.get("api_key"),
             batch_size=int(embed_cfg.get("batch_size", 32)),
             timeout=int(embed_cfg.get("timeout", 60)),
+            provider=embed_cfg.get("provider", "openai_compatible"),
+            model=embed_cfg.get("model", ""),
         )
 
         # --- Storage (bound to the embedding dim) ---
@@ -257,17 +259,15 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _ingest_source(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict:
-    """Run fast-batch ingest.
+    """Ingest a source directory into the library.
 
-    Only the expensive LLM quality judge is disabled inline (it is backfilled
-    by rescan_quality in ``_post_actions``). The classifier stays enabled: one
-    classify call per skill is cheap relative to the quality judge, and without
-    it every skill's category would be OTHER. When no LLM is reachable the
-    ingester already leaves ``classifier=None`` (see ``SkillLibrary.open``), so
-    keeping it here never adds a per-skill timeout.
+    Inline quality judging and near-duplicate detection follow the config
+    (``quality.llm_quality_at_ingest`` / ``dedup.enable_near_dup``, both on by
+    default) and degrade to rule-based scoring / hash-only dedup when no LLM or
+    embedding endpoint is reachable. ``_post_actions`` re-runs quality_pass /
+    dedup_pass afterwards to backfill anything ingested in a degraded mode
+    (idempotent: a cache hit for skills already judged / merged).
     """
-    if lib.ingester is not None:
-        lib.ingester.quality_judge = None
     return lib.add_batch(src_dir, source=source_label)
 
 

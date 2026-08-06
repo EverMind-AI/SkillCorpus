@@ -54,21 +54,27 @@ class _FakeResp:
 
 
 class _FakeOpener:
-    def __init__(self, n_return): self._n = n_return
+    def __init__(self, n_return, provider):
+        self._n = n_return
+        self._provider = provider
     def open(self, req, timeout=None):
-        return _FakeResp({"embeddings": [[0.0] * DIM] * self._n})
+        if self._provider == "skillrouter_remote":
+            return _FakeResp({"embeddings": [[0.0] * DIM] * self._n})
+        return _FakeResp(
+            {"data": [{"index": i, "embedding": [0.0] * DIM} for i in range(self._n)]})
 
 
-def _run_with_fake_remote(n_return, texts):
+def _run_with_fake_remote(n_return, texts, provider="openai_compatible"):
     """Patch the urllib opener + time.sleep around one embed_batch call."""
     import urllib.request
     import time
     orig_opener, orig_sleep = urllib.request.build_opener, time.sleep
-    urllib.request.build_opener = lambda *a, **k: _FakeOpener(n_return)
+    urllib.request.build_opener = lambda *a, **k: _FakeOpener(n_return, provider)
     time.sleep = lambda *a, **k: None   # skip exponential backoff in retries
     try:
         cli = embed_mod.EmbeddingClient(
-            base_url="http://x:1", batch_size=4, dim=DIM)
+            base_url="http://x:1/v1", batch_size=4, dim=DIM,
+            provider=provider, model="m")
         return cli.embed_batch(texts, _skip_avail_check=True)
     finally:
         urllib.request.build_opener = orig_opener
@@ -76,13 +82,15 @@ def _run_with_fake_remote(n_return, texts):
 
 
 def test_r2_short_batch_returns_none():
-    out = _run_with_fake_remote(2, ["a", "b", "c", "d"])  # ask 4, get 2
-    assert out is None, "short batch must fail loudly (None), not misalign"
+    for prov in ("openai_compatible", "skillrouter_remote"):
+        out = _run_with_fake_remote(2, ["a", "b", "c", "d"], provider=prov)  # ask 4, get 2
+        assert out is None, f"{prov}: short batch must fail loudly (None), not misalign"
 
 
 def test_r2_full_batch_ok():
-    out = _run_with_fake_remote(4, ["a", "b", "c", "d"])
-    assert out is not None and len(out) == 4
+    for prov in ("openai_compatible", "skillrouter_remote"):
+        out = _run_with_fake_remote(4, ["a", "b", "c", "d"], provider=prov)
+        assert out is not None and len(out) == 4, prov
 
 
 # ----------------------------------------------------------------------
