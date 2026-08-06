@@ -99,11 +99,12 @@ def _gh_fetch_license(owner_repo: str, token: str, max_rate_retries: int = 5) ->
         try:
             r = subprocess.run(
                 ["curl", "-s", "-o", "-", "-w", "\n%{http_code}",
-                 "-H", f"Authorization: Bearer {token}",
+                 "-H", "@-",  # Authorization from stdin, not argv (invisible to `ps`)
                  "-H", "Accept: application/vnd.github+json",
                  "-H", "User-Agent: SkillCorpus-license-audit/1.0",
                  "--max-time", "45",
                  url],
+                input=f"Authorization: Bearer {token}\n",
                 capture_output=True, text=True, timeout=60,
             )
         except subprocess.TimeoutExpired:
