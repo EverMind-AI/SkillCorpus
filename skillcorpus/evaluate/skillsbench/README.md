@@ -2,11 +2,11 @@
 
 > Part of the **[SkillCorpus](../../../README.md)** framework — the `evaluate` stage.
 >
-> **Requires an internal environment, not shipped here.** This harness drives the
-> Raven agent runtime (via a sibling `../raven` checkout) against a `mass_library.db`
-> skill pool — neither is part of the open-source SkillCorpus. It is included as the
-> SkillsBench evaluation recipe; wire `../raven` + `MASS_LIBRARY_DB` to your own
-> agent / skill pool to run it.
+> **The Raven agent runtime is not shipped here.** This harness drives the Raven
+> agent (via a sibling `../raven` checkout) — the agent is a separate internal
+> project. The `MASS_LIBRARY_DB` skill pool, by contrast, is **the SkillCorpus
+> corpus itself** (this framework's output — see the root README). Provide a
+> `../raven` checkout (or point the runner at your own agent) to run the benchmark.
 
 Runs the raven agent on the 88 SkillsBench tasks against any OpenAI-compatible
 LLM endpoint (with-skill mode: injects pre-retrieved skills, no live retrieval).
