@@ -345,7 +345,7 @@ def _average_scores(scores: Dict[str, Any]) -> float:
 
 
 def strict_accuracy_stats(means: List[float]) -> Tuple[float, int]:
-    """Strict accuracy (满分率): fraction of tasks with mean score == 1.0.
+    """Strict accuracy (perfect-score rate): fraction of tasks with mean score == 1.0.
 
     Returns (rate in [0, 1], count of perfect tasks). Empty input -> (0.0, 0).
     """

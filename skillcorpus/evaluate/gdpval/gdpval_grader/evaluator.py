@@ -440,7 +440,7 @@ class LLMEvaluator:
                                     "image_count": len(images), "size": size}
                 else:
                     # Malformed/unconvertible PDF → fall back to text extraction so the
-                    # task is still graded (don't crash the whole eval). "尽量都评".
+                    # task is still graded (don't crash the whole eval) — best-effort grading.
                     txt = _read_pdf_text(p)
                     log.warning(f"PDF→image failed for {p}; graded via text fallback ({len(txt)} chars)")
                     artifacts[p] = {"type": "text", "content": txt}
@@ -460,7 +460,7 @@ class LLMEvaluator:
             elif ext == ".docx":
                 # Invalid container (e.g. plain text saved as .docx) must not zero
                 # the whole eval (PackageNotFoundError → 22 zeroed results). Try
-                # plain-text salvage, then degrade to a note. "尽量都评".
+                # plain-text salvage, then degrade to a note — best-effort grading.
                 try:
                     artifacts[p] = {"type": "text", "content": _read_docx_content(p)}
                 except Exception as e:
