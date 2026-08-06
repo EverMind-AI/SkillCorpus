@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.log
+data/
+eval_core/
+outputs/
+cache/

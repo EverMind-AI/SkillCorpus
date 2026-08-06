@@ -1,0 +1,18 @@
+# Core (required)
+openai>=1.0.0            # OpenAI-compatible judge client (OpenRouter or OpenAI)
+
+# Deliverable reading (recommended — each degrades to a "present but unreadable"
+# note if missing, so grading never crashes, but coverage is much better with them)
+python-docx>=1.0.0       # .docx
+openpyxl>=3.1.0          # .xlsx / .xls / .xlsm
+pdf2image>=1.16.0        # .pdf and .pptx pages -> images (needs poppler, see README)
+Pillow>=10.0.0           # image validation / normalization
+
+# Optional
+PyMuPDF>=1.23.0          # text fallback for PDFs that won't render to images
+datasets>=2.14.0         # only for loading tasks by id from HuggingFace openai/gdpval
+
+# System tools (install separately, NOT pip — see README):
+#   poppler-utils   (pdftoppm)  — PDF/PPTX rendering
+#   libreoffice     (soffice)   — .xlsx formula recalc, .pptx -> PDF
+#   ffmpeg          (ffprobe)   — audio/video technical metadata

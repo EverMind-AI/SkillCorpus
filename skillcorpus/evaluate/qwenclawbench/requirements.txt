@@ -1,0 +1,3 @@
+pyyaml>=6.0
+# The LLM judge uses only the Python stdlib (urllib) to call an
+# OpenAI-compatible chat/completions endpoint — no extra deps.

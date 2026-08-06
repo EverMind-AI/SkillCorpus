@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.log
+*.db
+jobs_*/
+tasks/
+skill_outputs/
+prebuilt_images/
+uv_bin/

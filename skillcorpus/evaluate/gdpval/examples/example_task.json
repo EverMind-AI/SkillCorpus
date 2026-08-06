@@ -1,0 +1,13 @@
+{
+  "task_id": "example-synthetic-0001",
+  "occupation": "Accountants and Auditors",
+  "sector": "Finance and Insurance",
+  "prompt": "Prepare a one-page memo summarizing Q3 revenue by product line and flagging any line with a quarter-over-quarter decline greater than 10%.",
+  "reference_files": ["q3_raw_figures.csv"],
+  "rubric_json": [
+    {"criterion": "The memo reports revenue broken down by each product line.", "score": 2},
+    {"criterion": "The memo correctly identifies every product line with a quarter-over-quarter decline greater than 10%.", "score": 3},
+    {"criterion": "The memo fits on a single page.", "score": 1},
+    {"criterion": "The memo contains an arithmetic error in any reported figure.", "score": -2}
+  ]
+}

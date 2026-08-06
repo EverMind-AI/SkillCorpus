@@ -1,0 +1,5 @@
+torch>=2.8
+transformers>=5.2
+numpy
+pyyaml
+openai  # only for generate_queries.py (synthetic query generation)
