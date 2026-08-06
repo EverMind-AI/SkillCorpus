@@ -26,12 +26,14 @@ def copy_skill_to_library(
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     for item in src_dir.iterdir():
-        if item.name.startswith("."):
+        # skip dotfiles and symlinks: a scraped repo must not pull
+        # build-machine files into the published attachments
+        if item.name.startswith(".") or item.is_symlink():
             continue
         if item.is_file():
             shutil.copy2(item, dst_dir / item.name)
         elif item.is_dir():
-            shutil.copytree(item, dst_dir / item.name)
+            shutil.copytree(item, dst_dir / item.name, symlinks=True)
 
     if meta:
         (dst_dir / ".meta.json").write_text(

@@ -119,6 +119,12 @@ def _ensure_quality_judgments(conn: sqlite3.Connection) -> None:
     from ..curate.quality import QUALITY_JUDGMENT_SCHEMA
 
     conn.executescript(QUALITY_JUDGMENT_SCHEMA)
+    # a legacy judge table may predate the subscores column; add it so the
+    # q.subscores select below cannot raise "no such column"
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(quality_judgments)").fetchall()}
+    if "subscores" not in cols:
+        conn.execute("ALTER TABLE quality_judgments ADD COLUMN subscores TEXT NOT NULL DEFAULT '{}'")
+    conn.commit()
 
 
 def _add_attachments(

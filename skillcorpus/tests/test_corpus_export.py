@@ -144,6 +144,21 @@ def test_write_corpus_empty_db_no_judgments():
         assert table.num_rows == 0
 
 
+def test_write_corpus_legacy_judge_table():
+    """A quality_judgments table predating the subscores column must not crash export."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_p = Path(tmp)
+        db = tmp_p / "legacy.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(SCHEMA_SQL)
+        conn.execute(  # legacy judge table WITHOUT subscores
+            "CREATE TABLE quality_judgments (content_hash TEXT PRIMARY KEY, "
+            "score REAL NOT NULL, reason TEXT, judged_at TEXT NOT NULL)")
+        conn.commit(); conn.close()
+        stats = write_corpus(db, None, tmp_p / "out")  # must not raise
+        assert stats["rows"] == 0
+
+
 if __name__ == "__main__":
     test_write_corpus_full()
     test_write_corpus_empty_db_no_judgments()

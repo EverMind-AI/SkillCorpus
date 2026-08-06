@@ -246,6 +246,7 @@ class Ingester:
             rec.source_url = source_url
         # near-dup decision — only triggered when dedup is enabled + an LLM judge exists
         did_supersede = False
+        to_supersede: list = []
         if not force and (self._dedup_enabled or self.dup_judge is not None):
             cands = self._collect_near_dup_candidates(rec, embedding)
             cands.sort(key=lambda x: -x[1])  # cos descending
@@ -273,18 +274,10 @@ class Ingester:
                                f"kept {best.skill_id}",
                         skill_dir=str(skill_dir),
                     )
-                # rec beats all confirmed dups → supersede all of them (no longer just
-                # the first pair), otherwise the remaining old skills of the same kind
-                # would live on as orphaned duplicates
-                for old, cos, trigger in confirmed:
-                    if old.stored_path:
-                        remove_skill_from_library(self.lib_root, old.stored_path)
-                    self.store.supersede(old.skill_id, rec.skill_id)
-                    did_supersede = True
-                    logger.info(
-                        f"near-dup merge: {rec.skill_id} supersedes {old.skill_id} "
-                        f"(trigger={trigger}, cos={cos:.3f})"
-                    )
+                # rec beats all confirmed dups → retire them, but only AFTER the
+                # winner is durably inserted below, so a failed copy/insert cannot
+                # destroy the losers and leave a dangling superseded_by.
+                to_supersede = confirmed
 
         # not merged (or rec=winner has already superseded all old ones) → normal ingest
         stored_dir = copy_skill_to_library(
@@ -300,6 +293,17 @@ class Ingester:
         )
         rec.stored_path = str(stored_dir.relative_to(self.lib_root))
         self.store.insert(rec, embedding=embedding)
+
+        # winner is durable → now retire the losers (deferred from above)
+        for old, cos, trigger in to_supersede:
+            if old.stored_path:
+                remove_skill_from_library(self.lib_root, old.stored_path)
+            self.store.supersede(old.skill_id, rec.skill_id)
+            did_supersede = True
+            logger.info(
+                f"near-dup merge: {rec.skill_id} supersedes {old.skill_id} "
+                f"(trigger={trigger}, cos={cos:.3f})"
+            )
 
         # status is decided directly by whether this run superseded anything — no longer
         # queries the superseded_by COUNT (which would misreport a merge when a skill_id
