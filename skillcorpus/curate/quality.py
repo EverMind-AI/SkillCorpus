@@ -1,12 +1,9 @@
 """curate.quality — rule-based + LLM quality scoring (compute_quality + LLMQualityJudge)."""
 from __future__ import annotations
 
-import json
 import logging
-import re
 import sqlite3
 from dataclasses import dataclass
-from typing import Any
 
 from ..core.llm import LLMClient
 from ..core.models import SkillRecord

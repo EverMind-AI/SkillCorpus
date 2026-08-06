@@ -17,11 +17,8 @@
 #
 # All are of git_clone type (deterministic, fast, no dynamic expansion) and are OSI-permissive public repos.
 
-defaults:
-  rescan_quality_after: true
-  rescan_dedup_after: false
-  export_after: true
-  parallel_clones: 4
+# The build's curate/export tail is unconditional now; the only `defaults` key
+# still read is `corpus_out` (optional output-dir override), so no defaults ship here.
 
 sources:
   - name: anthropics/skills

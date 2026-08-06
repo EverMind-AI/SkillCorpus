@@ -248,7 +248,6 @@ class SkillLibrary:
 # Build pipeline (relocated from scripts/refresh_loop.py; cadence dropped)
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_YAML = DEFAULT_SOURCES
 
 
@@ -349,55 +348,57 @@ def run_refresh(config=DEFAULT_YAML, source=None, dry_run=False,
         return 0
 
     lib = (SkillLibrary(lib_root) if lib_root else SkillLibrary()).open()
-    pre_total = lib.stats()["total"]
-    summary: list[dict] = []
-    # git_clone / lobehub_json are "content-is-itself" sources -> ingest with the
-    # entry's source_label; discovery sources expand into many repos, each
-    # labelled by its own owner/repo.
-    self_types = {"git_clone", "lobehub_json"}
-    for s in sources:
-        name, typ = s["name"], s["type"]
-        print(f"\n=== {name} ({typ}) ===", flush=True)
-        try:
-            repos = discover_repos(s)
-        except Exception as e:
-            print(f"  !! discover failed: {e}", flush=True)
-            summary.append({"name": name, "error": f"discover: {e}"})
-            continue
-        print(f"  discover -> {len(repos)} repo", flush=True)
-        if dry_run:
-            print(f"  [dry-run] would clone/pull + ingest these {len(repos)} repo",
-                  flush=True)
-            continue
-
-        added_total = 0
-        ok = 0
-        for owner, repo in repos:
-            src_dir, git_status = clone_or_pull(owner, repo)
-            if src_dir is None:
-                continue
-            label = (s.get("source_label") or s["repo"]) if typ in self_types else f"{owner}/{repo}"
+    try:
+        pre_total = lib.stats()["total"]
+        summary: list[dict] = []
+        # git_clone / lobehub_json are "content-is-itself" sources -> ingest with the
+        # entry's source_label; discovery sources expand into many repos, each
+        # labelled by its own owner/repo.
+        self_types = {"git_clone", "lobehub_json"}
+        for s in sources:
+            name, typ = s["name"], s["type"]
+            print(f"\n=== {name} ({typ}) ===", flush=True)
             try:
-                if typ == "lobehub_json":
-                    result = _ingest_lobehub(lib, src_dir, label)
-                else:
-                    result = _ingest_source(lib, src_dir, label)
-                added_total += result.get("added", 0)
-                ok += 1
+                repos = discover_repos(s)
             except Exception as e:
-                print(f"    !! ingest {owner}/{repo} failed: {e}", flush=True)
-        print(f"  ingested {ok}/{len(repos)} repo, added={added_total}", flush=True)
-        summary.append({"name": name, "repos": len(repos),
-                        "ingested": ok, "added": added_total})
+                print(f"  !! discover failed: {e}", flush=True)
+                summary.append({"name": name, "error": f"discover: {e}"})
+                continue
+            print(f"  discover -> {len(repos)} repo", flush=True)
+            if dry_run:
+                print(f"  [dry-run] would clone/pull + ingest these {len(repos)} repo",
+                      flush=True)
+                continue
 
-    _post_actions(lib, defaults, dry_run)
+            added_total = 0
+            ok = 0
+            for owner, repo in repos:
+                src_dir, git_status = clone_or_pull(owner, repo)
+                if src_dir is None:
+                    continue
+                label = (s.get("source_label") or s["repo"]) if typ in self_types else f"{owner}/{repo}"
+                try:
+                    if typ == "lobehub_json":
+                        result = _ingest_lobehub(lib, src_dir, label)
+                    else:
+                        result = _ingest_source(lib, src_dir, label)
+                    added_total += result.get("added", 0)
+                    ok += 1
+                except Exception as e:
+                    print(f"    !! ingest {owner}/{repo} failed: {e}", flush=True)
+            print(f"  ingested {ok}/{len(repos)} repo, added={added_total}", flush=True)
+            summary.append({"name": name, "repos": len(repos),
+                            "ingested": ok, "added": added_total})
 
-    post_total = lib.stats()["total"]
-    print("\n=== refresh complete ===")
-    print(f"total: {pre_total} -> {post_total} (delta {post_total - pre_total})")
-    for s in summary:
-        print(f"  {s}")
-    lib.close()
+        _post_actions(lib, defaults, dry_run)
+
+        post_total = lib.stats()["total"]
+        print("\n=== refresh complete ===")
+        print(f"total: {pre_total} -> {post_total} (delta {post_total - pre_total})")
+        for s in summary:
+            print(f"  {s}")
+    finally:
+        lib.close()
     return 0
 
 
@@ -459,9 +460,12 @@ def build(ctx, full, sources_config, source, dry_run):
     if not config.exists():
         if sources_config:
             hint = f"registry file does not exist: {config}"
-        else:  # from --full
+        elif full:
             hint = ("the full registry sources.full.yaml is not shipped with the public release; "
-                    "use the default demo in the public version (drop --full), or point --sources-config at your own yaml")
+                    "use the default demo (drop --full) or point --sources-config at your own yaml")
+        else:
+            hint = (f"default demo registry missing: {config}; run from a clone / editable install "
+                    "so configs/sources.demo.yaml is present, or pass --sources-config")
         click.echo(f"ERROR: {hint}", err=True)
         raise SystemExit(2)
     rc = run_refresh(

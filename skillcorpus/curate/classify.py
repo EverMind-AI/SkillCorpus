@@ -1,7 +1,6 @@
 """curate.classify — 16-class LLM classifier + rule-based tag extraction."""
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass

@@ -1,7 +1,7 @@
 """core.store — SkillStore: the SQLite-backed skill store (schema, CRUD, vector search)."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 from .models import SCHEMA_SQL, VEC_TABLE_NAME, SkillRecord
 
@@ -26,7 +26,6 @@ from .models import SCHEMA_SQL, VEC_TABLE_NAME, SkillRecord
 
 import json
 import logging
-import shutil
 import sqlite3
 import struct
 import threading
@@ -79,12 +78,6 @@ class SkillStore:
         # incremental add can't reflect) crosses this many adds.
         self._faiss_rebuild_threshold: int = 500
         self._faiss_lock = threading.Lock()
-        # License whitelist — sources whose upstream LICENSE is a GREEN
-        # (commercially-deployable) permissive license. Newly inserted
-        # skills from any other source get ``active=0`` and are skipped
-        # by ``export.py`` (which gates on
-        # ``active=1``). Loaded lazily on first ``insert()`` call so
-        # store construction stays cheap.
 
     def _connect(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)

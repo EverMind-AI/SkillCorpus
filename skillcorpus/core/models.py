@@ -8,7 +8,7 @@ SkillRecord is adapted from OpenSpace's SkillRecord:
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
