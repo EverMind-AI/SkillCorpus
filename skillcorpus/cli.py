@@ -17,7 +17,16 @@ from typing import Any
 
 import click
 
-from .curate.pipeline import SkillLibrary
+import logging
+from .core.store import SkillStore
+from .core.embed import EmbeddingClient
+from .core.llm import LLMClient
+from .core.models import SkillRecord
+from .core.config import load_config
+from .curate.classify import Classifier
+from .curate.dedup import LLMDupJudge
+from .curate.quality import LLMQualityJudge
+from .curate.pipeline import Ingester, IngestResult
 from .core.paths import SKILLCORPUS_HOME
 from .aggregate.discover import discover_repos
 from .aggregate.clone import clone_or_pull
@@ -25,6 +34,214 @@ from .aggregate.registry import load_registry
 
 
 _DEFAULT_LIB = str(SKILLCORPUS_HOME)
+
+logger = logging.getLogger("skillcorpus.cli")
+
+
+class SkillLibrary:
+    """Skill library top-level API — CRUD + ingest pipeline + retrieval.
+
+    Default path: SKILLCORPUS_HOME (~/.skillcorpus, env-overridable).
+    Passing lib_root explicitly switches to another instance.
+    """
+
+    def __init__(
+        self, lib_root: str | Path | None = None,
+        config_path: str | Path | None = None,
+    ):
+        self.lib_root = Path(lib_root or SKILLCORPUS_HOME).resolve()
+        self.lib_root.mkdir(parents=True, exist_ok=True)
+        self.config_path = Path(config_path) if config_path else self._default_config_path()
+        self.config: dict[str, Any] = {}
+        self.store: SkillStore | None = None
+        self.classifier: Classifier | None = None
+        self.embedder: EmbeddingClient | None = None
+        self.ingester: Ingester | None = None
+
+    def _default_config_path(self) -> Path:
+        local = self.lib_root / "config.yaml"
+        if local.exists():
+            return local
+        pkg_default = Path(__file__).parent / "config.yaml"
+        return pkg_default
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def open(self) -> "SkillLibrary":
+        """Initialize the DB + load config + components."""
+        self.config = load_config(self.config_path)
+
+        # --- Embedding ---
+        embed_cfg = self.config.get("embedding", {})
+        dim = int(embed_cfg.get("dim", 1536))
+        self.embedder = EmbeddingClient(
+            dim=dim,
+            base_url=embed_cfg.get("base_url"),
+            api_key=embed_cfg.get("api_key"),
+            batch_size=int(embed_cfg.get("batch_size", 32)),
+            timeout=int(embed_cfg.get("timeout", 60)),
+        )
+
+        # --- Storage (bound to the embedding dim) ---
+        self.store = SkillStore(self.lib_root / "index.db", embedding_dim=dim)
+        self.store.init_schema()
+
+        # --- LLM client + LLM classifier ---
+        llm_cfg_dict = self.config.get("llm", {}) or {}
+        self.llm: LLMClient | None = None
+
+        if llm_cfg_dict:
+            # single endpoint: take endpoints[0], fall back to the llm top-level base_url/model/api_key
+            eps = llm_cfg_dict.get("endpoints") or []
+            ep0 = eps[0] if eps else {}
+            self.llm = LLMClient(
+                base_url=ep0.get("base_url") or llm_cfg_dict.get("base_url", "http://localhost:8211/v1"),
+                model=ep0.get("model") or llm_cfg_dict.get("model", "qwen3"),
+                api_key=ep0.get("api_key") or llm_cfg_dict.get("api_key", "dummy"),
+                temperature=float(llm_cfg_dict.get("temperature", 0.1)),
+                max_tokens=int(llm_cfg_dict.get("max_tokens", 512)),
+                timeout=int(llm_cfg_dict.get("timeout", 60)),
+                enable_thinking=bool(llm_cfg_dict.get("enable_thinking", False)),
+            )
+            if self.llm.is_available():
+                self.classifier = Classifier(self.llm)
+                logger.info("LLM classifier enabled (model=%s)", llm_cfg_dict.get("model"))
+            else:
+                logger.warning("LLM unavailable; ingest will set category=OTHER")
+
+        # --- LLM dup judge (Round A — LLM arbitration for cross-source near-dup) ---
+        self.dup_judge: LLMDupJudge | None = None
+        # --- LLM quality judge (Round B — quality 0-10 scoring) ---
+        self.quality_judge: LLMQualityJudge | None = None
+        if self.llm is not None and self.llm.is_available():
+            try:
+                self.dup_judge = LLMDupJudge(self.llm, self.store._connect())
+                logger.info("LLM dup judge enabled")
+            except Exception as e:
+                logger.warning(f"LLM dup judge init failed: {e}")
+            try:
+                self.quality_judge = LLMQualityJudge(self.llm, self.store._connect())
+                logger.info("LLM quality judge enabled")
+            except Exception as e:
+                logger.warning(f"LLM quality judge init failed: {e}")
+
+        # --- Ingester ---
+        concurrency = int(llm_cfg_dict.get("concurrency", 8)) if llm_cfg_dict else 8
+        self.ingester = Ingester(
+            store=self.store,
+            lib_root=self.lib_root,
+            source_weights=self.config.get("source_weights", {}),
+            thresholds=self.config.get("thresholds", {}),
+            embedding_client=self.embedder,
+            classifier=self.classifier,
+            concurrency=concurrency,
+            dup_judge=self.dup_judge,
+            dedup_cfg=self.config.get("dedup", {}),
+            quality_judge=self.quality_judge,
+            quality_cfg=self.config.get("quality", {}),
+        )
+        return self
+
+    def close(self) -> None:
+        if self.store is not None:
+            self.store.close()
+
+    def __enter__(self) -> "SkillLibrary":
+        return self.open()
+
+    def __exit__(self, *exc):
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Create
+    # ------------------------------------------------------------------
+
+    def add(
+        self, skill_dir: str | Path, source: str,
+        source_url: str | None = None, force: bool = False,
+    ) -> IngestResult:
+        assert self.ingester is not None, "call open() first"
+        return self.ingester.ingest(
+            Path(skill_dir), source=source, source_url=source_url, force=force,
+        )
+
+    def add_batch(
+        self, root: str | Path, source: str,
+        pattern: str = "**/SKILL.md",
+        limit: int | None = None,
+        concurrent: bool = True,
+        source_url: str | None = None,
+    ) -> dict[str, Any]:
+        assert self.ingester is not None, "call open() first"
+        if concurrent and self.ingester.concurrency > 1:
+            return self.ingester.ingest_batch_concurrent(
+                Path(root), source=source, pattern=pattern, limit=limit,
+                source_url=source_url,
+            )
+        return self.ingester.ingest_batch(
+            Path(root), source=source, pattern=pattern, limit=limit,
+            source_url=source_url,
+        )
+
+    # ------------------------------------------------------------------
+    # Read
+    # ------------------------------------------------------------------
+
+    def get(self, skill_id: str) -> SkillRecord | None:
+        assert self.store is not None
+        return self.store.get(skill_id)
+
+    def list(
+        self,
+        category: str | None = None,
+        source: str | None = None,
+        tag: str | None = None,
+        min_quality: float = 0.0,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[SkillRecord]:
+        assert self.store is not None
+        return self.store.list(
+            category=category, source=source, tag=tag,
+            min_quality=min_quality, limit=limit, offset=offset,
+        )
+
+    def stats(self) -> dict[str, Any]:
+        assert self.store is not None
+        s = self.store.stats()
+        s["lib_root"] = str(self.lib_root)
+        s["has_embedding"] = self.embedder.is_available() if self.embedder else False
+        s["has_llm_classify"] = self.classifier is not None
+        s["has_dup_judge"] = self.dup_judge is not None
+        s["has_quality_judge"] = self.quality_judge is not None
+        if self.dup_judge is not None:
+            try:
+                s["dedup_judgments"] = self.dup_judge.stats()
+            except Exception as e:
+                logger.debug("dup_judge.stats() unavailable: %s", e)
+        if self.quality_judge is not None:
+            try:
+                s["quality_judgments"] = self.quality_judge.stats()
+                s["quality_histogram"] = self.quality_judge.histogram()
+            except Exception as e:
+                logger.debug("quality_judge.stats() unavailable: %s", e)
+        # superseded count — the payoff of Round A near-dup detection
+        conn = self.store._connect()
+        row = conn.execute(
+            "SELECT COUNT(*) FROM skills WHERE superseded_by IS NOT NULL"
+        ).fetchone()
+        s["superseded_count"] = int(row[0]) if row else 0
+
+        # number of skills with description > 1024 (Round C alerting metric)
+        desc_max = int((self.config.get("thresholds") or {}).get("description_max_chars", 1024))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM skills WHERE deleted = 0 AND LENGTH(description) > ?",
+            (desc_max,),
+        ).fetchone()
+        s["overlong_description_count"] = int(row[0]) if row else 0
+        return s
 
 
 # ---------------------------------------------------------------------------

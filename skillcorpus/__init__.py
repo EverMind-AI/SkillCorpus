@@ -10,8 +10,17 @@ Positioned as an ingest/build pipeline — runtime retrieval (BM25+embedding sea
 """
 
 from .core.models import SkillRecord, Category, CATEGORIES
-from .curate.pipeline import SkillLibrary
 from .curate.pipeline import IngestResult, IngestStatus
+
+
+def __getattr__(name):
+    # SkillLibrary lives in cli.py (the orchestration layer). Import it lazily
+    # so `import skillcorpus` does not eagerly pull in cli — otherwise
+    # `python -m skillcorpus.cli` would load cli twice (package + __main__).
+    if name == "SkillLibrary":
+        from .cli import SkillLibrary
+        return SkillLibrary
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "SkillRecord", "Category", "CATEGORIES",
