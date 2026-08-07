@@ -5,6 +5,10 @@
 
 **SkillCorpus is a framework that aggregates, curates, matches, and evaluates the open agent-skill ecosystem at scale** — consolidating ~821,000 crawled skills into a 96,000-skill, permissively-licensed corpus, and releasing the retrieval stack and evaluation suite built around it.
 
+<p align="center">
+  <img src="docs/assets/pipeline.png" alt="The SkillCorpus framework: aggregate, curate, match, evaluate" width="100%">
+</p>
+
 Its four stages are the package's subpackages:
 
 1. **`aggregate`** — discover + clone skills from public `SKILL.md` repositories.
@@ -23,6 +27,10 @@ The framework **releases** three artifacts: the **corpus** (parquet + attachment
 | 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
 | 🔡 | **Embedding model** | `Qwen3-Embedding-0.6B` fine-tuned for skill retrieval (2048-ctx) | [🤗 HuggingFace](#) |
 | 🛠️ | **Code** | the framework — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
+
+<p align="center">
+  <img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="60%">
+</p>
 
 ## License
 
