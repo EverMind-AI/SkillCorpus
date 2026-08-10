@@ -18,7 +18,7 @@ ships the fine-tuned retrieval stack that selects from it, and evaluates the who
 on three real-world agent benchmarks.
 
 <p align="center">
-  <img src="docs/assets/pipeline.png" alt="The SkillCorpus framework: aggregate, curate, match, evaluate" width="100%">
+  <img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate + curate) and using it (match + evaluate)" width="100%">
 </p>
 
 ## What it does for you
@@ -265,7 +265,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```bibtex
 @article{wang2026skillcorpus,
   title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
   year          = {2026},
   eprint        = {2607.15557},
   archivePrefix = {arXiv},

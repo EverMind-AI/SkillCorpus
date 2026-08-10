@@ -16,7 +16,7 @@ SkillCorpus 把约 821,000 个爬取到的 `SKILL.md` 文件整合成一份经�
 发布配套的微调检索栈，并在三个真实 agent benchmark 上端到端评估了整套方案。
 
 <p align="center">
-  <img src="docs/assets/pipeline.png" alt="SkillCorpus 框架：aggregate、curate、match、evaluate" width="100%">
+  <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
 </p>
 
 ## 它能帮你做什么
@@ -260,7 +260,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```bibtex
 @article{wang2026skillcorpus,
   title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
   year          = {2026},
   eprint        = {2607.15557},
   archivePrefix = {arXiv},
