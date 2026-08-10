@@ -151,10 +151,10 @@ once, encode the task query, take the top-*k* by cosine, then rerank.
 
 Both models are released:
 
-| Role | Base | Fine-tuned for |
+| Role | Base | Objective |
 |---|---|---|
-| bi-encoder (candidate recall) | `Qwen3-Embedding-0.6B` | 2048-ctx, InfoNCE on synthetic queries |
-| reranker (scoring) | `Qwen3-Reranker-0.6B` | 4096-ctx, listwise CE |
+| bi-encoder (candidate recall) | `Qwen3-Embedding-0.6B` | InfoNCE on synthetic queries |
+| reranker (scoring) | `Qwen3-Reranker-0.6B` | listwise CE |
 
 <!-- TODO(@team): link the script that serves both models (placeholder below). -->
 

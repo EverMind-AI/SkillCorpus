@@ -45,8 +45,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 |---|---|---|---|
 | 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [skillhub.evermind.ai](https://skillhub.evermind.ai) |
 | 📚 | **语料** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
-| 🔡 | **检索模型** | 作为 bi-encoder 微调的 `Qwen3-Embedding-0.6B`（2048 上下文） | [🤗 HuggingFace](#) |
-| 🎯 | **重排模型** | 用 listwise CE 微调的 `Qwen3-Reranker-0.6B`（4096 上下文） | [🤗 HuggingFace](#) |
+| 🔡 | **检索模型** | SkillRouter —— 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 HuggingFace](#) |
 | 🛠️ | **代码** | 本仓库 —— `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
 
 <div align="center">

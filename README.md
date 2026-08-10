@@ -46,8 +46,7 @@ source repository licence-audited so the released set is commercially redistribu
 |---|---|---|---|
 | 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [skillhub.evermind.ai](https://skillhub.evermind.ai) |
 | 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
-| 🔡 | **Retrieval model** | `Qwen3-Embedding-0.6B` fine-tuned as the bi-encoder (2048-ctx) | [🤗 HuggingFace](#) |
-| 🎯 | **Reranker model** | `Qwen3-Reranker-0.6B` fine-tuned with listwise CE (4096-ctx) | [🤗 HuggingFace](#) |
+| 🔡 | **Retrieval models** | SkillRouter — a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 HuggingFace](#) |
 | 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
 
 <div align="center">
