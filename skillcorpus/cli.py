@@ -303,18 +303,20 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     """The fixed curate -> export tail of the build pipeline, run once after all
     sources are ingested:
 
-        quality_pass -> dedup_pass -> license_audit(activate) -> export.corpus
+        quality_pass -> dedup_pass -> license_audit(activate) -> safety_gate -> export.corpus
 
     These used to be opt-in ops scripts (gated on config flags), which is why an
     un-flagged build could exit 0 having exported nothing. They are unconditional
-    steps now, so ``cli build`` always ends by writing the corpus.
+    steps now, so ``cli build`` always ends by writing the corpus. safety_gate
+    soft-deletes skills failing the safety hard-gate; it runs after activate but,
+    because it uses ``deleted`` (not ``active``), the order is not load-bearing.
     """
     lib_root = str(lib.lib_root)
     db_path = str(lib.store.db_path)
     corpus_out = str(defaults.get("corpus_out") or (lib.lib_root / "corpus"))
     if dry:
         print(f"[dry-run] would run quality_pass -> dedup_pass -> license_audit "
-              f"-> export.corpus (db={db_path}, out={corpus_out})", flush=True)
+              f"-> safety_gate -> export.corpus (db={db_path}, out={corpus_out})", flush=True)
         return
 
     print("\n→ quality_pass (LLM 3-dim quality over the library)...", flush=True)
@@ -327,8 +329,7 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     _run_module("skillcorpus.curate.license_audit", ["activate", "--db", db_path])
 
     print("\n→ safety_gate (exclude safety<3 / hard-gate flags)...", flush=True)
-    from skillcorpus.curate.safety_gate import run_safety_gate
-    print(f"  safety_gate: excluded {run_safety_gate(db_path)} skills", flush=True)
+    _run_module("skillcorpus.curate.safety_gate", ["--db", db_path])
 
     print("\n→ export.corpus (parquet + attachments + card)...", flush=True)
     from skillcorpus.export.corpus import write_corpus

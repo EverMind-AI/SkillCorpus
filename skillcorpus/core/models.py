@@ -104,7 +104,7 @@ class SkillRecord:
     has_references: bool = False
 
     # --- status ---
-    deleted: bool = False               # soft-delete marker
+    deleted: bool = False               # soft-delete marker (near-dup loser OR safety-hard-gated)
     # a skill merged after cross-source near-dup detection records the winner's skill_id
     # (with deleted=True). This keeps the winner's files/metadata traceable.
     superseded_by: str | None = None

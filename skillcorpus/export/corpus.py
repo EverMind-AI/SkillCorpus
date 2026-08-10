@@ -1,7 +1,9 @@
 """export.corpus — write the open SkillCorpus dataset (parquet + attachments + card).
 
 Contract: docs/corpus-schema.md. One row per skill, only ``deleted = 0 AND
-active = 1`` (the GREEN-license gate). Reads the producer SQLite DB and writes::
+active = 1``: active=1 is the GREEN-license gate; deleted=0 drops near-duplicate
+losers and safety-hard-gated skills (curate.safety_gate). Reads the producer
+SQLite DB and writes::
 
     <out>/skills.parquet              one row per skill (20 columns)
     <out>/attachments.tar.zst         per-skill dirs (minus SKILL.md), <skill_id>/ prefix
@@ -118,17 +120,9 @@ def _ts(raw: Any) -> datetime | None:
 
 def _ensure_quality_judgments(conn: sqlite3.Connection) -> None:
     """The subscores LEFT JOIN needs the table to exist; a producer DB that
-    never ran the LLM judge has none. Create it empty (idempotent, canonical
-    schema) so the join yields NULL rather than ``no such table``."""
-    from ..curate.quality import QUALITY_JUDGMENT_SCHEMA
-
-    conn.executescript(QUALITY_JUDGMENT_SCHEMA)
-    # a legacy judge table may predate the subscores column; add it so the
-    # q.subscores select below cannot raise "no such column"
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(quality_judgments)").fetchall()}
-    if "subscores" not in cols:
-        conn.execute("ALTER TABLE quality_judgments ADD COLUMN subscores TEXT NOT NULL DEFAULT '{}'")
-    conn.commit()
+    never ran the LLM judge has none. Delegates to the shared curate helper."""
+    from ..curate.quality import ensure_quality_judgments
+    ensure_quality_judgments(conn)
 
 
 def _add_attachments(
@@ -188,6 +182,10 @@ def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:
         "- `quality_score` / `quality_subscores` are LLM-judged and noisy; "
         "`quality_subscores.flags` mark anti-signals (incl. safety) the judge "
         "labelled — not a security guarantee.",
+        "- Safety hard-gate: skills matching the `blocked.malware` regex, firing "
+        "an LLM hard-gate flag (prompt/command injection, unsafe exec, auth "
+        "bypass, CSAM risk), or scoring safety < 3 are excluded. Vetting is over "
+        "the `SKILL.md` text, not bundled `scripts/` files.",
         "- Near-duplicates across sources are merged (one winner kept).",
         "",
     ]

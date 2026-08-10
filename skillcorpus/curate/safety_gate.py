@@ -1,14 +1,16 @@
 """curate.safety_gate — Stage-5 safety hard-gate over the LLM judgments.
 
-Excludes from the released active set every skill whose LLM judgment fires a
-hard-gate flag or scores safety < 3 (paper §3.3, conditions 2-3; condition 1,
-the ``blocked.malware`` regex, already rejects at ingest in curate.safety).
+Excludes from the released set every skill whose LLM judgment fires a hard-gate
+flag or scores safety < 3 (paper §3.3, conditions 2-3; condition 1, the
+``blocked.malware`` regex, already rejects at ingest in curate.safety).
 
-Excluded skills are set ``active = 0`` so export (which requires ``active = 1``)
-drops them. This runs AFTER ``license_audit activate`` in the build chain, so it
-overrides the license-based activation for unsafe skills — the released
-``active`` set is therefore the intersection of permissive-licensed and
-safety-passing, matching the paper's active-set definition.
+Excluded skills are soft-deleted (``deleted = 1``), NOT set ``active = 0``:
+``active`` is the license bit that ``license_audit activate`` owns and would
+re-set to 1, so using it here lets a later ``activate`` silently revive an
+excluded skill. ``deleted`` is orthogonal (``activate`` only touches rows with
+``deleted = 0``) and is already an export filter, so the exclusion is permanent
+and order-independent. ``superseded_by`` stays NULL, distinguishing a
+safety exclusion from a near-duplicate merge loser.
 """
 from __future__ import annotations
 
@@ -16,19 +18,26 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .quality import HARD_GATE_FLAGS
+from .quality import HARD_GATE_FLAGS, ensure_quality_judgments
+
+
+def _is_number(x) -> bool:
+    # bool is a subclass of int; a JSON ``true`` must not count as the number 1.
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
 def run_safety_gate(db_path: str | Path) -> int:
-    """Set ``active = 0`` for every currently-active skill whose judgment fires a
-    hard-gate flag or has safety < 3. Returns the number of skills excluded."""
+    """Soft-delete (``deleted = 1``) every non-deleted skill whose judgment fires
+    a hard-gate flag or has safety < 3. Returns the number of skills excluded."""
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")  # wait out lock contention (lib conn may be open)
     try:
+        ensure_quality_judgments(conn)  # a no-LLM build has no judgments table yet
         rows = conn.execute(
             "SELECT s.skill_id, q.subscores FROM skills s "
             "JOIN quality_judgments q ON q.content_hash = s.content_hash "
-            "WHERE s.deleted = 0 AND s.active = 1"
+            "WHERE s.deleted = 0"
         ).fetchall()
         excluded: list[str] = []
         for r in rows:
@@ -40,13 +49,13 @@ def run_safety_gate(db_path: str | Path) -> int:
                 continue
             safety = sub.get("safety")
             flags = sub.get("flags")
-            low_safety = isinstance(safety, (int, float)) and safety < 3
+            low_safety = _is_number(safety) and safety < 3
             hard_flag = isinstance(flags, list) and any(f in HARD_GATE_FLAGS for f in flags)
             if low_safety or hard_flag:
                 excluded.append(r["skill_id"])
         if excluded:
             conn.executemany(
-                "UPDATE skills SET active = 0 WHERE skill_id = ?",
+                "UPDATE skills SET deleted = 1 WHERE skill_id = ?",
                 [(sid,) for sid in excluded],
             )
             conn.commit()
@@ -81,4 +90,4 @@ if __name__ == "__main__":
     ap.add_argument("--db", default=str(INDEX_DB), help="producer SQLite DB path")
     args = ap.parse_args()
     n = run_safety_gate(args.db)
-    print(f"safety_gate: excluded {n} skills (active=0)")
+    print(f"safety_gate: excluded {n} skills (deleted=1)")

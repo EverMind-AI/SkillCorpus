@@ -37,10 +37,10 @@ def test_operator_rule_blocks(monkeypatch):
 def test_unknown_flag_not_blocked():
     """Only blocked.* triggers is_blocked; other flag names are inert.
 
-    Historically there were 6 suspicious.* patterns; they were removed
-    2026-05-21 after a 100-sample audit showed 98% FP rate.  We still
-    test that arbitrary non-blocked flag names do not get treated as
-    blocking, in case downstream legacy data carries them."""
+    The former suspicious.* substring patterns are not gates (a stratified
+    audit measured their false-positive rate above 90%). We still test that
+    arbitrary non-blocked flag names are not treated as blocking, in case
+    downstream legacy data carries them."""
     assert is_blocked(["suspicious.keyword"]) is False  # legacy data
     assert is_blocked(["informational.note"])  is False  # unknown
     assert is_blocked(["blocked.malware"])     is True   # canonical

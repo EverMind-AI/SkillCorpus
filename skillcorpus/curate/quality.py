@@ -205,6 +205,21 @@ CREATE TABLE IF NOT EXISTS quality_judgments (
 #     DELETE FROM quality_judgments;
 
 
+def ensure_quality_judgments(conn: sqlite3.Connection) -> None:
+    """Create the ``quality_judgments`` table if missing, and add the
+    ``subscores`` column to a legacy table that predates it. Idempotent.
+
+    Shared by the export writer and the safety gate so a build that never ran
+    the LLM judge still finds a well-formed (empty) table to read, instead of
+    raising ``no such table: quality_judgments``.
+    """
+    conn.executescript(QUALITY_JUDGMENT_SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(quality_judgments)").fetchall()}
+    if "subscores" not in cols:
+        conn.execute("ALTER TABLE quality_judgments ADD COLUMN subscores TEXT NOT NULL DEFAULT '{}'")
+    conn.commit()
+
+
 @dataclass
 class QualityJudgment:
     score: float                    # synthesized 0-10 score (backward compatible)

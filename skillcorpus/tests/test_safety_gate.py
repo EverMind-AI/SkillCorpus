@@ -59,9 +59,9 @@ def _make_db(path: Path) -> None:
     conn.close()
 
 
-def _active(path: Path, skill_id: str) -> int:
+def _deleted(path: Path, skill_id: str) -> int:
     conn = sqlite3.connect(path)
-    row = conn.execute("SELECT active FROM skills WHERE skill_id=?", (skill_id,)).fetchone()
+    row = conn.execute("SELECT deleted FROM skills WHERE skill_id=?", (skill_id,)).fetchone()
     conn.close()
     return row[0]
 
@@ -71,10 +71,10 @@ def test_safety_gate_excludes_unsafe():
         db = Path(tmp) / "index.db"
         _make_db(db)
         assert run_safety_gate(db) == 2         # lowsafety + hardflag
-        assert _active(db, "clean") == 1        # safe → stays
-        assert _active(db, "lowsafety") == 0    # safety<3 → excluded
-        assert _active(db, "hardflag") == 0     # hard-gate flag → excluded
-        assert _active(db, "softflag") == 1     # soft flag only → stays
+        assert _deleted(db, "clean") == 0       # safe → stays
+        assert _deleted(db, "lowsafety") == 1   # safety<3 → excluded (deleted)
+        assert _deleted(db, "hardflag") == 1    # hard-gate flag → excluded (deleted)
+        assert _deleted(db, "softflag") == 0    # soft flag only → stays
 
 
 def test_safety_gate_no_judgment_and_idempotent(capsys):
@@ -88,12 +88,27 @@ def test_safety_gate_no_judgment_and_idempotent(capsys):
         conn.commit()
         conn.close()
         assert run_safety_gate(db) == 2
-        assert _active(db, "nojudge") == 1
+        assert _deleted(db, "nojudge") == 0
         out = capsys.readouterr().out
         assert "no LLM judgment" in out and "not fully safety-vetted" in out.lower(), out
         assert run_safety_gate(db) == 0         # already excluded, nothing new
 
 
+def test_safety_gate_no_judgments_table():
+    """A DB that never ran the LLM judge (no quality_judgments table at all) must
+    NOT crash with 'no such table' — ensure_quality_judgments creates it first."""
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Path(tmp) / "index.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(SCHEMA_SQL)   # skills only, NO quality_judgments table
+        _skill(conn, "s1", "h1")
+        conn.commit()
+        conn.close()
+        assert run_safety_gate(db) == 0          # excludes nothing, does not raise
+        assert _deleted(db, "s1") == 0
+
+
 if __name__ == "__main__":
-    test_safety_gate_excludes_unsafe()   # (the no-judgment test needs pytest's capsys)
+    test_safety_gate_excludes_unsafe()   # (capsys-based tests need pytest)
+    test_safety_gate_no_judgments_table()
     print("SAFETY GATE TESTS PASSED")
