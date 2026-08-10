@@ -9,9 +9,10 @@ Usage examples (``--lib`` is a group option and must precede the subcommand):
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
-import time
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -272,17 +273,21 @@ def _ingest_source(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict:
 
 
 def _ingest_lobehub(lib: SkillLibrary, src_dir: Path, source_label: str) -> dict:
-    """Special path: run lobehub_to_skills converter then add_batch."""
-    out_dir = Path("/tmp") / f"lobehub-converted-{int(time.time())}"
+    """Special path: run the lobehub converter into a temp dir under the library
+    root (honors SKILLCORPUS_HOME), ingest it, then clean the temp dir up."""
     src_subdir = src_dir / "src"
     if not src_subdir.is_dir():
         return {"total": 0, "added": 0, "error": f"missing src/ in {src_dir}"}
-    subprocess.run(
-        [sys.executable, "-m", "skillcorpus.aggregate.converters.lobehub",
-         "--src", str(src_subdir), "--out", str(out_dir)],
-        check=True,
-    )
-    return _ingest_source(lib, out_dir, source_label)
+    out_dir = Path(tempfile.mkdtemp(prefix="lobehub-converted-", dir=lib.lib_root))
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "skillcorpus.aggregate.converters.lobehub",
+             "--src", str(src_subdir), "--out", str(out_dir)],
+            check=True,
+        )
+        return _ingest_source(lib, out_dir, source_label)
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
 
 
 def _run_module(module: str, argv: list[str]) -> int:

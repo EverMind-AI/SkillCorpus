@@ -155,7 +155,7 @@ def main() -> int:
     for ident, src_path in sorted(chosen.items()):
         try:
             rec = json.loads(src_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, OSError):
             errors += 1
             continue
         # Need at least systemRole + meta.title or meta.description

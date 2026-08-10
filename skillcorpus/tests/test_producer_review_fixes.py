@@ -93,6 +93,32 @@ def test_r2_full_batch_ok():
         assert out is not None and len(out) == 4, prov
 
 
+def test_is_available_caches_negative_probe():
+    """A down endpoint must be probed at most once per TTL, not on every call
+    (otherwise a build against a dead endpoint pays one 5s probe per skill)."""
+    import urllib.request
+    probes = {"n": 0}
+
+    class _DownOpener:
+        def open(self, *a, **k):
+            raise OSError("connection refused")
+
+    def _build(*a, **k):
+        probes["n"] += 1
+        return _DownOpener()
+
+    orig = urllib.request.build_opener
+    urllib.request.build_opener = _build
+    try:
+        cli = embed_mod.EmbeddingClient(
+            base_url="http://x:1/v1", dim=DIM, provider="openai_compatible", model="m")
+        assert cli.is_available() is False
+        assert cli.is_available() is False
+        assert probes["n"] == 1, f"re-probed a down endpoint: {probes}"
+    finally:
+        urllib.request.build_opener = orig
+
+
 # ----------------------------------------------------------------------
 # R1 — rebuild_faiss_index keeps ids ↔ vectors aligned
 # ----------------------------------------------------------------------
@@ -125,6 +151,7 @@ def test_r7_reinsert_no_faiss_dup():
 if __name__ == "__main__":
     test_r2_short_batch_returns_none()
     test_r2_full_batch_ok()
+    test_is_available_caches_negative_probe()
     test_r1_rebuild_alignment()
     test_r7_reinsert_no_faiss_dup()
     print("ALL PRODUCER STORE/EMBED REGRESSION TESTS PASSED")

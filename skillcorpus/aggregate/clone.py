@@ -55,26 +55,36 @@ def clone_or_pull(owner: str, repo: str, timeout: int = 180,
             )
             return dst, "pulled"
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            # a broken cache dir should not fail the repo forever — wipe and re-clone
-            shutil.rmtree(dst, ignore_errors=True)
+            # Pull failed (often a transient network blip). Fall through to a
+            # fresh clone, but keep the existing cache until the new clone
+            # succeeds — a blip must not destroy a good cache.
+            pass
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     url = f"https://github.com/{owner}/{repo}.git"
+    # Clone into a temp sibling and swap in only on success, so a failed clone
+    # never leaves a partial dir or removes the previous good cache.
+    tmp = dst.parent / f".{repo}.tmp-clone"
     last_err = ""
     for _attempt in range(1, max_attempts + 1):
-        if dst.exists():
-            shutil.rmtree(dst, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
         try:
             subprocess.run(
-                ["git", "clone", "--depth", "1", "--quiet", url, str(dst)],
+                ["git", "clone", "--depth", "1", "--quiet", url, str(tmp)],
                 timeout=timeout, check=True, capture_output=True, env=env,
             )
+            if dst.exists():
+                shutil.rmtree(dst, ignore_errors=True)
+            os.replace(tmp, dst)
             return dst, "cloned"
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             err_s = (getattr(e, "stderr", b"") or b"").decode("utf-8", "replace")
             last_err = err_s[:200]
             if any(s in err_s for s in _PERMANENT):
                 break
-    if dst.exists():
-        shutil.rmtree(dst, ignore_errors=True)
+    shutil.rmtree(tmp, ignore_errors=True)
+    # Clone failed: if a prior good cache survived, use it (stale) rather than
+    # losing the repo to a transient failure.
+    if (dst / ".git").is_dir():
+        return dst, "stale"
     return None, f"fail: {last_err}"

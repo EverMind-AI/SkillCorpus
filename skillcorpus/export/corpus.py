@@ -142,7 +142,10 @@ def _add_attachments(
     src = Path(lib_root) / stored_path
     if not src.is_dir():
         return None
-    prefix = skill_id.replace("/", "__")  # source can be owner/repo -> keep one flat member
+    # source can be owner/repo -> flatten to one tar member. Not strictly
+    # injective (a skill_id already containing "__" could collide), but skill_id
+    # ends in an 8-char content hash so a real collision is vanishingly unlikely.
+    prefix = skill_id.replace("/", "__")
     added = False
     for item in sorted(src.iterdir()):
         if item.name == "SKILL.md" or item.name.startswith("."):

@@ -170,7 +170,7 @@ def main():
     print(f"  cached hits:   {skipped}")
     print(f"  failed:        {failed}")
     print()
-    print(f"Aggregate (from quality_judgments table — includes prior cache):")
+    print("Aggregate (from quality_judgments table — includes prior cache):")
     print(f"  total judgments: {stats['total']}")
     print(f"  avg / min / max: {stats['avg_score']} / {stats['min_score']} / {stats['max_score']}")
     print(f"  histogram: {hist}")

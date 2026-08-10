@@ -67,6 +67,12 @@ class EmbeddingClient:
     """Embedding client. See the module docstring for the two providers
     (``openai_compatible`` default / ``skillrouter_remote``)."""
 
+    # When a probe fails (endpoint unreachable), cache the negative result for
+    # this many seconds before re-probing. Without it, an unreachable endpoint
+    # costs one 5s probe per skill during a build; with it, at most one probe
+    # per interval, while still recovering if the endpoint comes back.
+    _PROBE_TTL_S = 60.0
+
     def __init__(
         self,
         dim: int = 1024,
@@ -85,6 +91,7 @@ class EmbeddingClient:
         self.base_url = base_url or os.environ.get("OPENAI_BASE_URL") or ""
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY") or "dummy"
         self._available: bool | None = None
+        self._probe_failed_at: float | None = None  # monotonic time of last failed probe
 
     def _headers(self) -> dict[str, str]:
         h = {"Content-Type": "application/json"}
@@ -105,6 +112,12 @@ class EmbeddingClient:
         if not self.api_key:
             self._available = False
             return False
+        import time as _time
+        # Recently failed → skip the probe until the TTL elapses (avoids a 5s
+        # probe per skill when the endpoint is down for the whole build).
+        if (self._probe_failed_at is not None
+                and _time.monotonic() - self._probe_failed_at < self._PROBE_TTL_S):
+            return False
         import json as _json
         import urllib.request
         url, build, extract = self._endpoint()
@@ -121,8 +134,10 @@ class EmbeddingClient:
                                and isinstance(vecs[0], list)
                                and len(vecs[0]) == self.dim)
         except Exception:
-            # transient probe failure — do NOT cache, so a later call can retry
-            # (one startup blip must not disable embeddings for the whole build)
+            # Unreachable — record the failure time and back off for _PROBE_TTL_S
+            # (a blip must not disable embeddings for the whole build, but we must
+            # not re-probe a down endpoint on every skill either).
+            self._probe_failed_at = _time.monotonic()
             return False
         return self._available
 

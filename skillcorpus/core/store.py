@@ -104,7 +104,13 @@ class SkillStore:
         return conn
 
     def init_schema(self) -> None:
-        """Create all tables (idempotent) + run any necessary small migrations."""
+        """Create all tables (idempotent, ``CREATE ... IF NOT EXISTS``).
+
+        Create-only: this does NOT migrate an older on-disk schema in place (e.g.
+        add a column that a pre-existing table lacks). The producer model is a
+        from-scratch build under ``SKILLCORPUS_HOME``; point it at a fresh dir
+        rather than reusing a DB from an older schema.
+        """
         conn = self._connect()
         conn.executescript(SCHEMA_SQL)
         conn.execute(

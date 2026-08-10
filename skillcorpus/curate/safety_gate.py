@@ -50,6 +50,23 @@ def run_safety_gate(db_path: str | Path) -> int:
                 [(sid,) for sid in excluded],
             )
             conn.commit()
+        # The gate can only judge skills that have an LLM judgment. Any active
+        # skill without one (e.g. a build with no reachable LLM) has NOT passed
+        # conditions 2-3 — warn loudly rather than let it pass silently, so the
+        # "active = safety-vetted" invariant is not quietly violated.
+        unjudged = conn.execute(
+            "SELECT COUNT(*) FROM skills s WHERE s.deleted = 0 AND s.active = 1 "
+            "AND NOT EXISTS (SELECT 1 FROM quality_judgments q "
+            "                WHERE q.content_hash = s.content_hash)"
+        ).fetchone()[0]
+        if unjudged:
+            print(
+                f"  WARNING: {unjudged} active skills have no LLM judgment — the "
+                f"safety hard-gate (safety<3 / hard-gate flags) was NOT applied to "
+                f"them, so the active set is NOT fully safety-vetted. Run "
+                f"quality_pass with a reachable LLM to close the gap.",
+                flush=True,
+            )
         return len(excluded)
     finally:
         conn.close()

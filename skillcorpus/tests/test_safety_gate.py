@@ -77,8 +77,9 @@ def test_safety_gate_excludes_unsafe():
         assert _active(db, "softflag") == 1     # soft flag only → stays
 
 
-def test_safety_gate_no_judgment_and_idempotent():
-    """A skill without a judgment is left active; a second run excludes nothing new."""
+def test_safety_gate_no_judgment_and_idempotent(capsys):
+    """A skill without a judgment is left active (fail-open) but WARNED about; a
+    second run excludes nothing new."""
     with tempfile.TemporaryDirectory() as tmp:
         db = Path(tmp) / "index.db"
         _make_db(db)
@@ -88,10 +89,11 @@ def test_safety_gate_no_judgment_and_idempotent():
         conn.close()
         assert run_safety_gate(db) == 2
         assert _active(db, "nojudge") == 1
+        out = capsys.readouterr().out
+        assert "no LLM judgment" in out and "not fully safety-vetted" in out.lower(), out
         assert run_safety_gate(db) == 0         # already excluded, nothing new
 
 
 if __name__ == "__main__":
-    test_safety_gate_excludes_unsafe()
-    test_safety_gate_no_judgment_and_idempotent()
+    test_safety_gate_excludes_unsafe()   # (the no-judgment test needs pytest's capsys)
     print("SAFETY GATE TESTS PASSED")
