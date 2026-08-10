@@ -86,37 +86,17 @@ Curating **your own** sources instead? See [Build your own corpus](#build-your-o
 
 ### A. Query SkillHub
 
-[SkillHub](https://skillhub.evermind.ai) serves the corpus over three tiers, cheapest first —
-most skills are pure instructions, so tier 2 is usually where you stop:
-
-| Tier | Endpoint | Returns | Download? |
-|---|---|---|---|
-| 1. discover | `GET /openapi/v1/skills?q=` (or `/skills/search` with filters) | metadata, **no body** | no |
-| 2. read | `GET /openapi/v1/skills/{ref}` | `skill_md` + `subscores` + `files` | no |
-| 3. execute | `GET /openapi/v1/skills/{ref}/download?source=` | zip with `scripts/` | yes |
+[SkillHub](https://skillhub.evermind.ai) serves the corpus in three tiers — discover
+(metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
+instructions, so reading is usually where you stop.
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
 ```
 
-Every response is enveloped; `status == 0` means success:
-
-```json
-{"error": "success", "requestId": "…", "status": 0, "result": {
-  "items": [{
-    "id": "db400aae-c1b1-4cc1-903e-52776418c927",
-    "skill_id": "NousResearch/hermes-agent/ocr-and-documents",
-    "name": "ocr-and-documents",
-    "description": "Extract text from PDFs/scans (pymupdf, marker-pdf).",
-    "source": "NousResearch/hermes-agent", "category": "DOC-PROC",
-    "quality_score": 0.808, "license": "MIT", "tags": ["ocr", "documents"],
-    "github_star": 188943, "install_count": 3,
-    "download_url": "https://skillhub.evermind.ai/openapi/v1/skills/db400aae-…/download"
-  }], "total": 20}}
-```
-
-Then fetch the body with the `id` and inject it into your agent's prompt — that is the whole
-loop. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all three tiers:
+Take an `id` from the results, fetch its `skill_md`, inject that into your agent's prompt —
+that is the whole loop. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all
+three tiers:
 
 ```bash
 # search + read the bodies — stdlib only, no install, no API key
@@ -146,8 +126,8 @@ task: extract tables from a scanned PDF invoice
 → built a prompt of 36,742 chars with the skill bodies injected
 ```
 
-Rate limits are per IP: 120/min for discover and read, 30/min for download.
-Full field list and error codes: [`docs/integrations.md`](docs/integrations.md).
+Endpoints, response envelope, status codes and rate limits:
+[`docs/integrations.md`](docs/integrations.md).
 
 ### B. Load the corpus
 

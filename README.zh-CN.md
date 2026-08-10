@@ -84,36 +84,14 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ### A. 调用 SkillHub
 
-[SkillHub](https://skillhub.evermind.ai) 把语料按三级由轻到重提供——大多数技能是纯指令，
-到第二级就够了：
-
-| 层级 | 端点 | 返回 | 要下载吗 |
-|---|---|---|---|
-| 1. 发现 | `GET /openapi/v1/skills?q=`（或 `/skills/search` 带过滤） | 元数据，**无正文** | 否 |
-| 2. 读正文 | `GET /openapi/v1/skills/{ref}` | `skill_md` + `subscores` + `files` | 否 |
-| 3. 执行 | `GET /openapi/v1/skills/{ref}/download?source=` | 含 `scripts/` 的 zip | 是 |
+[SkillHub](https://skillhub.evermind.ai) 把语料分三级提供——发现（元数据）、读正文
+（`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
 ```
 
-所有响应统一信封，`status == 0` 表示成功：
-
-```json
-{"error": "success", "requestId": "…", "status": 0, "result": {
-  "items": [{
-    "id": "db400aae-c1b1-4cc1-903e-52776418c927",
-    "skill_id": "NousResearch/hermes-agent/ocr-and-documents",
-    "name": "ocr-and-documents",
-    "description": "Extract text from PDFs/scans (pymupdf, marker-pdf).",
-    "source": "NousResearch/hermes-agent", "category": "DOC-PROC",
-    "quality_score": 0.808, "license": "MIT", "tags": ["ocr", "documents"],
-    "github_star": 188943, "install_count": 3,
-    "download_url": "https://skillhub.evermind.ai/openapi/v1/skills/db400aae-…/download"
-  }], "total": 20}}
-```
-
-拿 `id` 取正文，注入 agent 的 prompt——整个闭环就这么简单。
+从结果里取一个 `id`，拉它的 `skill_md`，注入 agent 的 prompt——整个闭环就这么简单。
 [`examples/skillhub_demo.py`](examples/skillhub_demo.py) 把三级都跑通了：
 
 ```bash
@@ -144,8 +122,7 @@ task: extract tables from a scanned PDF invoice
 → built a prompt of 36,742 chars with the skill bodies injected
 ```
 
-限速按 IP：发现和读正文 120 次/分钟，下载 30 次/分钟。
-完整字段和错误码见 [`docs/integrations.md`](docs/integrations.md)。
+端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
 ### B. 加载语料
 
