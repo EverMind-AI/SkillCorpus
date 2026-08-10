@@ -11,7 +11,7 @@
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](#)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
-[![Embedding model](https://img.shields.io/badge/%F0%9F%A4%97-Embedding%20model-yellow.svg)](#)
+[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](#)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -45,7 +45,8 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 |---|---|---|---|
 | 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [endpoint](#) |
 | 📚 | **语料** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
-| 🔡 | **Embedding 模型** | 面向技能检索微调的 `Qwen3-Embedding-0.6B`（2048 上下文） | [🤗 HuggingFace](#) |
+| 🔡 | **检索模型** | 作为 bi-encoder 微调的 `Qwen3-Embedding-0.6B`（2048 上下文） | [🤗 HuggingFace](#) |
+| 🎯 | **重排模型** | 用 listwise CE 微调的 `Qwen3-Reranker-0.6B`（4096 上下文） | [🤗 HuggingFace](#) |
 | 🛠️ | **代码** | 本仓库 —— `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
 
 <div align="center">
@@ -83,42 +84,46 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ### A. 调用 SkillHub
 
-<!-- TODO(@team)：把 SKILLHUB_URL 换成真实地址，并确认下面的请求/响应格式与实际服务一致。 -->
+[SkillHub](https://skillhub.evermind.ai) 把语料按三级由轻到重提供——大多数技能是纯指令，
+到第二级就够了：
 
-不用安装、不用下模型——直接用任务描述来要技能：
+| 层级 | 端点 | 返回 | 要下载吗 |
+|---|---|---|---|
+| 1. 发现 | `GET /openapi/v1/skills?q=`（或 `/skills/search` 带过滤） | 元数据，**无正文** | 否 |
+| 2. 读正文 | `GET /openapi/v1/skills/{ref}` | `skill_md` + `subscores` + `files` | 否 |
+| 3. 执行 | `GET /openapi/v1/skills/{ref}/download?source=` | 含 `scripts/` 的 zip | 是 |
 
 ```bash
-curl -X POST https://<SKILLHUB_URL>/v1/skills/search \
-  -H 'Content-Type: application/json' \
-  -d '{"query": "extract tables from a scanned PDF invoice", "top_k": 3}'
+curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
 ```
+
+所有响应统一信封，`status == 0` 表示成功：
 
 ```json
-{
-  "skills": [
-    {
-      "name": "pdf-table-extraction",
-      "description": "Extract tables from scanned PDFs into structured rows …",
-      "category": "DOC-PROC",
-      "score": 0.91,
-      "license": "MIT",
-      "source_url": "https://github.com/…",
-      "body": "# PDF Table Extraction\n## Steps\n…"
-    }
-  ]
-}
+{"error": "success", "requestId": "…", "status": 0, "result": {
+  "items": [{
+    "id": "db400aae-c1b1-4cc1-903e-52776418c927",
+    "skill_id": "NousResearch/hermes-agent/ocr-and-documents",
+    "name": "ocr-and-documents",
+    "description": "Extract text from PDFs/scans (pymupdf, marker-pdf).",
+    "source": "NousResearch/hermes-agent", "category": "DOC-PROC",
+    "quality_score": 0.808, "license": "MIT", "tags": ["ocr", "documents"],
+    "github_star": 188943, "install_count": 3,
+    "download_url": "https://skillhub.evermind.ai/openapi/v1/skills/db400aae-…/download"
+  }], "total": 20}}
 ```
 
-把 `body` 注入 agent 的 prompt，它就能完成任务。整个闭环就这么简单——
-[`examples/skillhub_demo.py`](examples/skillhub_demo.py) 把这条链路跑通了：
+拿 `id` 取正文，注入 agent 的 prompt——整个闭环就这么简单。
+[`examples/skillhub_demo.py`](examples/skillhub_demo.py) 把三级都跑通了：
 
 ```bash
-export SKILLHUB_URL=https://<SKILLHUB_URL>
-
-# 只检索 —— 纯标准库，不用安装，不用 API key
+# 检索 + 读正文 —— 纯标准库，不用安装，不用 API key
 python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 
-# 检索并把技能注入 prompt 后真正执行任务
+# 顺带把命中的第一个技能的脚本包拉下来
+python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
+
+# 检索并把正文注入 prompt 后真正执行任务
 export OPENAI_API_KEY=...
 python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
@@ -126,18 +131,21 @@ python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoic
 ```
 task: extract tables from a scanned PDF invoice
 
-SkillHub returned 3 skill(s):
+[1/2] search  → 2 hit(s), metadata only
+  1. ocr-and-documents   q=0.808  DOC-PROC  MIT
+     Extract text from PDFs/scans (pymupdf, marker-pdf).
+  2. document-workflows  q=0.86   DOC-PROC  MIT
+     Build end-to-end document processing workflows and pipelines …
 
-  1. pdf-table-extraction   (score 0.912)
-     Extract tables from scanned PDFs into structured rows using OCR + layout analysis.
-     MIT · https://github.com/…
+[2/2] detail  → fetching skill_md for 2 skill(s)
+  ocr-and-documents: 4916 chars  u=8 r=7 s=9  files=4  flags=['no_steps']
+  document-workflows: 31628 chars  u=9 r=9 s=9  files=7
 
-  2. invoice-field-parser   (score 0.864)
-     …
-
-→ built a prompt of 14,203 chars with the skills injected
-  (re-run with --ask to actually execute the task)
+→ built a prompt of 36,742 chars with the skill bodies injected
 ```
+
+限速按 IP：发现和读正文 120 次/分钟，下载 30 次/分钟。
+完整字段和错误码见 [`docs/integrations.md`](docs/integrations.md)。
 
 ### B. 加载语料
 
@@ -152,42 +160,41 @@ skills.filter(lambda r: r["category"] == "DOC-PROC")
 
 ### C. 接进你的 agent
 
-<!-- TODO(@team)：SkillHub 客户端发布后，补上三个 harness 的真实配置键和文件路径。
-     下列三个即论文中评估过的 harness。 -->
-
 <details>
-<summary><b>OpenClaw</b></summary>
+<summary><b>Raven</b> —— 一方 SkillHub 源</summary>
+
+Raven 用带权 RRF 把 SkillHub 与本地、Everos 三个技能源融合（`skillForge.router`）：
 
 ```yaml
-# ~/.openclaw/config.yaml
-skills:
-  provider: skillhub
-  endpoint: https://<SKILLHUB_URL>
-  top_k: 3
+skillForge:
+  enabled: true
+  router:
+    top_k: 5
+    weights: { local: 1.0, everos: 0.9, hub: 0.85 }
+    hub:
+      endpoint: https://skillhub.evermind.ai
+      api_key: null          # 公开技能无需鉴权
+      timeout_s: 2.0
+      min_safety: 0.7        # 低于此 score_safety 的技能被过滤
+      source: raven          # 安装统计用的下载标签
 ```
 </details>
 
 <details>
-<summary><b>Raven</b></summary>
+<summary><b>其他 harness</b> —— OpenClaw、Hermes、Claude Code…</summary>
 
-```yaml
-# raven config
-skill_forge:
-  provider: skillhub
-  endpoint: https://<SKILLHUB_URL>
-  top_k: 3
+目前还没有一方插件，但任何会读技能目录的 harness 都能用第三级：把包下下来放进去。
+
+```bash
+python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
+#                                          ~/.hermes/skills      (Hermes)
+#                                          ~/.openclaw/skills    (OpenClaw)
 ```
+
+如果 harness 是靠注入 prompt 的，连下载都不用：从第二级取 `skill_md` 拼到 system prompt
+前面即可——demo 里的 `build_prompt()` 就是这么做的，六行。
 </details>
 
-<details>
-<summary><b>Hermes</b></summary>
-
-```yaml
-# TODO: Hermes 集成
-```
-</details>
-
-任何能往 system prompt 里注入文本的 harness 都适用——调搜索接口，把返回的 `body` 贴进去。
 完整契约见 [`docs/integrations.md`](docs/integrations.md)。
 
 ## 🧩 工作原理
@@ -249,7 +256,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 策展管线：16 类体系、三维质量、逐源许可审计
 - [x] 微调检索栈 + 三个 benchmark 的评估
 - [ ] 公开的 SkillHub 端点
-- [ ] 语料与 embedding 模型上 HuggingFace
+- [ ] 语料、检索模型与重排模型上 HuggingFace
 - [ ] `match/` 的推理入口（目前只有训练脚本）
 - [ ] Hermes 集成
 

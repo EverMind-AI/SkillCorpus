@@ -12,7 +12,7 @@
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](#)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
-[![Embedding model](https://img.shields.io/badge/%F0%9F%A4%97-Embedding%20model-yellow.svg)](#)
+[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](#)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -46,7 +46,8 @@ source repository licence-audited so the released set is commercially redistribu
 |---|---|---|---|
 | 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [endpoint](#) |
 | 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
-| 🔡 | **Embedding model** | `Qwen3-Embedding-0.6B` fine-tuned for skill retrieval (2048-ctx) | [🤗 HuggingFace](#) |
+| 🔡 | **Retrieval model** | `Qwen3-Embedding-0.6B` fine-tuned as the bi-encoder (2048-ctx) | [🤗 HuggingFace](#) |
+| 🎯 | **Reranker model** | `Qwen3-Reranker-0.6B` fine-tuned with listwise CE (4096-ctx) | [🤗 HuggingFace](#) |
 | 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
 
 <div align="center">
@@ -85,43 +86,46 @@ Curating **your own** sources instead? See [Build your own corpus](#build-your-o
 
 ### A. Query SkillHub
 
-<!-- TODO(@team): replace SKILLHUB_URL with the real endpoint, and confirm the
-     request/response shape below matches the deployed service. -->
+[SkillHub](https://skillhub.evermind.ai) serves the corpus over three tiers, cheapest first —
+most skills are pure instructions, so tier 2 is usually where you stop:
 
-No install, no model download — ask for skills by task description:
+| Tier | Endpoint | Returns | Download? |
+|---|---|---|---|
+| 1. discover | `GET /openapi/v1/skills?q=` (or `/skills/search` with filters) | metadata, **no body** | no |
+| 2. read | `GET /openapi/v1/skills/{ref}` | `skill_md` + `subscores` + `files` | no |
+| 3. execute | `GET /openapi/v1/skills/{ref}/download?source=` | zip with `scripts/` | yes |
 
 ```bash
-curl -X POST https://<SKILLHUB_URL>/v1/skills/search \
-  -H 'Content-Type: application/json' \
-  -d '{"query": "extract tables from a scanned PDF invoice", "top_k": 3}'
+curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
 ```
+
+Every response is enveloped; `status == 0` means success:
 
 ```json
-{
-  "skills": [
-    {
-      "name": "pdf-table-extraction",
-      "description": "Extract tables from scanned PDFs into structured rows …",
-      "category": "DOC-PROC",
-      "score": 0.91,
-      "license": "MIT",
-      "source_url": "https://github.com/…",
-      "body": "# PDF Table Extraction\n## Steps\n…"
-    }
-  ]
-}
+{"error": "success", "requestId": "…", "status": 0, "result": {
+  "items": [{
+    "id": "db400aae-c1b1-4cc1-903e-52776418c927",
+    "skill_id": "NousResearch/hermes-agent/ocr-and-documents",
+    "name": "ocr-and-documents",
+    "description": "Extract text from PDFs/scans (pymupdf, marker-pdf).",
+    "source": "NousResearch/hermes-agent", "category": "DOC-PROC",
+    "quality_score": 0.808, "license": "MIT", "tags": ["ocr", "documents"],
+    "github_star": 188943, "install_count": 3,
+    "download_url": "https://skillhub.evermind.ai/openapi/v1/skills/db400aae-…/download"
+  }], "total": 20}}
 ```
 
-Inject `body` into your agent's prompt and it can do the task. That is the whole loop —
-[`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs it end to end:
+Then fetch the body with the `id` and inject it into your agent's prompt — that is the whole
+loop. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all three tiers:
 
 ```bash
-export SKILLHUB_URL=https://<SKILLHUB_URL>
-
-# retrieve only — stdlib, no install, no API key
+# search + read the bodies — stdlib only, no install, no API key
 python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 
-# retrieve AND run the task with the skills injected into the prompt
+# also fetch the bundled scripts of the top hit
+python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
+
+# retrieve AND run the task with the bodies injected
 export OPENAI_API_KEY=...
 python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
@@ -129,18 +133,21 @@ python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoic
 ```
 task: extract tables from a scanned PDF invoice
 
-SkillHub returned 3 skill(s):
+[1/2] search  → 2 hit(s), metadata only
+  1. ocr-and-documents   q=0.808  DOC-PROC  MIT
+     Extract text from PDFs/scans (pymupdf, marker-pdf).
+  2. document-workflows  q=0.86   DOC-PROC  MIT
+     Build end-to-end document processing workflows and pipelines …
 
-  1. pdf-table-extraction   (score 0.912)
-     Extract tables from scanned PDFs into structured rows using OCR + layout analysis.
-     MIT · https://github.com/…
+[2/2] detail  → fetching skill_md for 2 skill(s)
+  ocr-and-documents: 4916 chars  u=8 r=7 s=9  files=4  flags=['no_steps']
+  document-workflows: 31628 chars  u=9 r=9 s=9  files=7
 
-  2. invoice-field-parser   (score 0.864)
-     …
-
-→ built a prompt of 14,203 chars with the skills injected
-  (re-run with --ask to actually execute the task)
+→ built a prompt of 36,742 chars with the skill bodies injected
 ```
+
+Rate limits are per IP: 120/min for discover and read, 30/min for download.
+Full field list and error codes: [`docs/integrations.md`](docs/integrations.md).
 
 ### B. Load the corpus
 
@@ -155,44 +162,45 @@ Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
 
 ### C. Plug it into your agent
 
-<!-- TODO(@team): fill in the real config keys / file paths for each harness once
-     the SkillHub client is published. The three below are the harnesses evaluated
-     in the paper. -->
-
 <details>
-<summary><b>OpenClaw</b></summary>
+<summary><b>Raven</b> — first-party SkillHub source</summary>
+
+Raven fuses SkillHub with its local and Everos skill sources via weighted RRF
+(`skillForge.router`):
 
 ```yaml
-# ~/.openclaw/config.yaml
-skills:
-  provider: skillhub
-  endpoint: https://<SKILLHUB_URL>
-  top_k: 3
+skillForge:
+  enabled: true
+  router:
+    top_k: 5
+    weights: { local: 1.0, everos: 0.9, hub: 0.85 }
+    hub:
+      endpoint: https://skillhub.evermind.ai
+      api_key: null          # public skills need none
+      timeout_s: 2.0
+      min_safety: 0.7        # drop skills below this score_safety
+      source: raven          # download tag for install stats
 ```
 </details>
 
 <details>
-<summary><b>Raven</b></summary>
+<summary><b>Any other harness</b> — OpenClaw, Hermes, Claude Code, …</summary>
 
-```yaml
-# raven config
-skill_forge:
-  provider: skillhub
-  endpoint: https://<SKILLHUB_URL>
-  top_k: 3
+There is no first-party plugin yet, but every harness that reads a skills
+directory works with tier 3: download the bundle and drop it in.
+
+```bash
+python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
+#                                          ~/.hermes/skills      (Hermes)
+#                                          ~/.openclaw/skills    (OpenClaw)
 ```
+
+For prompt-injection harnesses, skip the download: fetch `skill_md` from tier 2 and
+prepend it to the system prompt — that is what `build_prompt()` in the demo does, in
+six lines.
 </details>
 
-<details>
-<summary><b>Hermes</b></summary>
-
-```yaml
-# TODO: Hermes integration
-```
-</details>
-
-Any harness that can inject text into a system prompt works — call the search endpoint,
-paste the returned `body`. Full contract: [`docs/integrations.md`](docs/integrations.md).
+Full contract: [`docs/integrations.md`](docs/integrations.md).
 
 ## 🧩 How it works
 
@@ -256,7 +264,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source licence audit
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [ ] Public SkillHub endpoint
-- [ ] Corpus and embedding model on HuggingFace
+- [ ] Corpus, retrieval model and reranker on HuggingFace
 - [ ] Inference entry point in `match/` (currently training scripts only)
 - [ ] Hermes integration
 
