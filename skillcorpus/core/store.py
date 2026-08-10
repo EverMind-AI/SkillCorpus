@@ -367,6 +367,12 @@ class SkillStore:
                 "SELECT category, COUNT(*) AS n FROM skills WHERE deleted = 0 GROUP BY category"
             ).fetchall()
         }
+        by_license = {
+            r["license"]: r["n"]
+            for r in conn.execute(
+                "SELECT license, COUNT(*) AS n FROM skills WHERE deleted = 0 GROUP BY license"
+            ).fetchall()
+        }
         avg_q = conn.execute(
             "SELECT AVG(quality_score) FROM skills WHERE deleted = 0"
         ).fetchone()[0] or 0.0
@@ -374,6 +380,7 @@ class SkillStore:
             "total": total,
             "by_source": by_src,
             "by_category": by_cat,
+            "by_license": by_license,
             "avg_quality": round(avg_q, 3),
         }
 

@@ -42,8 +42,11 @@ Full GREEN/RED/YELLOW policy, license data flow, and opt-out: [`docs/licence-and
 ## Quickstart
 
 ```bash
-# install — Python >= 3.10
+# install — needs Python >= 3.10 and a recent pip (>= 21.3 for editable/PEP 660);
+# on a fresh machine (e.g. system Python on macOS) upgrade pip first:
 git clone <repo-url> skillcorpus && cd skillcorpus
+python3 -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -e .
 
 # build the demo corpus: clone 4 public skill repos -> curate -> export

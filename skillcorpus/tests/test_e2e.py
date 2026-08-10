@@ -87,6 +87,8 @@ def test_e2e_ingest_and_read():
         assert st["total"] == 1
         assert "overlong_description_count" in st
         assert st["overlong_description_count"] == 0
+        # README promises counts by source / category / license
+        assert {"by_source", "by_category", "by_license"} <= st.keys()
 
         lib.close()
 
