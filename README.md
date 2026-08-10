@@ -27,12 +27,12 @@ thousands of public repositories, redundant, uneven in quality, and unclear on r
 rights. SkillCorpus turns that pool into something an agent can actually draw from, in four stages:
 
 - **`aggregate`** — discover and clone skills from public `SKILL.md` repositories.
-- **`curate`** — parse · safety · licence gate · dedup · 16-class classification · 3-facet quality scoring.
+- **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
 - **`match`** — SkillRouter: a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
 - **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
 
-~821,000 crawled files in, 96,401 skills out — every one carrying its upstream licence, and every
-source repository licence-audited so the released set is commercially redistributable.
+~821,000 crawled files in, 96,401 skills out — every one carrying its upstream license, and every
+source repository license-audited so the released set is commercially redistributable.
 
 ## 📰 News
 
@@ -78,7 +78,7 @@ The gain is largest where the task needs procedural knowledge the model does not
 | You want | Go to | Needs |
 |---|---|---|
 | skills for a task, right now | [A. Query the hosted SkillHub](#a-query-the-hosted-skillhub) | nothing — one HTTP call |
-| the whole stack behind your own endpoint | [B. Self-host it](#b-self-host-it) | the corpus + both models on your own GPUs |
+| the retrieval models running on your own GPUs | [B. Self-host the models](#b-self-host-the-models) | the corpus + both models on your own GPUs |
 | your agent to use skills automatically | [C. Plug it into your agent](#c-plug-it-into-your-agent) | a harness that reads a skills dir or a system prompt |
 
 Curating **your own** sources instead? See [Build your own corpus](#build-your-own).
@@ -128,11 +128,11 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
-### B. Self-host it
+### B. Self-host the models
 
-Everything the hosted endpoint runs on is released: the corpus and both retrieval models.
-Stand them up behind your own URL and every client — including section C — points at that
-instead.
+Rather not depend on the hosted endpoint? The corpus and both retrieval models are
+released, so you can run selection yourself — get the data, stand up the two models, and do
+your own encode → top-k → rerank.
 
 ```python
 # the data
@@ -145,13 +145,17 @@ import pandas as pd; skills = pd.read_parquet("skills.parquet")
 Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
 
 ```bash
-# the models — bi-encoder + reranker behind one endpoint
-# see the deployment script: <link>
-export SKILLHUB_URL=https://skillhub.internal.example.com
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+# stand up the bi-encoder + reranker behind one endpoint  ->  /embed + /score
+bash skillcorpus/match/scripts/run_server.sh
 ```
 
-One-command deployment for both models: **[deployment script](#)**.
+This serves the models' `/embed` + `/score`
+([`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)) — **not** SkillHub's
+`/openapi/v1/skills` API, which is hosted-only. So `examples/skillhub_demo.py` and the
+section-C integrations target the hosted SkillHub; a self-hosted stack runs its own
+selection over `/embed` + `/score`. To curate your **own** corpus against these models,
+point the producer at the endpoint (`embedding.provider: skillrouter_remote`) —
+see [Build your own corpus](#build-your-own).
 
 ### C. Plug it into your agent
 
@@ -201,7 +205,7 @@ Full contract: [`docs/integrations.md`](docs/integrations.md).
 skillcorpus/
 ├── core/       data models · SQLite/faiss store · LLM & embedding clients
 ├── aggregate/  source registry + multi-repo clone
-├── curate/     parse · safety · licence · classify · quality · dedup + full-library passes
+├── curate/     parse · safety · license · classify · quality · dedup + full-library passes
 ├── export/     corpus writer (parquet + attachments + dataset card)
 ├── match/      SkillRouter — the 2 released models + training recipe   ← isolated deps
 ├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
@@ -209,7 +213,7 @@ skillcorpus/
 ```
 
 `cli build` runs the whole curation chain
-(`ingest → quality_pass → dedup_pass → licence_audit → export.corpus`). LLM classification and
+(`ingest → quality_pass → dedup_pass → license_audit → export.corpus`). LLM classification and
 quality scoring degrade gracefully to rules when no model endpoint is reachable, so the pipeline
 always runs end to end.
 
@@ -219,7 +223,8 @@ always runs end to end.
 - **Retrieval** — [`skillcorpus/match/`](skillcorpus/match) is **the two released models**:
   a bi-encoder fine-tuned from `Qwen3-Embedding-0.6B` for candidate recall, and a reranker
   fine-tuned from `Qwen3-Reranker-0.6B` that scores the top candidates. SkillHub serves both;
-  to run them yourself see the [deployment script](#). The directory also holds the training
+  to run them yourself see [Serving](skillcorpus/match/README.md#serving) (`serve.py` +
+  `run_server.sh`). The directory also holds the training
   recipe (synthetic queries → InfoNCE → listwise CE) and `eval_compare.py` for the retrieval
   metrics (nDCG / MRR / Hit / Recall).
 - **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`,
@@ -239,7 +244,7 @@ python3 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip && pip install -e .
 
 python -m skillcorpus.cli build     # 4 demo sources -> curate -> export
-python -m skillcorpus.cli stats     # counts by source / category / licence
+python -m skillcorpus.cli stats     # counts by source / category / license
 python -m skillcorpus.cli export --out ./corpus
 ```
 
@@ -257,11 +262,11 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
 
-- [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source licence audit
+- [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source license audit
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
-- [ ] Public SkillHub endpoint
+- [x] Public SkillHub endpoint
 - [ ] Corpus, retrieval model and reranker on HuggingFace
-- [ ] Deployment script for the two retrieval models (self-hosting `match/`)
+- [x] Deployment script for the two retrieval models (self-hosting `match/`)
 - [ ] Hermes integration
 
 ## Citation
@@ -280,9 +285,9 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ## License
 
 - **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
-- **Corpus** — every skill keeps its **original upstream licence**; only GREEN
+- **Corpus** — every skill keeps its **original upstream license**; only GREEN
   (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
   `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
 
-Full GREEN/RED/YELLOW policy, licence data flow, and opt-out:
+Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
 [`docs/licence-and-governance.md`](docs/licence-and-governance.md).

@@ -156,11 +156,14 @@ Both models are released:
 | bi-encoder (candidate recall) | `Qwen3-Embedding-0.6B` | InfoNCE on synthetic queries |
 | reranker (scoring) | `Qwen3-Reranker-0.6B` | listwise CE |
 
-<!-- TODO(@team): link the script that serves both models (placeholder below). -->
+[`skillcorpus/match/serve.py`](../skillcorpus/match/serve.py) (launch:
+`bash skillcorpus/match/scripts/run_server.sh`) stands both models up behind one endpoint,
+exposing `POST /embed` and `POST /score` — see
+[`skillcorpus/match/` → Serving](../skillcorpus/match/README.md#serving).
 
-A deployment script that stands both up behind one endpoint is published separately:
-**[deployment script](#)**. Point your client (or Raven's `skillForge.router.hub.endpoint`)
-at it instead of the hosted SkillHub.
-
-[`skillcorpus/match/`](../skillcorpus/match) itself holds the training recipe, not an
-inference server; see [`docs/running.md`](running.md) for endpoint configuration.
+Note this is the **model** endpoint (`/embed` + `/score`), not the SkillHub
+`/openapi/v1/skills` API — that service is hosted-only. A self-hosted stack therefore runs
+its **own** selection over `/embed` + `/score`; `skillhub_demo.py` and Raven's
+`skillForge.router.hub.endpoint` speak the SkillHub API and target the hosted endpoint. To
+curate your own corpus against these models, point the producer's embedding at the endpoint
+(`embedding.provider: skillrouter_remote`); see [`docs/running.md`](running.md).

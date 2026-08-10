@@ -117,6 +117,18 @@ Embeddings are L2-normalized, so relevance is `dot(query_vec, doc_vec)`.
 judge template and returns `P("yes")`, aligned with the input order. Errors come
 back as HTTP 500 with `{"error": "..."}`, an oversized body as 413.
 
+`POST /embed` speaks the producer's `skillrouter_remote` protocol
+(`{"texts": [...]}` → `{"embeddings": [[...]]}`), so to build your **own** corpus
+against these models, run this server and point the producer's embedding at it —
+near-duplicate detection then uses the fine-tuned encoder:
+
+```yaml
+# configs/default.yaml (producer side)
+embedding:
+  provider: skillrouter_remote
+  base_url: http://127.0.0.1:9000
+```
+
 Notes:
 - Encoding length must match training, as with `--max_length 2048` in
   evaluation. `run_server.sh` sets `EMBED_MAX_LENGTH=2048` for that reason;

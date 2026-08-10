@@ -76,7 +76,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 | 你想要 | 去看 | 需要什么 |
 |---|---|---|
 | 马上拿到某个任务对应的技能 | [A. 调用托管的 SkillHub](#a-调用托管的-skillhub) | 什么都不用——一个 HTTP 请求 |
-| 整套服务跑在自己的端点上 | [B. 自己部署](#b-自己部署) | 语料 + 两个模型，跑在自己的 GPU 上 |
+| 两个检索模型跑在自己的 GPU 上 | [B. 自己部署模型](#b-自己部署模型) | 语料 + 两个模型 |
 | 让 agent 自动用上技能 | [C. 接进你的 agent](#c-接进你的-agent) | 一个会读技能目录或能注入 system prompt 的 harness |
 
 想策展**自己的**源？见 [构建自己的语料](#build-your-own)。
@@ -123,10 +123,10 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
-### B. 自己部署
+### B. 自己部署模型
 
-托管端点所依赖的东西全部发布了：语料和两个检索模型。把它们跑在自己的 URL 后面，
-所有客户端——包括 C 节那些——改指向你的地址即可。
+不想依赖托管端点？语料和两个检索模型都已发布，你可以自己跑 selection——拿到数据、把两个
+模型起起来，自己做 encode → top-k → rerank。
 
 ```python
 # 数据
@@ -139,13 +139,16 @@ import pandas as pd; skills = pd.read_parquet("skills.parquet")
 附件（`scripts/`、`references/`）以同级的 `attachments.tar.zst` 形式发布。
 
 ```bash
-# 模型 —— bi-encoder + reranker 跑在同一个端点后面
-# 部署脚本见下方链接
-export SKILLHUB_URL=https://skillhub.internal.example.com
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+# 把 bi-encoder + reranker 起在同一个端点后面  ->  /embed + /score
+bash skillcorpus/match/scripts/run_server.sh
 ```
 
-两个模型的一键部署：**[部署脚本](#)**。
+这暴露的是模型的 `/embed` + `/score`
+（见 [`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)），**不是** SkillHub
+的 `/openapi/v1/skills` API——那个服务只有托管版。所以 `examples/skillhub_demo.py` 和 C 节的
+集成都指向托管 SkillHub;自建栈是在 `/embed` + `/score` 上跑自己的 selection。要用这两个模型
+策展**自己的**语料，把 producer 的 embedding 指向该端点（`embedding.provider: skillrouter_remote`），
+见 [构建自己的语料](#build-your-own)。
 
 ### C. 接进你的 agent
 
@@ -199,7 +202,7 @@ skillcorpus/
 └── cli.py      build · stats · export
 ```
 
-`cli build` 会跑完整条策展链路（`ingest → quality_pass → dedup_pass → licence_audit →
+`cli build` 会跑完整条策展链路（`ingest → quality_pass → dedup_pass → license_audit →
 export.corpus`）。当没有可达的模型端点时，LLM 分类和质量打分会优雅降级为规则实现，因此
 管线总能端到端跑通。
 
@@ -209,7 +212,7 @@ export.corpus`）。当没有可达的模型端点时，LLM 分类和质量打�
 - **检索** —— [`skillcorpus/match/`](skillcorpus/match) 就是**发布的那两个模型**：
   从 `Qwen3-Embedding-0.6B` 微调的 bi-encoder 负责候选召回，从 `Qwen3-Reranker-0.6B` 微调的
   reranker 负责对候选打分重排。SkillHub 已托管这两个模型；要自己部署见
-  [部署脚本](#)。该目录同时包含训练配方（合成 query → InfoNCE → listwise CE）和
+  [Serving](skillcorpus/match/README.md#serving)（`serve.py` + `run_server.sh`）。该目录同时包含训练配方（合成 query → InfoNCE → listwise CE）和
   `eval_compare.py`（检索指标 nDCG / MRR / Hit / Recall）。
 - **评测** —— [`skillcorpus/evaluate/`](skillcorpus/evaluate)：`skillsbench`、`qwenclawbench`、
   `gdpval`，各自独立，带自己的 README 和依赖。
@@ -247,9 +250,9 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 
 - [x] 策展管线：16 类体系、三维质量、逐源许可审计
 - [x] 微调检索栈 + 三个 benchmark 的评估
-- [ ] 公开的 SkillHub 端点
+- [x] 公开的 SkillHub 端点
 - [ ] 语料、检索模型与重排模型上 HuggingFace
-- [ ] 两个检索模型的部署脚本（自建 `match/`）
+- [x] 两个检索模型的部署脚本（自建 `match/`）
 - [ ] Hermes 集成
 
 ## 引用
