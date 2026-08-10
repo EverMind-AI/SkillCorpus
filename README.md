@@ -78,13 +78,13 @@ The gain is largest where the task needs procedural knowledge the model does not
 
 | You want | Go to | Needs |
 |---|---|---|
-| skills for a task, right now | [A. Query SkillHub](#a-query-skillhub) | nothing — one HTTP call |
-| the data, to analyse or index yourself | [B. Load the corpus](#b-load-the-corpus) | `pip install datasets` |
-| your agent to use skills automatically | [C. Plug it into your agent](#c-plug-it-into-your-agent) | a harness that can inject a system prompt |
+| skills for a task, right now | [A. Query the hosted SkillHub](#a-query-the-hosted-skillhub) | nothing — one HTTP call |
+| the whole stack behind your own endpoint | [B. Self-host it](#b-self-host-it) | the corpus + both models on your own GPUs |
+| your agent to use skills automatically | [C. Plug it into your agent](#c-plug-it-into-your-agent) | a harness that reads a skills dir or a system prompt |
 
 Curating **your own** sources instead? See [Build your own corpus](#build-your-own).
 
-### A. Query SkillHub
+### A. Query the hosted SkillHub
 
 [SkillHub](https://skillhub.evermind.ai) serves the corpus in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
@@ -129,16 +129,30 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
-### B. Load the corpus
+### B. Self-host it
+
+Everything the hosted endpoint runs on is released: the corpus and both retrieval models.
+Stand them up behind your own URL and every client — including section C — points at that
+instead.
 
 ```python
+# the data
 from datasets import load_dataset
-
 skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 rows
-skills.filter(lambda r: r["category"] == "DOC-PROC")
+# or read the file directly, no `datasets` needed
+import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
 
 Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
+
+```bash
+# the models — bi-encoder + reranker behind one endpoint
+# see the deployment script: <link>
+export SKILLHUB_URL=https://skillhub.internal.example.com
+python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+```
+
+One-command deployment for both models: **[deployment script](#)**.
 
 ### C. Plug it into your agent
 
@@ -172,7 +186,7 @@ directory works with tier 3: download the bundle and drop it in.
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
 #                                          ~/.hermes/skills      (Hermes)
-#                                          ~/.openclaw/skills    (OpenClaw)
+#                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
 
 For prompt-injection harnesses, skip the download: fetch `skill_md` from tier 2 and

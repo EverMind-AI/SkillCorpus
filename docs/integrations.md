@@ -131,7 +131,7 @@ generic paths work today:
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
 #                                          ~/.hermes/skills      (Hermes)
-#                                          ~/.openclaw/skills    (OpenClaw)
+#                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
 
 **Prompt-injection harnesses** — skip the download entirely: fetch `skill_md` from tier 2

@@ -76,13 +76,13 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 | 你想要 | 去看 | 需要什么 |
 |---|---|---|
-| 马上拿到某个任务对应的技能 | [A. 调用 SkillHub](#a-调用-skillhub) | 什么都不用——一个 HTTP 请求 |
-| 拿到数据，自己分析或建索引 | [B. 加载语料](#b-加载语料) | `pip install datasets` |
-| 让 agent 自动用上技能 | [C. 接进你的 agent](#c-接进你的-agent) | 一个能注入 system prompt 的 harness |
+| 马上拿到某个任务对应的技能 | [A. 调用托管的 SkillHub](#a-调用托管的-skillhub) | 什么都不用——一个 HTTP 请求 |
+| 整套服务跑在自己的端点上 | [B. 自己部署](#b-自己部署) | 语料 + 两个模型，跑在自己的 GPU 上 |
+| 让 agent 自动用上技能 | [C. 接进你的 agent](#c-接进你的-agent) | 一个会读技能目录或能注入 system prompt 的 harness |
 
 想策展**自己的**源？见 [构建自己的语料](#build-your-own)。
 
-### A. 调用 SkillHub
+### A. 调用托管的 SkillHub
 
 [SkillHub](https://skillhub.evermind.ai) 把语料分三级提供——发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
@@ -124,16 +124,29 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
-### B. 加载语料
+### B. 自己部署
+
+托管端点所依赖的东西全部发布了：语料和两个检索模型。把它们跑在自己的 URL 后面，
+所有客户端——包括 C 节那些——改指向你的地址即可。
 
 ```python
+# 数据
 from datasets import load_dataset
-
 skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 行
-skills.filter(lambda r: r["category"] == "DOC-PROC")
+# 或者直接读文件，不依赖 datasets
+import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
 
 附件（`scripts/`、`references/`）以同级的 `attachments.tar.zst` 形式发布。
+
+```bash
+# 模型 —— bi-encoder + reranker 跑在同一个端点后面
+# 部署脚本见下方链接
+export SKILLHUB_URL=https://skillhub.internal.example.com
+python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+```
+
+两个模型的一键部署：**[部署脚本](#)**。
 
 ### C. 接进你的 agent
 
@@ -165,7 +178,7 @@ skillForge:
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
 #                                          ~/.hermes/skills      (Hermes)
-#                                          ~/.openclaw/skills    (OpenClaw)
+#                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
 
 如果 harness 是靠注入 prompt 的，连下载都不用：从第二级取 `skill_md` 拼到 system prompt
