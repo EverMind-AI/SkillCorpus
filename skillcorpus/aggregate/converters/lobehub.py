@@ -35,6 +35,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -63,10 +64,10 @@ def _yaml_list(items) -> str:
     return "[" + ", ".join(_yaml_str(str(x)) for x in items) + "]"
 
 
-def _build_skill_md(rec: dict) -> tuple[str, str]:
-    """Returns (skill_name_slug, skill_md_text)."""
+def _build_skill_md(rec: dict, name: str) -> str:
+    """Build the SKILL.md text, using the given (already collision-resolved)
+    slug ``name`` in the frontmatter."""
     identifier = (rec.get("identifier") or "").strip()
-    name = _slugify(identifier)
     meta = rec.get("meta") or {}
     title = (meta.get("title") or identifier or "").strip()
     desc_raw = (meta.get("description") or "").strip()
@@ -112,7 +113,7 @@ def _build_skill_md(rec: dict) -> tuple[str, str]:
                 body_parts.append(f"**{role}:** {content}")
                 body_parts.append("")
 
-    return name, "\n".join(fm_lines) + "\n\n" + "\n".join(body_parts).rstrip() + "\n"
+    return "\n".join(fm_lines) + "\n\n" + "\n".join(body_parts).rstrip() + "\n"
 
 
 def main() -> int:
@@ -152,6 +153,8 @@ def main() -> int:
     written = 0
     skipped = 0
     errors = 0
+    collisions = 0
+    slug_owner: dict[str, str] = {}   # base slug -> the identifier that first claimed it
     for ident, src_path in sorted(chosen.items()):
         try:
             rec = json.loads(src_path.read_text(encoding="utf-8"))
@@ -168,13 +171,24 @@ def main() -> int:
             skipped += 1
             continue
 
-        name, md_text = _build_skill_md(rec)
+        # Distinct identifiers can slugify to the same name; disambiguate with a
+        # short id-hash so neither the output dir nor the frontmatter name
+        # collides. Without this the second write silently overwrites the first,
+        # dropping an agent.
+        base = _slugify((rec.get("identifier") or "").strip())
+        name = base
+        if slug_owner.setdefault(base, ident) != ident:
+            name = f"{base}-{hashlib.sha1(ident.encode('utf-8')).hexdigest()[:6]}"
+            collisions += 1
+
+        md_text = _build_skill_md(rec, name)
         out_dir = args.out / name
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "SKILL.md").write_text(md_text, encoding="utf-8")
         written += 1
 
-    print(f"\nwritten: {written}, skipped (missing required): {skipped}, errors: {errors}")
+    print(f"\nwritten: {written}, skipped (missing required): {skipped}, "
+          f"errors: {errors}, slug collisions disambiguated: {collisions}")
     print(f"output tree: {args.out}")
     return 0
 
