@@ -21,8 +21,10 @@ build_reranker_data.py        # Step 5: retrieve top-20 with the trained encoder
 train_reranker.py             # Step 6: fine-tune reranker with listwise CE
 eval_compare.py               # Evaluation (easy/hard/skillcorpus tiers; --max_length controls encoding length)
 metrics.py                    # Retrieval metrics (nDCG/MRR/Hit/Recall), used by eval_compare.py
+serve.py                      # Serving: trained encoder + reranker behind an HTTP API
 scripts/run_embedding.sh      # One-shot embedding training (4-GPU DDP, 2048, global batch 32)
 scripts/run_reranker.sh       # One-shot reranker training (Steps 5-6, original recipe at 4096)
+scripts/run_server.sh         # One-shot server launch (serve.py)
 ```
 
 Note: this release only retrained the embedding model; the reranker script keeps
@@ -82,3 +84,50 @@ Notes:
   the ranking margin)
 - Results are written to `outputs/eval/comparison_results_ml2048.json`, overwritten
   on each run
+
+## Serving
+
+`serve.py` loads the trained encoder and reranker once on a GPU (~2.5 GB VRAM
+for two 0.6B models in bfloat16) and exposes them over HTTP:
+
+```bash
+bash scripts/run_server.sh                    # 127.0.0.1:9000, GPU 0
+PORT=9002 CUDA_VISIBLE_DEVICES=4 bash scripts/run_server.sh
+```
+
+`RERANKER_MODEL` and `EMBEDDING_MODEL` are required by `serve.py` and default to
+`outputs/reranker/final` / `outputs/embedding/final` in the launch script; both
+take a directory with `config.json`, tokenizer files and `model.safetensors`.
+Other env overrides: `HOST`, `PORT`, `DEVICE`, `DTYPE`, `BATCH_SIZE`,
+`MAX_LENGTH`, `EMBED_MAX_LENGTH`, `MAX_BODY_BYTES`.
+
+| Endpoint | Request | Response |
+|---|---|---|
+| `GET /health` | — | `{"ok": true}` |
+| `POST /embed` | `{"texts": [...]}` | `{"embeddings": [[...], ...]}` |
+| `POST /score` | `{"prompts": [...]}` | `{"scores": [0.0-1.0, ...]}` |
+
+```bash
+curl -s localhost:9000/embed -H 'Content-Type: application/json' \
+    -d '{"texts": ["resolve git merge conflicts"]}'
+```
+
+Embeddings are L2-normalized, so relevance is `dot(query_vec, doc_vec)`.
+`/score` expects fully formatted prompts; the server wraps each in the yes/no
+judge template and returns `P("yes")`, aligned with the input order. Errors come
+back as HTTP 500 with `{"error": "..."}`, an oversized body as 413.
+
+Notes:
+- Encoding length must match training, as with `--max_length 2048` in
+  evaluation. `run_server.sh` sets `EMBED_MAX_LENGTH=2048` for that reason;
+  `serve.py`'s own default is the generic 4096
+- Requests are threaded but GPU forward passes are serialized behind a lock (one
+  GPU cannot run overlapping batches safely); concurrent clients queue rather
+  than fail. For more throughput, batch more per request or run one instance per
+  GPU behind a load balancer
+- No authentication and no rate limiting — the bind address defaults to loopback
+  for that reason. Put a reverse proxy in front if it must be reachable remotely
+- Checkpoints saved by transformers 5.x keep `rope_theta` under a nested
+  `rope_parameters` key; loading them on 4.x silently falls back to the Qwen3
+  default (`10000` instead of `1000000`) and retrieval quality collapses. Stay on
+  transformers >= 5.2 — `serve.py` warns at startup when it sees a low value
