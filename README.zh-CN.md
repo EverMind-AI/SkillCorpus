@@ -9,7 +9,7 @@
 **给你的 agent 96,401 个经过筛选、许可合规的技能——外加一个能为每个任务挑出正确技能的检索器。**
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](#)
+[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://skillhub.evermind.ai)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](#)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
@@ -43,7 +43,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 | | 产物 | 内容 | 链接 |
 |---|---|---|---|
-| 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [endpoint](#) |
+| 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [skillhub.evermind.ai](https://skillhub.evermind.ai) |
 | 📚 | **语料** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
 | 🔡 | **检索模型** | 作为 bi-encoder 微调的 `Qwen3-Embedding-0.6B`（2048 上下文） | [🤗 HuggingFace](#) |
 | 🎯 | **重排模型** | 用 listwise CE 微调的 `Qwen3-Reranker-0.6B`（4096 上下文） | [🤗 HuggingFace](#) |
