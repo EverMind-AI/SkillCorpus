@@ -210,7 +210,7 @@ skillcorpus/
 ├── aggregate/  source registry + multi-repo clone
 ├── curate/     parse · safety · licence · classify · quality · dedup + full-library passes
 ├── export/     corpus writer (parquet + attachments + dataset card)
-├── match/      SkillRouter — retrieval stack (bi-encoder + reranker)   ← isolated deps
+├── match/      SkillRouter — the 2 released models + training recipe   ← isolated deps
 ├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
 └── cli.py      build · stats · export
 ```
@@ -223,9 +223,12 @@ always runs end to end.
 `match/` and `evaluate/` are standalone toolkits with their own `requirements.txt`
 (torch / transformers, per benchmark); they are **not** pulled in by `pip install` of the producer.
 
-- **Retrieval** — [`skillcorpus/match/`](skillcorpus/match): fine-tune the Qwen3 bi-encoder +
-  reranker on synthetic queries, then rank skills for a query. Metrics (nDCG / MRR / Hit / Recall)
-  via `eval_compare.py`.
+- **Retrieval** — [`skillcorpus/match/`](skillcorpus/match) is **the two released models**:
+  a bi-encoder fine-tuned from `Qwen3-Embedding-0.6B` for candidate recall, and a reranker
+  fine-tuned from `Qwen3-Reranker-0.6B` that scores the top candidates. SkillHub serves both;
+  to run them yourself see the [deployment script](#). The directory also holds the training
+  recipe (synthetic queries → InfoNCE → listwise CE) and `eval_compare.py` for the retrieval
+  metrics (nDCG / MRR / Hit / Recall).
 - **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`,
   `qwenclawbench`, `gdpval` — each self-contained with its own README and dependencies.
 
@@ -265,7 +268,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [ ] Public SkillHub endpoint
 - [ ] Corpus, retrieval model and reranker on HuggingFace
-- [ ] Inference entry point in `match/` (currently training scripts only)
+- [ ] Deployment script for the two retrieval models (self-hosting `match/`)
 - [ ] Hermes integration
 
 ## Citation

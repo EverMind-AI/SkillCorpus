@@ -205,7 +205,7 @@ skillcorpus/
 ├── aggregate/  源注册表 + 多仓库克隆
 ├── curate/     解析 · 安全 · 许可 · 分类 · 质量 · 去重 + 全库扫描
 ├── export/     语料写出（parquet + 附件 + dataset card）
-├── match/      SkillRouter —— 检索栈（bi-encoder + reranker）      ← 依赖独立
+├── match/      SkillRouter —— 发布的两个模型 + 训练配方            ← 依赖独立
 ├── evaluate/   skillsbench · qwenclawbench · gdpval 评测           ← 依赖独立
 └── cli.py      build · stats · export
 ```
@@ -217,8 +217,11 @@ export.corpus`）。当没有可达的模型端点时，LLM 分类和质量打�
 `match/` 和 `evaluate/` 是独立工具包，各有自己的 `requirements.txt`（torch / transformers，
 按 benchmark 区分）；**不会**被 `pip install` 主包时带进来。
 
-- **检索** —— [`skillcorpus/match/`](skillcorpus/match)：在合成 query 上微调 Qwen3 bi-encoder
-  和 reranker，然后为 query 排序技能。指标（nDCG / MRR / Hit / Recall）由 `eval_compare.py` 计算。
+- **检索** —— [`skillcorpus/match/`](skillcorpus/match) 就是**发布的那两个模型**：
+  从 `Qwen3-Embedding-0.6B` 微调的 bi-encoder 负责候选召回，从 `Qwen3-Reranker-0.6B` 微调的
+  reranker 负责对候选打分重排。SkillHub 已托管这两个模型；要自己部署见
+  [部署脚本](#)。该目录同时包含训练配方（合成 query → InfoNCE → listwise CE）和
+  `eval_compare.py`（检索指标 nDCG / MRR / Hit / Recall）。
 - **评测** —— [`skillcorpus/evaluate/`](skillcorpus/evaluate)：`skillsbench`、`qwenclawbench`、
   `gdpval`，各自独立，带自己的 README 和依赖。
 
@@ -257,7 +260,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 微调检索栈 + 三个 benchmark 的评估
 - [ ] 公开的 SkillHub 端点
 - [ ] 语料、检索模型与重排模型上 HuggingFace
-- [ ] `match/` 的推理入口（目前只有训练脚本）
+- [ ] 两个检索模型的部署脚本（自建 `match/`）
 - [ ] Hermes 集成
 
 ## 引用

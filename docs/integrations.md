@@ -149,11 +149,18 @@ If you would rather not depend on the hosted endpoint, the released corpus plus 
 retrieval and reranker models are enough to run selection yourself: encode every skill
 once, encode the task query, take the top-*k* by cosine, then rerank.
 
-<!-- TODO(@team): `skillcorpus/match/` currently ships training scripts only
-     (collect_skills / generate_queries / train_embedding / train_reranker /
-     eval_compare) — there is no inference entry point. Either add a small
-     `match/serve.py` (encode → search → rerank) or point here at the SkillHub
-     server code. -->
+Both models are released:
 
-See [`skillcorpus/match/`](../skillcorpus/match) for the training recipe and
-[`docs/running.md`](running.md) for endpoint configuration.
+| Role | Base | Fine-tuned for |
+|---|---|---|
+| bi-encoder (candidate recall) | `Qwen3-Embedding-0.6B` | 2048-ctx, InfoNCE on synthetic queries |
+| reranker (scoring) | `Qwen3-Reranker-0.6B` | 4096-ctx, listwise CE |
+
+<!-- TODO(@team): link the script that serves both models (placeholder below). -->
+
+A deployment script that stands both up behind one endpoint is published separately:
+**[deployment script](#)**. Point your client (or Raven's `skillForge.router.hub.endpoint`)
+at it instead of the hosted SkillHub.
+
+[`skillcorpus/match/`](../skillcorpus/match) itself holds the training recipe, not an
+inference server; see [`docs/running.md`](running.md) for endpoint configuration.
