@@ -57,7 +57,7 @@ python -m skillcorpus.cli stats              # counts by source / category / lic
 python -m skillcorpus.cli export --out ./corpus
 ```
 
-Only GREEN-licensed skills are exported. The demo ships the 4-source `configs/sources.demo.yaml`; use `--sources-config your.yaml` for your own registry, or `--source <name>` for a single source. Full config / endpoints / reproducibility: [`docs/running.md`](docs/running.md). Output contract: [`docs/corpus-schema.md`](docs/corpus-schema.md).
+Only skills from GREEN-licensed **sources** are exported (the demo trusts the whitelist in `audit/license_safe_sources.json` wholesale; production gates per source-repo SPDX). The per-row `license` is each skill's declared value, so a demo corpus can still carry non-GREEN `license` strings. The demo ships the 4-source `configs/sources.demo.yaml`; use `--sources-config your.yaml` for your own registry, or `--source <name>` for a single source. Full config / endpoints / reproducibility: [`docs/running.md`](docs/running.md). Output contract: [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
 ## How it works
 

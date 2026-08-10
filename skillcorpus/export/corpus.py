@@ -187,6 +187,9 @@ def _write_dataset_card(out_dir: Path, table: pa.Table) -> None:
         "bypass, CSAM risk), or scoring safety < 3 are excluded. Vetting is over "
         "the `SKILL.md` text, not bundled `scripts/` files.",
         "- Near-duplicates across sources are merged (one winner kept).",
+        "- `license` is each skill's declared license (scraped, may be "
+        "unnormalized). GREEN is gated per source; in a source-whitelist build "
+        "this per-row value is provenance and may not itself be a GREEN SPDX id.",
         "",
     ]
     (out_dir / "README.md").write_text("\n".join(lines), encoding="utf-8")

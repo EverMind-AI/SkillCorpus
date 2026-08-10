@@ -11,11 +11,17 @@ what is described here. The sign-off record is in [Decisions](#decisions-signed-
   `.refresh_endpoint`), no incremental-`sync()` artifacts, no consumer-specific
   columns. The corpus is a self-contained snapshot, not a live feed.
 - **Safe by default.** Only rows with `deleted = 0 AND active = 1` are exported.
-  `active = 1` is the release gate — a row passed both the **safety hard-gate**
-  (no `blocked.malware` match, no LLM hard-gate flag, safety subscore ≥ 3) and
-  the **GREEN-license** filter — so **every published row is permissively
-  licensed and safety-vetted**, and merged/near-duplicate losers (soft-deleted)
-  are excluded.
+  `active = 1` is the release gate — a row passed the **safety hard-gate** (no
+  `blocked.malware` match, no LLM hard-gate flag, safety subscore ≥ 3) and comes
+  from a **GREEN-licensed source**, and merged/near-duplicate losers
+  (soft-deleted) are excluded. The GREEN gate is applied per **source**: the
+  production pipeline enriches each source repo's SPDX (GitHub API) and admits
+  only permissive ones; the demo trusts a fixed whitelist
+  (`audit/license_safe_sources.json`) wholesale. Because the gate is
+  source-level and the per-row `license` is each skill's own declared value
+  (not re-normalized), a demo build can carry non-GREEN `license` strings even
+  though its sources are whitelisted — production normalizes them to the source
+  SPDX.
 
 ## Published layout
 
@@ -48,7 +54,7 @@ Types are Arrow/Parquet logical types.
 | 6 | `source` | string | no | Provider key, e.g. `anthropics`, `awesome:owner/repo`. |
 | 7 | `source_url` | string | yes | Upstream repository URL. |
 | 8 | `source_path` | string | yes | Path of the skill within the origin repo (provenance). |
-| 9 | `license` | string | no | SPDX id / license category. Always GREEN (permissive). |
+| 9 | `license` | string | no | The skill's declared license (scraped from frontmatter / LICENSE; may be unnormalized). GREEN is gated per **source** (see "Safe by default") — in production this is the normalized source SPDX; in a demo / source-whitelist build it is the raw declared value and may not itself be GREEN. |
 | 10 | `category` | string | no | One of the 16 classes (see enum below). |
 | 11 | `tags` | list&lt;string&gt; | no | Free-form tags; may be empty. |
 | 12 | `quality_score` | float64 | no | Aggregate quality, 0.0–1.0. |
