@@ -16,9 +16,13 @@ Usage:
     # search + read the bodies (no install, no API key)
     python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 
-    # also run the task with the skill bodies injected into the prompt
-    export OPENAI_API_KEY=...
+    # run the task with the skill bodies injected — any OpenAI-compatible endpoint
+    export OPENAI_API_KEY=...                              # your provider's key
     python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
+
+    # e.g. OpenRouter (or a local vLLM / Together / …): set the base URL + model
+    export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+    python examples/skillhub_demo.py --ask --model openai/gpt-4o-mini "…"
 
     # fetch the bundled scripts of the top hit into ./skills/
     python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
@@ -26,7 +30,8 @@ Usage:
 Environment:
     SKILLHUB_URL     base URL      (default: https://skillhub.evermind.ai)
     SKILLHUB_TOKEN   bearer token  (optional; public skills need none)
-    OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL   only for --ask
+    OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL   only for --ask; any
+        OpenAI-compatible provider works (OpenAI, OpenRouter, a local vLLM, …)
 
 Stdlib only — no dependency on the skillcorpus package.
 """
@@ -144,17 +149,25 @@ def build_prompt(task: str, skills: list[dict]) -> str:
             f"{blocks}\n\nTask: {task}")
 
 
-def ask_llm(prompt: str) -> str:
+def ask_llm(prompt: str, model: str | None = None) -> str:
+    """Run the prompt through any OpenAI-compatible chat endpoint — OpenAI,
+    OpenRouter, Together, a local vLLM, etc. Pick the provider with
+    OPENAI_BASE_URL, the model with --model / OPENAI_MODEL, and authenticate
+    with OPENAI_API_KEY."""
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
-        sys.exit("--ask needs OPENAI_API_KEY (and OPENAI_BASE_URL for a non-OpenAI endpoint)")
+        sys.exit("--ask needs OPENAI_API_KEY (+ OPENAI_BASE_URL for a non-OpenAI "
+                 "provider, e.g. OpenRouter: https://openrouter.ai/api/v1)")
     try:
         from openai import OpenAI
     except ImportError:
         sys.exit("--ask needs the openai package:  pip install openai")
-    client = OpenAI(base_url=os.environ.get("OPENAI_BASE_URL"), api_key=key)
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    print(f"  (llm: {model} @ {base_url or 'api.openai.com'})", file=sys.stderr)
+    client = OpenAI(base_url=base_url, api_key=key)
     resp = client.chat.completions.create(
-        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        model=model,
         messages=[{"role": "user", "content": prompt}],
     )
     return resp.choices[0].message.content or ""
@@ -168,6 +181,10 @@ def main() -> int:
     ap.add_argument("--min-score", type=float, help="minimum quality_score, 0-1")
     ap.add_argument("--ask", action="store_true",
                     help="run the task through an LLM with the skill bodies injected")
+    ap.add_argument("--model",
+                    help="model id for --ask (default: $OPENAI_MODEL or gpt-4o-mini); "
+                         "for OpenRouter set OPENAI_BASE_URL and use e.g. "
+                         "openai/gpt-4o-mini or anthropic/claude-3.5-sonnet")
     ap.add_argument("--install", metavar="DIR",
                     help="download the top hit's bundle (scripts/assets) into DIR")
     args = ap.parse_args()
@@ -205,7 +222,7 @@ def main() -> int:
     print(f"\n→ built a prompt of {len(prompt)} chars with the skill bodies injected")
     if args.ask:
         print("\n--- agent output ---")
-        print(ask_llm(prompt))
+        print(ask_llm(prompt, args.model))
     else:
         print("  (re-run with --ask to actually execute the task)")
     return 0

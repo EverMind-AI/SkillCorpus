@@ -104,8 +104,9 @@ python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 # also fetch the bundled scripts of the top hit
 python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
 
-# retrieve AND run the task with the bodies injected
-export OPENAI_API_KEY=...
+# retrieve AND run the task — any OpenAI-compatible LLM (OpenAI, OpenRouter, local vLLM, …)
+export OPENAI_API_KEY=...                                # OpenRouter / vLLM: also set
+# export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # OPENAI_BASE_URL + --model openai/gpt-4o-mini
 python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
 

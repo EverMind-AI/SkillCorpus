@@ -100,8 +100,9 @@ python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 # 顺带把命中的第一个技能的脚本包拉下来
 python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
 
-# 检索并把正文注入 prompt 后真正执行任务
-export OPENAI_API_KEY=...
+# 检索并把正文注入 prompt 后真正执行任务 —— 任意 OpenAI 兼容 LLM(OpenAI / OpenRouter / 本地 vLLM…）
+export OPENAI_API_KEY=...                                # 用 OpenRouter / vLLM 时再设
+# export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # OPENAI_BASE_URL + --model openai/gpt-4o-mini
 python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
 
