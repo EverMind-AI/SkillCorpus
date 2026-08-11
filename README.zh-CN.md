@@ -22,8 +22,8 @@
 
 ## EverMind agent 技术栈
 
-- **[Raven](https://github.com/EverMind-AI/raven)** —— 终端原生的 agent harness，为当前任务检索技能并执行。
-- **[EverOS](https://github.com/EverMind-AI/EverOS)** —— Raven 构建于其上的记忆底座。除持久记忆外，它还从 agent 自己的执行轨迹里演化出新技能。
+- **[EverOS](https://github.com/EverMind-AI/EverOS)** —— 记忆底座：持久的用户记忆与 agent 记忆、case 与技能抽取。它还能从 agent 自己的执行轨迹里演化出新技能。
+- **[Raven](https://github.com/EverMind-AI/raven)** —— 构建于 EverOS 之上的终端原生 agent harness，为当前任务检索技能并执行。
 - **[SkillHub](https://evermind.ai/skillhub)** —— 承载本语料的托管服务，可在 UI 里浏览，也可调 API。
 - **SkillCorpus**（本仓库）—— 上述三者取用的社区技能语料，以及构建它的管线。
 

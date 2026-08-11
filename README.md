@@ -23,8 +23,8 @@
 
 ## The EverMind agent stack
 
-- **[Raven](https://github.com/EverMind-AI/raven)** — the terminal-native agent harness. It retrieves skills for the task at hand and runs them.
-- **[EverOS](https://github.com/EverMind-AI/EverOS)** — the memory substrate Raven builds on. Besides durable memory, it evolves new skills out of the agent's own execution traces.
+- **[EverOS](https://github.com/EverMind-AI/EverOS)** — the memory substrate: durable user and agent memory, case and skill extraction. It also evolves new skills out of an agent's own execution traces.
+- **[Raven](https://github.com/EverMind-AI/raven)** — the terminal-native agent harness, built on EverOS. It retrieves skills for the task at hand and runs them.
 - **[SkillHub](https://evermind.ai/skillhub)** — the hosted service that serves this corpus. Browse it in the UI, or query the API.
 - **SkillCorpus** *(this repo)* — the community skill corpus the three above draw from, and the pipeline that builds it.
 
