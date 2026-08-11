@@ -1,4 +1,5 @@
-<!-- 占位链接标为 `#`，待补：SkillHub endpoint、Corpus (HF dataset)、Embedding model (HF)、Code (repo)。 -->
+<!-- 发布前仍需填的 `#` 占位：Corpus (HF dataset)、检索模型 (HF)、Code (repo URL)、
+     部署脚本（docs/integrations.md 里也有一处）。SkillHub 已上线并已填。 -->
 
 <div align="center">
 

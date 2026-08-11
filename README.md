@@ -1,5 +1,6 @@
-<!-- Placeholder links marked `#` — fill in: SkillHub endpoint, Corpus (HF dataset),
-     Embedding model (HF), Code (repo). -->
+<!-- Remaining `#` placeholders to fill before release: Corpus (HF dataset),
+     Retrieval models (HF), Code (repo URL), deployment script (also in
+     docs/integrations.md). SkillHub is live and already linked. -->
 
 <div align="center">
 
