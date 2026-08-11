@@ -14,7 +14,7 @@ agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)，它所构建�
 SkillCorpus，两者检索的社区技能语料。
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://skillhub.evermind.ai)
+[![SkillHub](https://img.shields.io/badge/SkillHub-browse-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](#)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
@@ -48,7 +48,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 | | 产物 | 内容 | 链接 |
 |---|---|---|---|
-| 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [skillhub.evermind.ai](https://skillhub.evermind.ai) |
+| 🌐 | **SkillHub** | 语料的托管服务——可在 UI 里浏览，也可调 API | [浏览](https://evermind.ai/skillhub) · [API](https://skillhub.evermind.ai) |
 | 📚 | **语料** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
 | 🔡 | **检索模型** | SkillRouter —— 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 HuggingFace](#) |
 | 🛠️ | **代码** | 本仓库 —— `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
@@ -88,7 +88,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ### A. 调用托管的 SkillHub
 
-[SkillHub](https://skillhub.evermind.ai) 把语料分三级提供——发现（元数据）、读正文
+[SkillHub](https://evermind.ai/skillhub) 提供语料——可以在 UI 里浏览，也可以调 API，分三级——发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
 
 ```bash

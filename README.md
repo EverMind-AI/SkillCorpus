@@ -15,7 +15,7 @@ terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)
 substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://skillhub.evermind.ai)
+[![SkillHub](https://img.shields.io/badge/SkillHub-browse-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](#)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
@@ -49,7 +49,7 @@ source repository licence-audited so the released set is commercially redistribu
 
 | | Artifact | What | Link |
 |---|---|---|---|
-| 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [skillhub.evermind.ai](https://skillhub.evermind.ai) |
+| 🌐 | **SkillHub** | the corpus, hosted — browse it in the UI or query the API | [browse](https://evermind.ai/skillhub) · [API](https://skillhub.evermind.ai) |
 | 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](#) |
 | 🔡 | **Retrieval models** | SkillRouter — a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 HuggingFace](#) |
 | 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](#) |
@@ -90,7 +90,7 @@ Curating **your own** sources instead? See [Build your own corpus](#build-your-o
 
 ### A. Query the hosted SkillHub
 
-[SkillHub](https://skillhub.evermind.ai) serves the corpus in three tiers — discover
+[SkillHub](https://evermind.ai/skillhub) serves the corpus — browse it in the UI, or query the API in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
 instructions, so reading is usually where you stop.
 

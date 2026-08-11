@@ -1,7 +1,7 @@
 # Integrations
 
 How to give an agent access to the SkillCorpus skills served by
-[SkillHub](https://skillhub.evermind.ai).
+[SkillHub](https://evermind.ai/skillhub) (browse the UI) via its API at `https://skillhub.evermind.ai`.
 
 ## Three tiers
 
