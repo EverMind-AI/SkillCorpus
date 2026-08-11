@@ -95,7 +95,7 @@ Curating **your own** sources instead? See [Build your own corpus](#build-your-o
 instructions, so reading is usually where you stop.
 
 ```bash
-curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
+curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
 Take an `id` from the results, fetch its `skill_md`, inject that into your agent's prompt —

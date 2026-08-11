@@ -38,18 +38,19 @@ Rate limits are per IP: **120/min** for discover + read, **30/min** for download
 ## 1. Discover
 
 ```
-GET /openapi/v1/skills?q=<keywords>                                   # q required, no paging
-GET /openapi/v1/skills/search?q=&tags=&category=&min_score=&page=&limit=
+GET /openapi/v1/skills?q=<keywords>
 ```
 
-On `/search` every parameter is optional: `tags` is comma-separated and intersected,
-`min_score` is a `quality_score` floor in 0–1, `limit` is 1–50.
+`q` is required. The query is embedded, matched against the corpus by vector ANN,
+then reranked by the cross-encoder — the same retrieval stack released in
+[`skillcorpus/match`](../skillcorpus/match). You get the top hits back directly;
+there are no filters and no paging.
 
 ```bash
-curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
+curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
-`result` is `{items, total}` (plus `page`, `limit` on `/search`). Items carry
+`result` is `{items, total}`. Items carry
 `id`, `skill_id`, `name`, `description`, `source`, `category`, `quality_score`, `tags`,
 `body_tokens`, `source_url`, `github_star`, `license`, `install_count`, `download_url` —
 **no body**.

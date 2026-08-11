@@ -92,7 +92,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
 
 ```bash
-curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
+curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
 从结果里取一个 `id`，拉它的 `skill_md`，注入 agent 的 prompt——整个闭环就这么简单。
