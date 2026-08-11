@@ -149,13 +149,14 @@ Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
 bash skillcorpus/match/scripts/run_server.sh
 ```
 
-This serves the models' `/embed` + `/score`
-([`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)) — **not** SkillHub's
-`/openapi/v1/skills` API, which is hosted-only. So `examples/skillhub_demo.py` and the
-section-C integrations target the hosted SkillHub; a self-hosted stack runs its own
-selection over `/embed` + `/score`. To curate your **own** corpus against these models,
-point the producer at the endpoint (`embedding.provider: skillrouter_remote`) —
-see [Build your own corpus](#build-your-own).
+This endpoint speaks `/embed` + `/score`
+([`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)) — it is **not** a
+drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
+
+- `examples/skillhub_demo.py` and the section-C integrations talk only to the **hosted**
+  SkillHub; a self-hosted setup runs its own selection directly over `/embed` + `/score`.
+- It is also the embedding endpoint the producer's dedup uses — set
+  `embedding.provider: skillrouter_remote` to [build your own corpus](#build-your-own) with it.
 
 ### C. Plug it into your agent
 

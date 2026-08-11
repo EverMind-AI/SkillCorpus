@@ -143,12 +143,12 @@ import pandas as pd; skills = pd.read_parquet("skills.parquet")
 bash skillcorpus/match/scripts/run_server.sh
 ```
 
-这暴露的是模型的 `/embed` + `/score`
+这个端点提供的是模型的 `/embed` + `/score`
 （见 [`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)），**不是** SkillHub
-的 `/openapi/v1/skills` API——那个服务只有托管版。所以 `examples/skillhub_demo.py` 和 C 节的
-集成都指向托管 SkillHub;自建栈是在 `/embed` + `/score` 上跑自己的 selection。要用这两个模型
-策展**自己的**语料，把 producer 的 embedding 指向该端点（`embedding.provider: skillrouter_remote`），
-见 [构建自己的语料](#build-your-own)。
+那个只有托管版的 `/openapi/v1/skills` API 的替代品。所以:
+
+- `examples/skillhub_demo.py` 和 C 节的集成只对**托管** SkillHub;自建时你直接在 `/embed` + `/score` 上跑自己的 selection。
+- 它同时也是 producer 去重用的 embedding 端点——配 `embedding.provider: skillrouter_remote` 就能用它[构建自己的语料](#build-your-own)。
 
 ### C. 接进你的 agent
 
