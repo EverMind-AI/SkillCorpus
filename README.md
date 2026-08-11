@@ -9,6 +9,10 @@
 
 **Give your agent 96,401 vetted, permissively-licensed skills — and a retriever that picks the right ones for each task.**
 
+Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
+terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
+substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
+
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://skillhub.evermind.ai)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
@@ -166,7 +170,7 @@ skillForge:
   enabled: true
   router:
     top_k: 5
-    weights: { local: 1.0, everos: 0.9, hub: 0.85 }
+    weights: { local: 1.0, everos: 0.9, hub: 0.85 }   # local / self-evolved / SkillCorpus
     hub:
       endpoint: https://skillhub.evermind.ai
       api_key: null          # public skills need none

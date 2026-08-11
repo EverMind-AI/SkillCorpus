@@ -8,6 +8,10 @@
 
 **给你的 agent 96,401 个经过筛选、许可合规的技能——外加一个能为每个任务挑出正确技能的检索器。**
 
+EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/raven)，终端原生的
+agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)，它所构建于其上的记忆底座 ·
+SkillCorpus，两者检索的社区技能语料。
+
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://skillhub.evermind.ai)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
@@ -159,7 +163,7 @@ skillForge:
   enabled: true
   router:
     top_k: 5
-    weights: { local: 1.0, everos: 0.9, hub: 0.85 }
+    weights: { local: 1.0, everos: 0.9, hub: 0.85 }   # 本地 / 自演化 / SkillCorpus
     hub:
       endpoint: https://skillhub.evermind.ai
       api_key: null          # 公开技能无需鉴权
