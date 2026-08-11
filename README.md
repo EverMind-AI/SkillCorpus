@@ -10,10 +10,6 @@
 
 **Give your agent 96,401 vetted, permissively-licensed skills — and a retriever that picks the right ones for each task.**
 
-Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
-terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
-substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
-
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-browse-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
@@ -24,6 +20,13 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 <img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate + curate) and using it (match + evaluate)" width="100%">
 
 </div>
+
+## The EverMind agent stack
+
+- **[Raven](https://github.com/EverMind-AI/raven)** — the terminal-native agent harness. It retrieves skills for the task at hand and runs them.
+- **[EverOS](https://github.com/EverMind-AI/EverOS)** — the memory substrate Raven builds on. Besides durable memory, it evolves new skills out of the agent's own execution traces.
+- **[SkillHub](https://evermind.ai/skillhub)** — the hosted service that serves this corpus. Browse it in the UI, or query the API.
+- **SkillCorpus** *(this repo)* — the community skill corpus the three above draw from, and the pipeline that builds it.
 
 ## What is SkillCorpus
 
@@ -90,9 +93,9 @@ Curating **your own** sources instead? See [Build your own corpus](#build-your-o
 
 ### A. Query the hosted SkillHub
 
-[SkillHub](https://evermind.ai/skillhub) serves the corpus — browse it in the UI, or query the API in three tiers — discover
-(metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
-instructions, so reading is usually where you stop.
+Browse the corpus in the [SkillHub UI](https://evermind.ai/skillhub), or query its API in
+three tiers: discover (metadata), read (`skill_md`), download (zip with `scripts/`). Most
+skills are pure instructions, so reading is usually where you stop.
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"

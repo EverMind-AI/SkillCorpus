@@ -9,10 +9,6 @@
 
 **给你的 agent 96,401 个经过筛选、许可合规的技能——外加一个能为每个任务挑出正确技能的检索器。**
 
-EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/raven)，终端原生的
-agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)，它所构建于其上的记忆底座 ·
-SkillCorpus，两者检索的社区技能语料。
-
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-browse-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](#)
@@ -23,6 +19,13 @@ SkillCorpus，两者检索的社区技能语料。
 <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
 
 </div>
+
+## EverMind agent 技术栈
+
+- **[Raven](https://github.com/EverMind-AI/raven)** —— 终端原生的 agent harness，为当前任务检索技能并执行。
+- **[EverOS](https://github.com/EverMind-AI/EverOS)** —— Raven 构建于其上的记忆底座。除持久记忆外，它还从 agent 自己的执行轨迹里演化出新技能。
+- **[SkillHub](https://evermind.ai/skillhub)** —— 承载本语料的托管服务，可在 UI 里浏览，也可调 API。
+- **SkillCorpus**（本仓库）—— 上述三者取用的社区技能语料，以及构建它的管线。
 
 ## SkillCorpus 是什么
 
@@ -88,8 +91,9 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ### A. 调用托管的 SkillHub
 
-[SkillHub](https://evermind.ai/skillhub) 提供语料——可以在 UI 里浏览，也可以调 API，分三级——发现（元数据）、读正文
-（`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
+可以在 [SkillHub 界面](https://evermind.ai/skillhub)里浏览语料，也可以调它的 API——分三级：
+发现（元数据）、读正文（`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，
+读到正文就够了。
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills/search?q=extract+tables+from+a+PDF&category=DOC-PROC&min_score=0.75&limit=2"
