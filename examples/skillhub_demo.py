@@ -95,15 +95,12 @@ def _get(path: str, params: dict | None = None, raw: bool = False):
     return env["result"]
 
 
-def search(query: str, *, limit: int = 3, category: str | None = None,
-           min_score: float | None = None, tags: str | None = None) -> list[dict]:
-    """Tier 1 — metadata only, no body. ``/skills/search`` takes the filters;
-    plain ``/skills?q=`` is the unfiltered, unpaginated shortcut."""
-    result = _get(f"{API}/skills/search", {
-        "q": query, "limit": limit, "category": category,
-        "min_score": min_score, "tags": tags,
-    })
-    return result.get("items", [])
+def search(query: str, *, limit: int = 3) -> list[dict]:
+    """Tier 1 — metadata only, no body. The query is embedded, matched by
+    vector ANN, then reranked by the cross-encoder; the endpoint decides how
+    many hits come back, so ``limit`` trims them client-side."""
+    result = _get(f"{API}/skills", {"q": query})
+    return result.get("items", [])[:limit]
 
 
 def get_skill(ref: str) -> dict:
@@ -176,9 +173,7 @@ def ask_llm(prompt: str, model: str | None = None) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("task", help="what you want the agent to do, in plain language")
-    ap.add_argument("--top-k", type=int, default=3, help="how many skills to retrieve (1-50)")
-    ap.add_argument("--category", help="filter by 16-class category, e.g. DOC-PROC")
-    ap.add_argument("--min-score", type=float, help="minimum quality_score, 0-1")
+    ap.add_argument("--top-k", type=int, default=3, help="how many of the hits to keep")
     ap.add_argument("--ask", action="store_true",
                     help="run the task through an LLM with the skill bodies injected")
     ap.add_argument("--model",
@@ -190,8 +185,7 @@ def main() -> int:
     args = ap.parse_args()
 
     print(f"task: {args.task}\n")
-    hits = search(args.task, limit=args.top_k,
-                  category=args.category, min_score=args.min_score)
+    hits = search(args.task, limit=args.top_k)
     if not hits:
         print("SkillHub returned no skills for this task.")
         return 1
