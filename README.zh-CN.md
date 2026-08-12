@@ -1,5 +1,5 @@
-<!-- 发布前仍需填的 `#` 占位：Corpus (HF dataset)、检索模型 (HF)、Code (repo URL)、
-     部署脚本（docs/integrations.md 里也有一处）。SkillHub 已上线并已填。 -->
+<!-- 所有发布链接均已上线：SkillHub、代码仓库、两个检索模型，以及 1k demo 语料。
+     完整的 96,401 条语料尚未发布（见 Corpus 行与路线图）。 -->
 
 <div align="center">
 
@@ -16,7 +16,7 @@ SkillCorpus，两者检索的社区技能语料。
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)
-[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)
+[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/models)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -39,8 +39,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ## 📰 动态
 
-<!-- TODO(@team)：语料 / SkillHub / 模型发布后在此追加。 -->
-
+- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
 - **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
 
 ## 📦 我们发布了什么
@@ -48,8 +47,8 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 | | 产物 | 内容 | 链接 |
 |---|---|---|---|
 | 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **语料** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **检索模型** | SkillRouter —— 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 HuggingFace](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 96,401 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **检索模型** | SkillRouter —— 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 
 <div align="center">
@@ -134,9 +133,9 @@ task: extract tables from a scanned PDF invoice
 模型，自己做 encode → top-k → rerank。
 
 ```python
-# 数据
+# 数据 —— 目前是 1,000 条 demo；完整的 96,401 条语料后续发布
 from datasets import load_dataset
-skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 行
+skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")   # 1,000 条 demo 技能
 # 或者用 pandas 直接读文件（不依赖 datasets）：  pip install pandas
 import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
@@ -234,7 +233,7 @@ export.corpus`）。当没有可达的模型端点时，LLM 分类和质量打�
 端点做去重——见 [`docs/running.md`](docs/running.md)。
 
 ```bash
-git clone <repo-url> skillcorpus && cd skillcorpus
+git clone https://github.com/EverMind-AI/SkillCorpus.git skillcorpus && cd skillcorpus
 python3 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip && pip install -e .
 
@@ -260,7 +259,8 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 策展管线：16 类体系、三维质量、逐源许可审计
 - [x] 微调检索栈 + 三个 benchmark 的评估
 - [x] 公开的 SkillHub 端点
-- [ ] 语料、检索模型与重排模型上 HuggingFace
+- [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
+- [ ] 完整的 96,401 条语料上 HuggingFace
 - [x] 两个检索模型的部署脚本（自建 `match/`）
 - [ ] Hermes 集成
 

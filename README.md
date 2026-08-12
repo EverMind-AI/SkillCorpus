@@ -1,6 +1,6 @@
-<!-- Remaining `#` placeholders to fill before release: Corpus (HF dataset),
-     Retrieval models (HF), Code (repo URL), deployment script (also in
-     docs/integrations.md). SkillHub is live and already linked. -->
+<!-- All release links are live: SkillHub, the code repo, both retrieval models, and
+     the 1k demo corpus. The full 96,401-skill corpus is not published yet (see the
+     Corpus row and the roadmap). -->
 
 <div align="center">
 
@@ -17,7 +17,7 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
 [![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)
-[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)
+[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/models)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -41,8 +41,7 @@ source repository license-audited so the released set is commercially redistribu
 
 ## 📰 News
 
-<!-- TODO(@team): add the corpus / SkillHub / model release entries as they land. -->
-
+- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
 - **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
 ## 📦 What we release
@@ -50,8 +49,8 @@ source repository license-audited so the released set is commercially redistribu
 | | Artifact | What | Link |
 |---|---|---|---|
 | 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **Corpus** | `skills.parquet` + `attachments.tar.zst` + dataset card | [🤗 HuggingFace](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **Retrieval models** | SkillRouter — a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 HuggingFace](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 96,401-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **Retrieval models** | SkillRouter — a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 
 <div align="center">
@@ -140,9 +139,9 @@ retrieval models are released: load the data, serve the two models, and run your
 encode → top-k → rerank.
 
 ```python
-# the data
+# the data — a 1,000-skill demo for now; the full 96,401-skill corpus follows
 from datasets import load_dataset
-skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 rows
+skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")   # 1,000 demo skills
 # or read the file directly with pandas (no `datasets`):  pip install pandas
 import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
@@ -248,7 +247,7 @@ classification / quality scoring and an embedding endpoint for dedup — see
 [`docs/running.md`](docs/running.md).
 
 ```bash
-git clone <repo-url> skillcorpus && cd skillcorpus
+git clone https://github.com/EverMind-AI/SkillCorpus.git skillcorpus && cd skillcorpus
 python3 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip && pip install -e .
 
@@ -274,7 +273,8 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source license audit
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [x] Public SkillHub endpoint
-- [ ] Corpus, retrieval model and reranker on HuggingFace
+- [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
+- [ ] Full 96,401-skill corpus on HuggingFace
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
 - [ ] Hermes integration
 
