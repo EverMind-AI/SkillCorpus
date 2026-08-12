@@ -336,6 +336,11 @@ def _post_actions(lib: SkillLibrary, defaults: dict, dry: bool) -> None:
     stats = write_corpus(db_path, lib_root, corpus_out)
     print(f"  corpus: {stats['rows']} rows, {stats['with_attachments']} "
           f"with attachments → {stats['out']}", flush=True)
+    if stats["rows"] == 0:
+        print("  !! WARNING: exported 0 rows. Skills were ingested but none survived "
+              "the GREEN-license gate — check that every source you build is listed in "
+              "audit/license_safe_sources.json (the gate matches by source name, so a "
+              "bring-your-own source must be added there first).", flush=True)
 
 
 def run_refresh(config=DEFAULT_YAML, source=None, dry_run=False,
@@ -397,6 +402,10 @@ def run_refresh(config=DEFAULT_YAML, source=None, dry_run=False,
                 except Exception as e:
                     print(f"    !! ingest {owner}/{repo} failed: {e}", flush=True)
             print(f"  ingested {ok}/{len(repos)} repo, added={added_total}", flush=True)
+            if ok and added_total == 0:
+                print(f"    !! WARNING: source {name!r} added 0 skills — the clone was "
+                      f"empty or every skill was filtered out. Demo sources are live "
+                      f"upstream repos, so counts vary between runs.", flush=True)
             summary.append({"name": name, "repos": len(repos),
                             "ingested": ok, "added": added_total})
 

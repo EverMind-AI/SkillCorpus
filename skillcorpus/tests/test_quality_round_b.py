@@ -120,6 +120,19 @@ def test_get_cached_score():
     assert judge.get_cached_score(rec.content_hash) == expected / 10.0
 
 
+def test_build_prompt_caps_large_body():
+    """A large body must be truncated before it reaches the model. Uncapped it
+    overflows a modest context window, the endpoint silently truncates, and the
+    judgment fails back to structural scoring (round-2 report #1)."""
+    from skillcorpus.curate.quality import _JUDGE_BODY_MAX_CHARS
+    huge = "x" * (_JUDGE_BODY_MAX_CHARS + 50_000)
+    msgs = _build_prompt(_make_rec(content_hash="h_big", body=huge))
+    user = next(m["content"] for m in msgs if m["role"] == "user")
+    assert huge not in user
+    # body truncated to the cap (a little slack for stray 'x' in the template)
+    assert user.count("x") < _JUDGE_BODY_MAX_CHARS + 1000
+
+
 # ----------------------------------------------------------------------
 # compute_quality new weights
 # ----------------------------------------------------------------------
@@ -186,6 +199,7 @@ if __name__ == "__main__":
     test_quality_judge_hard_gate_and_fails_gracefully()
     test_compute_no_cache_bypasses_db()
     test_get_cached_score()
+    test_build_prompt_caps_large_body()
     test_compute_quality_llm_dominates()
     test_compute_quality_source_weight_reduced()
     test_compute_quality_fallback_without_llm()

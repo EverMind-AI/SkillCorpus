@@ -169,6 +169,12 @@ def main():
     print(f"  new llm_calls: {len(new_scores)}")
     print(f"  cached hits:   {skipped}")
     print(f"  failed:        {failed}")
+    if done and failed / done > 0.2:
+        print(f"\n  !! WARNING: {failed}/{done} skills ({failed / done:.0%}) FAILED the "
+              f"LLM quality judge and fell back to structural scoring — the corpus "
+              f"quality scores are unreliable. The usual cause is a skill body that "
+              f"overflows the model's context; use a larger-context LLM endpoint.",
+              flush=True)
     print()
     print("Aggregate (from quality_judgments table — includes prior cache):")
     print(f"  total judgments: {stats['total']}")

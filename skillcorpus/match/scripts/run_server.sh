@@ -20,4 +20,4 @@ export PORT="${PORT:-9000}"
 # Match the 2048 training recipe; serve.py's own default is the generic 4096.
 export EMBED_MAX_LENGTH="${EMBED_MAX_LENGTH:-2048}"
 
-exec $PY -u serve.py
+exec "$PY" -u serve.py
