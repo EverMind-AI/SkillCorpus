@@ -27,8 +27,7 @@ SkillCorpus，两者检索的社区技能语料。
 ## SkillCorpus 是什么
 
 Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.md` 文件——散落在成千上万个公开
-仓库里，彼此重复、质量参差，再分发权也说不清。SkillCorpus 把这个池子变成 agent 真正能取用的
-东西，分四个阶段：
+仓库里，彼此重复、质量参差，再分发权也说不清。SkillCorpus 把这个池子整合成 agent 能取用的语料，分四个阶段：
 
 - **`aggregate`** —— 从公开的 `SKILL.md` 仓库发现并克隆技能。
 - **`curate`** —— 解析 · 安全 · 许可门禁 · 去重 · 16 类分类 · 三维质量打分。
@@ -84,18 +83,18 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 | 两个检索模型跑在自己的 GPU 上 | [B. 自己部署模型](#b-自己部署模型) | 语料 + 两个模型 |
 | 让 agent 自动用上技能 | [C. 接进你的 agent](#c-接进你的-agent) | 一个会读技能目录或能注入 system prompt 的 harness |
 
-想策展**自己的**源？见 [构建自己的语料](#build-your-own)。
+若要策展**自己的**源，见 [构建自己的语料](#build-your-own)。
 
 ### A. 调用托管的 SkillHub
 
 [SkillHub](https://evermind.ai/skillhub) 把语料分三级提供——发现（元数据）、读正文
-（`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读到正文就够了。
+（`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读正文这一级通常已足够。
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
-从结果里取一个 `id`，拉它的 `skill_md`，注入 agent 的 prompt——整个闭环就这么简单。
+从结果里取一个 `id`，拉它的 `skill_md`，注入 agent 的 prompt。
 [`examples/skillhub_demo.py`](examples/skillhub_demo.py) 把三级都跑通了：
 
 ```bash
@@ -131,22 +130,26 @@ task: extract tables from a scanned PDF invoice
 
 ### B. 自己部署模型
 
-不想依赖托管端点？语料和两个检索模型都已发布，你可以自己跑 selection——拿到数据、把两个
-模型起起来，自己做 encode → top-k → rerank。
+若不想依赖托管端点，可自己跑 selection。语料和两个检索模型都已发布：加载数据、部署两个
+模型，自己做 encode → top-k → rerank。
 
 ```python
 # 数据
 from datasets import load_dataset
 skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 行
-# 或者直接读文件，不依赖 datasets
+# 或者用 pandas 直接读文件（不依赖 datasets）：  pip install pandas
 import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
 
 附件（`scripts/`、`references/`）以同级的 `attachments.tar.zst` 形式发布。
 
 ```bash
-# 把 bi-encoder + reranker 起在同一个端点后面  ->  /embed + /score
-bash skillcorpus/match/scripts/run_server.sh
+# 先装 serving 依赖（torch、transformers 等），再把两个环境变量指向已发布的检查点
+# （脚本自带的默认值是训练产物，全新克隆里并不存在），然后把两个模型部署在同一个
+# 端点后面  ->  /embed + /score
+pip install -r skillcorpus/match/requirements.txt
+EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点目录> \
+  bash skillcorpus/match/scripts/run_server.sh
 ```
 
 这个端点提供的是模型的 `/embed` + `/score`
@@ -181,7 +184,7 @@ skillForge:
 <details>
 <summary><b>其他 harness</b> —— OpenClaw、Hermes、Claude Code…</summary>
 
-目前还没有一方插件，但任何会读技能目录的 harness 都能用第三级：把包下下来放进去。
+目前还没有一方插件，但任何会读技能目录的 harness 都能用第三级：把技能包下载到该目录即可。
 
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
@@ -190,7 +193,7 @@ python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to im
 ```
 
 如果 harness 是靠注入 prompt 的，连下载都不用：从第二级取 `skill_md` 拼到 system prompt
-前面即可——demo 里的 `build_prompt()` 就是这么做的，六行。
+前面即可——demo 里的 `build_prompt()` 正是这么做的。
 </details>
 
 完整契约见 [`docs/integrations.md`](docs/integrations.md)。

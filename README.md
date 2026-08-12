@@ -29,7 +29,7 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 
 Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
 thousands of public repositories, redundant, uneven in quality, and unclear on redistribution
-rights. SkillCorpus turns that pool into something an agent can actually draw from, in four stages:
+rights. SkillCorpus consolidates that pool into a corpus an agent can draw from, in four stages:
 
 - **`aggregate`** — discover and clone skills from public `SKILL.md` repositories.
 - **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
@@ -86,21 +86,20 @@ The gain is largest where the task needs procedural knowledge the model does not
 | the retrieval models running on your own GPUs | [B. Self-host the models](#b-self-host-the-models) | the corpus + both models on your own GPUs |
 | your agent to use skills automatically | [C. Plug it into your agent](#c-plug-it-into-your-agent) | a harness that reads a skills dir or a system prompt |
 
-Curating **your own** sources instead? See [Build your own corpus](#build-your-own).
+To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
 
 ### A. Query the hosted SkillHub
 
 [SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
-instructions, so reading is usually where you stop.
+instructions, so the read tier is usually sufficient.
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
-Take an `id` from the results, fetch its `skill_md`, inject that into your agent's prompt —
-that is the whole loop. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all
-three tiers:
+Take an `id` from the results, fetch its `skill_md`, and inject it into your agent's
+prompt. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all three tiers:
 
 ```bash
 # search + read the bodies — stdlib only, no install, no API key
@@ -136,23 +135,27 @@ Endpoints, response envelope, status codes and rate limits:
 
 ### B. Self-host the models
 
-Rather not depend on the hosted endpoint? The corpus and both retrieval models are
-released, so you can run selection yourself — get the data, stand up the two models, and do
-your own encode → top-k → rerank.
+To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
+retrieval models are released: load the data, serve the two models, and run your own
+encode → top-k → rerank.
 
 ```python
 # the data
 from datasets import load_dataset
 skills = load_dataset("<org>/skillcorpus", split="train")   # 96,401 rows
-# or read the file directly, no `datasets` needed
+# or read the file directly with pandas (no `datasets`):  pip install pandas
 import pandas as pd; skills = pd.read_parquet("skills.parquet")
 ```
 
 Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
 
 ```bash
-# stand up the bi-encoder + reranker behind one endpoint  ->  /embed + /score
-bash skillcorpus/match/scripts/run_server.sh
+# install the serving deps (torch, transformers, …), then point the two env vars at
+# the released checkpoints (the script's defaults are training outputs absent from a
+# fresh clone) and serve both models behind one endpoint  ->  /embed + /score
+pip install -r skillcorpus/match/requirements.txt
+EMBEDDING_MODEL=<embedding checkpoint dir> RERANKER_MODEL=<reranker checkpoint dir> \
+  bash skillcorpus/match/scripts/run_server.sh
 ```
 
 This endpoint speaks `/embed` + `/score`
@@ -190,8 +193,8 @@ skillForge:
 <details>
 <summary><b>Any other harness</b> — OpenClaw, Hermes, Claude Code, …</summary>
 
-There is no first-party plugin yet, but every harness that reads a skills
-directory works with tier 3: download the bundle and drop it in.
+There is no first-party plugin yet, but any harness that reads a skills
+directory works with tier 3: download the bundle into that directory.
 
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
@@ -200,8 +203,7 @@ python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to im
 ```
 
 For prompt-injection harnesses, skip the download: fetch `skill_md` from tier 2 and
-prepend it to the system prompt — that is what `build_prompt()` in the demo does, in
-six lines.
+prepend it to the system prompt, as `build_prompt()` in the demo does.
 </details>
 
 Full contract: [`docs/integrations.md`](docs/integrations.md).
