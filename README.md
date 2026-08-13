@@ -33,11 +33,11 @@ rights. SkillCorpus consolidates that pool into a corpus an agent can draw from,
 
 - **`aggregate`** — discover and clone skills from public `SKILL.md` repositories.
 - **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
-- **`match`** — SkillRouter: a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
+- **`match`** — a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
 - **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
 
-~821,000 crawled files in, 96,401 skills out — every one carrying its upstream license, and every
-source repository license-audited so the released set is commercially redistributable.
+From ~821,000 crawled files, 96,401 skills remain. Each carries its upstream license, and every
+source repository is license-audited, so the released set is commercially redistributable.
 
 ## 📰 News
 
@@ -50,7 +50,7 @@ source repository license-audited so the released set is commercially redistribu
 |---|---|---|---|
 | 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
 | 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 96,401-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **Retrieval models** | SkillRouter — a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 
 <div align="center">
@@ -215,7 +215,7 @@ skillcorpus/
 ├── aggregate/  source registry + multi-repo clone
 ├── curate/     parse · safety · license · classify · quality · dedup + full-library passes
 ├── export/     corpus writer (parquet + attachments + dataset card)
-├── match/      SkillRouter — the 2 released models + training recipe   ← isolated deps
+├── match/      the 2 released models + training recipe                 ← isolated deps
 ├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
 └── cli.py      build · stats · export
 ```
@@ -238,7 +238,7 @@ always runs end to end.
 - **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`,
   `qwenclawbench`, `gdpval` — each self-contained with its own README and dependencies.
 
-<a id="build-your-own"></a>
+<a name="build-your-own"></a>
 
 ## 🛠️ Build your own corpus
 

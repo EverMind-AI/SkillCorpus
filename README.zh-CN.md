@@ -7,11 +7,11 @@
 
 # SkillCorpus
 
-**给你的 agent 96,401 个经过筛选、许可合规的技能——外加一个能为每个任务挑出正确技能的检索器。**
+**为你的 agent 备好 96,401 个经过筛选、许可合规的技能，外加一个为每个任务挑出合适技能的检索器。**
 
-EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/raven)，终端原生的
-agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)，它所构建于其上的记忆底座 ·
-SkillCorpus，两者检索的社区技能语料。
+EverMind agent 技术栈的一部分：[Raven](https://github.com/EverMind-AI/raven) 是终端原生的
+agent harness，[EverOS](https://github.com/EverMind-AI/EverOS) 是它所依赖的记忆底座，而
+SkillCorpus 则是二者检索的社区技能语料。
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -26,16 +26,16 @@ SkillCorpus，两者检索的社区技能语料。
 
 ## SkillCorpus 是什么
 
-Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.md` 文件——散落在成千上万个公开
-仓库里，彼此重复、质量参差，再分发权也说不清。SkillCorpus 把这个池子整合成 agent 能取用的语料，分四个阶段：
+Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散落在成千上万个公开
+仓库中，彼此重复、良莠不齐，再分发权也不明确。SkillCorpus 把这个庞杂的池子整理成 agent 能直接取用的语料，分四个阶段：
 
 - **`aggregate`** —— 从公开的 `SKILL.md` 仓库发现并克隆技能。
 - **`curate`** —— 解析 · 安全 · 许可门禁 · 去重 · 16 类分类 · 三维质量打分。
-- **`match`** —— SkillRouter：微调的 bi-encoder + reranker + LLM selector，为任务挑技能。
+- **`match`** —— 微调的 bi-encoder + reranker + LLM selector，为任务挑选技能。
 - **`evaluate`** —— 三个真实 agent benchmark、两个 harness、开源与前沿 backbone。
 
-约 821,000 个爬取文件进，96,401 个技能出——每个都带着上游原始许可，每个源仓库都做过许可
-审计，所以发布出来的这一套是可商用再分发的。
+从约 821,000 个爬取文件中，最终留下 96,401 个技能。每个都保留其上游原始许可，每个源仓库也都
+通过了许可审计，因此这套发布的语料可商用、可再分发。
 
 ## 📰 动态
 
@@ -48,7 +48,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 |---|---|---|---|
 | 🌐 | **SkillHub** | 基于该语料的托管检索端点——无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
 | 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 96,401 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **检索模型** | SkillRouter —— 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 
 <div align="center">
@@ -60,7 +60,7 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ## 📊 效果
 
-同一个 harness、同一个 backbone，无技能 → 接入 SkillCorpus
+同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
 （[论文 Table 1](https://arxiv.org/abs/2607.15557)）：
 
 | Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
@@ -86,14 +86,14 @@ Agent 技能——也就是把可复用的过程性知识打包起来的 `SKILL.
 
 ### A. 调用托管的 SkillHub
 
-[SkillHub](https://evermind.ai/skillhub) 把语料分三级提供——发现（元数据）、读正文
+[SkillHub](https://evermind.ai/skillhub) 把语料分三级提供：发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读正文这一级通常已足够。
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
-从结果里取一个 `id`，拉它的 `skill_md`，注入 agent 的 prompt。
+从结果中取一个 `id`，获取它的 `skill_md`，注入 agent 的 prompt。
 [`examples/skillhub_demo.py`](examples/skillhub_demo.py) 把三级都跑通了：
 
 ```bash
@@ -151,19 +151,19 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
   bash skillcorpus/match/scripts/run_server.sh
 ```
 
-这个端点提供的是模型的 `/embed` + `/score`
-（见 [`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)），**不是** SkillHub
-那个只有托管版的 `/openapi/v1/skills` API 的替代品。所以:
+这个端点只提供模型的 `/embed` + `/score`
+（见 [`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)），并不是 SkillHub
+那个仅托管的 `/openapi/v1/skills` API 的替代品。因此：
 
-- `examples/skillhub_demo.py` 和 C 节的集成只对**托管** SkillHub;自建时你直接在 `/embed` + `/score` 上跑自己的 selection。
-- 它同时也是 producer 去重用的 embedding 端点——配 `embedding.provider: skillrouter_remote` 就能用它[构建自己的语料](#build-your-own)。
+- `examples/skillhub_demo.py` 和 C 节的集成只对接**托管的** SkillHub；自部署时，你直接在 `/embed` + `/score` 之上运行自己的 selection。
+- 它同时也是 producer 去重所用的 embedding 端点，把 `embedding.provider` 配成 `skillrouter_remote`，即可用它来[构建自己的语料](#build-your-own)。
 
 ### C. 接进你的 agent
 
 <details>
-<summary><b>Raven</b> —— 一方 SkillHub 源</summary>
+<summary><b>Raven</b> —— 第一方 SkillHub 源</summary>
 
-Raven 用带权 RRF 把 SkillHub 与本地、Everos 三个技能源融合（`skillForge.router`）：
+Raven 通过带权 RRF 融合 SkillHub、本地和 EverOS 三个技能源（`skillForge.router`）：
 
 ```yaml
 skillForge:
@@ -183,7 +183,7 @@ skillForge:
 <details>
 <summary><b>其他 harness</b> —— OpenClaw、Hermes、Claude Code…</summary>
 
-目前还没有一方插件，但任何会读技能目录的 harness 都能用第三级：把技能包下载到该目录即可。
+目前还没有第一方插件，但任何会读取技能目录的 harness 都能用第三级：把技能包下载到该目录即可。
 
 ```bash
 python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
@@ -191,8 +191,8 @@ python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to im
 #                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
 
-如果 harness 是靠注入 prompt 的，连下载都不用：从第二级取 `skill_md` 拼到 system prompt
-前面即可——demo 里的 `build_prompt()` 正是这么做的。
+如果 harness 采用注入 prompt 的方式，则连下载都不用：从第二级取出 `skill_md`，拼接到 system prompt
+前面即可，demo 里的 `build_prompt()` 正是这么做的。
 </details>
 
 完整契约见 [`docs/integrations.md`](docs/integrations.md)。
@@ -205,32 +205,32 @@ skillcorpus/
 ├── aggregate/  源注册表 + 多仓库克隆
 ├── curate/     解析 · 安全 · 许可 · 分类 · 质量 · 去重 + 全库扫描
 ├── export/     语料写出（parquet + 附件 + dataset card）
-├── match/      SkillRouter —— 发布的两个模型 + 训练配方            ← 依赖独立
+├── match/      发布的两个模型 + 训练配方                          ← 依赖独立
 ├── evaluate/   skillsbench · qwenclawbench · gdpval 评测           ← 依赖独立
 └── cli.py      build · stats · export
 ```
 
-`cli build` 会跑完整条策展链路（`ingest → quality_pass → dedup_pass → license_audit →
-export.corpus`）。当没有可达的模型端点时，LLM 分类和质量打分会优雅降级为规则实现，因此
-管线总能端到端跑通。
+`cli build` 会执行完整的策展链路（`ingest → quality_pass → dedup_pass → license_audit →
+export.corpus`）。当没有可用的模型端点时，LLM 分类与质量打分会自动降级为规则实现，因此
+整条管线始终能端到端跑通。
 
-`match/` 和 `evaluate/` 是独立工具包，各有自己的 `requirements.txt`（torch / transformers，
-按 benchmark 区分）；**不会**被 `pip install` 主包时带进来。
+`match/` 和 `evaluate/` 是独立的工具包，各自带有 `requirements.txt`（torch / transformers，
+按 benchmark 区分）；安装主包时**不会**被一并拉入。
 
 - **检索** —— [`skillcorpus/match/`](skillcorpus/match) 就是**发布的那两个模型**：
   从 `Qwen3-Embedding-0.6B` 微调的 bi-encoder 负责候选召回，从 `Qwen3-Reranker-0.6B` 微调的
-  reranker 负责对候选打分重排。SkillHub 已托管这两个模型；要自己部署见
-  [Serving](skillcorpus/match/README.md#serving)（`serve.py` + `run_server.sh`）。该目录同时包含训练配方（合成 query → InfoNCE → listwise CE）和
+  reranker 负责对候选打分重排。SkillHub 已托管这两个模型；如需自行部署，见
+  [Serving](skillcorpus/match/README.md#serving)（`serve.py` + `run_server.sh`）。该目录还包含训练配方（合成 query → InfoNCE → listwise CE）和
   `eval_compare.py`（检索指标 nDCG / MRR / Hit / Recall）。
 - **评测** —— [`skillcorpus/evaluate/`](skillcorpus/evaluate)：`skillsbench`、`qwenclawbench`、
   `gdpval`，各自独立，带自己的 README 和依赖。
 
-<a id="build-your-own"></a>
+<a name="build-your-own"></a>
 
 ## 🛠️ 构建自己的语料
 
-只有当你想策展**自己的**源时才需要。需要一个 LLM 端点做分类和质量打分、一个 embedding
-端点做去重——见 [`docs/running.md`](docs/running.md)。
+仅当你想策展**自己的**源时才需要这一节。它需要一个 LLM 端点做分类与质量打分，以及一个
+embedding 端点做去重，详见 [`docs/running.md`](docs/running.md)。
 
 ```bash
 git clone https://github.com/EverMind-AI/SkillCorpus.git skillcorpus && cd skillcorpus
@@ -242,10 +242,10 @@ python -m skillcorpus.cli stats     # 按 source / category / license 统计
 python -m skillcorpus.cli export --out ./corpus
 ```
 
-只有来自 GREEN 许可**源仓库**的技能会被导出（demo 直接信任
+只有来自 GREEN 许可**源仓库**的技能才会被导出（demo 直接信任
 `audit/license_safe_sources.json` 里的白名单；生产环境按源仓库 SPDX 逐个把关）。每行的
-`license` 是技能自己声明的值，所以 demo 语料里仍可能出现非 GREEN 的 `license` 字符串。
-用 `--sources-config your.yaml` 指定自己的源注册表，或用 `--source <name>` 只跑单个源。
+`license` 是技能自己声明的值，因此 demo 语料里仍可能出现非 GREEN 的 `license` 字符串。
+用 `--sources-config your.yaml` 指定自己的源注册表，或用 `--source <name>` 只构建单个源。
 
 ```bash
 pip install -e ".[dev]"
