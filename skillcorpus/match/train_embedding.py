@@ -1,6 +1,5 @@
 """Step 4: Fine-tune bi-encoder with in-batch InfoNCE loss.
 
-Reproduces the SkillRouter embedding model training:
   - Base model: Qwen3-Emb-0.6B
   - Loss: In-batch InfoNCE with temperature τ=0.05
   - Query format: instruction-prefixed
