@@ -22,9 +22,9 @@
 
 | 入口 | 提供什么 | 为开发者与爱好者带来的价值 |
 |---|---|---|
-| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | 语料聚合、治理、去重、分类和导出的开源代码，以及检索、评测与集成工具。 | 可以从头到尾学习整套系统，也可以 fork 语料管线与模型服务组件，用自己的数据源和策略构建技能库与检索流程。各组件以其声明的许可证为准；第三方技能和数据保留上游条款。 |
-| 2. [**Hugging Face 模型与 demo**](https://huggingface.co/EverMind-AI) | [1K 示例语料](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)、生成召回向量的[嵌入模型](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b)，以及为任务和候选技能评分的[重排序模型（reranker）](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)。 | 无需从头训练初始模型，即可做原型验证、本地评测或自托管检索。语料索引、候选选择流程和编排仍需由你提供。 |
-| 3. [**SkillHub**](https://evermind.ai/skillhub) | 这套技术栈的线上落地产品：基于经过筛选和治理的技能库，提供托管目录和 API。 | 无需克隆仓库或自行运行模型，即可立即体验这套系统，搜索技能、查看来源、阅读 `SKILL.md`，并为兼容的 Agent 下载技能包。 |
+| [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | 语料聚合、治理、去重、分类和导出的开源代码，以及检索、评测与集成工具。 | 可以从头到尾学习整套系统，也可以 fork 语料管线与模型服务组件，用自己的数据源和策略构建技能库与检索流程。各组件以其声明的许可证为准；第三方技能和数据保留上游条款。 |
+| [**Hugging Face 模型与 demo**](https://huggingface.co/EverMind-AI) | [1K 示例语料](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)、生成召回向量的[嵌入模型](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b)，以及为任务和候选技能评分的[重排序模型（reranker）](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)。 | 无需从头训练初始模型，即可做原型验证、本地评测或自托管检索。语料索引、候选选择流程和编排仍需由你提供。 |
+| [**SkillHub**](https://evermind.ai/skillhub) | 这套技术栈的线上落地产品：基于经过筛选和治理的技能库，提供托管目录和 API。 | 无需克隆仓库或自行运行模型，即可立即体验这套系统，搜索技能、查看来源、阅读 `SKILL.md`，并为兼容的 Agent 下载技能包。 |
 
 > **可用性说明：**目前公开可下载的语料是 1K demo。**96,401 条技能**指论文使用的生产快照，该完整版本尚未公开下载。
 
