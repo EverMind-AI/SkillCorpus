@@ -5,7 +5,7 @@
 
 # SkillCorpus
 
-**把分散的 `SKILL.md` 构建成面向检索的 agent 技能语料。**
+**整理分散的 Agent 技能，按任务检索相关技能。**
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -22,44 +22,77 @@
 
 | 入口 | 提供什么 | 为开发者与爱好者带来的价值 |
 |---|---|---|
-| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | 语料聚合、治理、去重、分类和导出的开源代码，以及检索、评测与集成工具。 | 可以把它当作参考架构来学习完整系统，也可以 fork 后接入自己的数据源、策略、模型与集成，无需从零搭建。各组件以其声明的许可证为准；第三方技能和数据保留上游条款。 |
+| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | 语料聚合、治理、去重、分类和导出的开源代码，以及检索、评测与集成工具。 | 可以从头到尾学习整套系统，也可以 fork 语料管线与模型服务组件，用自己的数据源和策略构建技能库与检索流程。各组件以其声明的许可证为准；第三方技能和数据保留上游条款。 |
 | 2. [**Hugging Face 模型与 demo**](https://huggingface.co/EverMind-AI) | [1K 示例语料](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)、生成召回向量的[嵌入模型](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b)，以及为任务和候选技能评分的[重排序模型（reranker）](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)。 | 无需从头训练初始模型，即可做原型验证、本地评测或自托管检索。语料索引、候选选择流程和编排仍需由你提供。 |
-| 3. [**SkillHub**](https://evermind.ai/skillhub) | 这套技术栈的线上落地产品：基于经筛选与治理的技能库，提供托管目录和 API。 | 无需克隆仓库或自行运行模型，即可立即体验这套系统，搜索技能、查看来源、阅读 `SKILL.md`，并为兼容的 agent 下载技能包。 |
+| 3. [**SkillHub**](https://evermind.ai/skillhub) | 这套技术栈的线上落地产品：基于经过筛选和治理的技能库，提供托管目录和 API。 | 无需克隆仓库或自行运行模型，即可立即体验这套系统，搜索技能、查看来源、阅读 `SKILL.md`，并为兼容的 Agent 下载技能包。 |
 
 > **可用性说明：**目前公开可下载的语料是 1K demo。**96,401 条技能**指论文使用的生产快照，该完整版本尚未公开下载。
 
-## 30 秒试用：无需安装或 API key
+## 30 秒体验 SkillHub
 
-向托管 SkillHub 查询与任务对应的技能：
+无需安装或 API Key。
+
+直接向 SkillHub 查询适合当前任务的技能：
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
 
-或者使用只依赖标准库的 demo，搜索并阅读匹配技能的 `SKILL.md` 正文：
+也可以[在浏览器中打开同一个实时查询](https://skillhub.evermind.ai/openapi/v1/skills?q=extract%20tables%20from%20a%20PDF)。下面是精简后的返回示例：
+
+```yaml
+name: extract-tables-from-pdf
+category: DOC-PROC
+source: mzlzyCA/html-markdown
+source_url: https://github.com/mzlzyCA/html-markdown
+license: MIT
+quality_score: 0.708
+```
+
+随着目录更新，实时排序与元数据可能发生变化。
+
+或者运行仅依赖 Python 标准库的示例，搜索并阅读匹配技能的 `SKILL.md` 正文：
 
 ```bash
 python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 ```
 
-响应先返回元数据，随后可获取 `skill_md` 并注入 agent prompt。完整的三层流程（搜索、阅读和可选下载）见 [`examples/skillhub_demo.py`](examples/skillhub_demo.py)；API 契约见 [`docs/integrations.md`](docs/integrations.md)。
+响应先返回元数据，随后可获取 `skill_md` 并将其加入 Agent 提示词。完整的三层流程（搜索、阅读和可选下载）见 [`examples/skillhub_demo.py`](examples/skillhub_demo.py)；API 契约见 [`docs/integrations.md`](docs/integrations.md)。
 
-> **运行下载的技能之前：**随附的脚本、资源和参考资料均为第三方内容。执行任何内容前，请审阅它们及其上游条款。
+> **运行下载的技能之前：**随附的脚本、资源和参考资料均为第三方内容。使用这些内容或执行其中脚本前，请审阅它们及其上游条款。
 
 ## 为什么需要 SkillCorpus
 
-Agent 技能是把可复用流程知识封装为 `SKILL.md` 的文件。它们分散在公开仓库中，可能重复、质量不一，也未必清楚能否再分发。SkillCorpus 通过四个阶段把这些碎片化内容变成面向检索的语料：
+Agent 技能以 `SKILL.md` 文件的形式封装可复用的流程知识。它们分散在公开仓库中，可能重复、质量不一，也未必清楚能否再分发。SkillCorpus 通过四个阶段把这些碎片化内容变成面向检索的语料：
 
 - **`aggregate`：**发现并克隆公开的 `SKILL.md` 仓库。
-- **`curate`：**解析，经安全与许可门禁，去重，归为 16 类，并评估三项质量维度。
-- **`match`：**SkillRouter 将微调 bi-encoder、reranker 和 LLM selector 结合，为任务选择技能。
-- **`evaluate`：**在三个 agent benchmark、两个 harness，以及开源和前沿 backbone 上测试技能使用效果。
+- **`curate`：**解析内容，应用基于文本的安全信号和来源级许可证策略，去重，归为 16 类，并评估三项质量维度。
+- **`match`：**使用微调后的 bi-encoder 召回候选技能，再按任务相关性重新排序。
+- **`evaluate`：**在三项 Agent 基准、两个 Agent 框架，以及开源和前沿底座模型上测试技能效果。
 
-质量和安全维度的评分用于语料策展与筛选；它们不保证某项技能、其依赖项或随附文件对你的环境安全。
+质量和安全维度的评分用于语料整理与筛选；它们不保证某项技能、其依赖项或随附文件对你的环境安全。
 
 <div align="center">
 <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate 加 curate）并使用它（match 加 evaluate）" width="100%">
 </div>
+
+## 构想：从 GitHub Issue 到 Agent 任务交接包
+
+**粘贴一个 GitHub Issue，为你的 Agent 准备一份可审阅的任务交接包。**
+
+> **该功能尚未发布。**SkillHub 目前已经支持单项技能的搜索、读取和下载；仓库分析与多技能任务交接包仍未上线。
+
+任务交接包会把 Issue 与仓库快照整理成一个可审阅、可分享的产物：
+
+```text
+GitHub Issue + 仓库快照
+             -> 任务边界、文件引用、仓库检查命令、候选技能
+             -> 以 Markdown 审阅、交给 Agent，或贴回 Issue/PR
+```
+
+维护者可以在代码修改前确认任务边界，贡献者可以带着所需上下文和检查要求着手处理不熟悉的 Issue，团队则能让所有协作者持续看到这份交接内容。
+
+候选技能会附带匹配理由、来源和声明的许可证，供用户审阅；它们仍然只是建议，不构成正确性、安全性或许可证合规保证。
 
 ## 与你的 agent 一起使用
 
@@ -205,6 +238,7 @@ GREEN/RED/YELLOW 策略、许可证数据流和 opt-out 流程见 [`docs/licence
 - [x] 微调检索栈 + 三个 benchmark 评估
 - [x] 公开 SkillHub 端点
 - [x] Hugging Face 上的检索模型（bi-encoder + reranker）和 1K demo 语料
+- [ ] 从 GitHub Issue 生成带来源引用的 Agent 任务交接包与审阅清单
 - [ ] Hugging Face 上完整的 96,401 条技能语料
 - [x] 两个检索模型的部署脚本（`match/`）
 - [ ] Hermes 集成

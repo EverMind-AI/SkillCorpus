@@ -6,7 +6,7 @@
 
 # SkillCorpus
 
-**Build retrieval-ready agent-skill corpora from scattered `SKILL.md` files.**
+**Curate scattered agent skills and retrieve task-relevant ones.**
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -23,19 +23,34 @@
 
 | Entry point | What it provides | Value to developers and enthusiasts |
 |---|---|---|
-| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | Open code for corpus aggregation, governance, deduplication, classification and export, plus retrieval, evaluation, and integrations. | Use it as a reference architecture, learn how the system works, or fork it to plug in your own sources, policies, models, and integrations instead of starting from zero. Each component's license applies, and third-party skills and data retain their upstream terms. |
+| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | Open code for corpus aggregation, governance, deduplication, classification and export, plus retrieval, evaluation, and integrations. | Learn the end-to-end stack, or fork its corpus pipeline and model-serving components to build your own skill library and retrieval workflow with your sources and policies. Each component's license applies, and third-party skills and data retain their upstream terms. |
 | 2. [**Hugging Face models & demo**](https://huggingface.co/EverMind-AI) | A [1K demo corpus](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k), an [embedding model](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) that produces recall vectors, and a [re-ranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) that scores task-to-candidate pairs. | Prototype, evaluate, or self-host retrieval without training the initial models from scratch. You still provide the corpus index, candidate-selection flow, and orchestration. |
 | 3. [**SkillHub**](https://evermind.ai/skillhub) | The live product built from this stack: a hosted catalog and API over the curated skill library. | Experience the system immediately. Search skills, inspect provenance, read `SKILL.md`, and download bundles for compatible agents without cloning the repo or running the models. |
 
 > **Availability:** the public downloadable corpus is currently the 1K demo. **96,401 skills** refers to the paper's production snapshot, which is not yet published as a full download.
 
-## Try it in 30 seconds. No install or API key
+## Try SkillHub in 30 seconds
+
+No install or API key required.
 
 Ask the hosted SkillHub for a task-specific skill:
 
 ```bash
 curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
 ```
+
+Or [open the same live query in your browser](https://skillhub.evermind.ai/openapi/v1/skills?q=extract%20tables%20from%20a%20PDF). An abridged result looks like this:
+
+```yaml
+name: extract-tables-from-pdf
+category: DOC-PROC
+source: mzlzyCA/html-markdown
+source_url: https://github.com/mzlzyCA/html-markdown
+license: MIT
+quality_score: 0.708
+```
+
+Live rankings and metadata may change as the catalog evolves.
 
 Or use the standard-library-only demo to search and read the matching `SKILL.md` bodies:
 
@@ -52,8 +67,8 @@ The response starts with metadata, then lets you fetch `skill_md` to inject into
 Agent skills (`SKILL.md` files that package reusable procedural knowledge) are distributed across public repositories. They can be redundant, uneven in quality, or unclear to redistribute. SkillCorpus turns that fragmented material into a retrieval-ready corpus through four stages:
 
 - **`aggregate`:** discover and clone public `SKILL.md` repositories.
-- **`curate`:** parse, safety and license gate, deduplicate, classify into 16 classes, and score three quality facets.
-- **`match`:** SkillRouter combines a fine-tuned bi-encoder, reranker, and LLM selector to choose skills for a task.
+- **`curate`:** parse, apply text-based safety signals and source-level license policy, deduplicate, classify into 16 classes, and score three quality facets.
+- **`match`:** retrieve candidates with a fine-tuned bi-encoder and rerank them for task relevance.
 - **`evaluate`:** test skill use across three agent benchmarks, two harnesses, and open and frontier backbones.
 
 Quality and safety facet scores support corpus curation and filtering; they are not a guarantee that a skill, its dependencies, or its bundled files are safe for your environment.
@@ -61,6 +76,22 @@ Quality and safety facet scores support corpus curation and filtering; they are 
 <div align="center">
 <img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate plus curate) and using it (match plus evaluate)" width="100%">
 </div>
+
+## Concept: GitHub issue to agent handoff
+
+**Paste a GitHub issue. Prepare a reviewable handoff for your agent.**
+
+> **Not yet released.** SkillHub can already search, read, and download individual skills. Repository analysis and multi-skill handoffs are not yet available.
+
+The handoff would combine the issue with a repository snapshot into one portable artifact:
+
+```text
+GitHub issue + repository snapshot
+              -> task scope, cited files, declared checks, candidate skills
+              -> review as Markdown, give to an agent, or paste into an Issue/PR
+```
+
+Maintainers could confirm the task boundary before code changes begin, contributors could start unfamiliar work with relevant context and checks, and teams could keep the handoff visible to every collaborator. Candidate skills would include rationale, provenance, and declared license for review; they would remain recommendations, not guarantees of correctness, safety, or license compliance.
 
 ## Use it with your agent
 
@@ -204,6 +235,7 @@ For the GREEN/RED/YELLOW policy, license data flow, and opt-out process, see [`d
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [x] Public SkillHub endpoint
 - [x] Retrieval models (bi-encoder + reranker) and a 1K demo corpus on Hugging Face
+- [ ] GitHub issue to source-cited agent handoff and review manifest
 - [ ] Full 96,401-skill corpus on Hugging Face
 - [x] Deployment script for the two retrieval models (`match/`)
 - [ ] Hermes integration
