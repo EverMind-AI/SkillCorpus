@@ -3,8 +3,6 @@
 
 <div align="center">
 
-[English](README.md) | **简体中文**
-
 # SkillCorpus
 
 **几秒钟为你的 agent 找到可复用技能——阅读、下载，或直接投入使用。**
@@ -20,7 +18,27 @@ EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
+[English](README.md) | **简体中文**
+
 </div>
+
+## 三个部分，一套系统
+
+它们是**三个入口，而不是三个必须完成的部署步骤**。根据你的目标选择即可：现在使用技能、构建开源技术栈，或加入自托管精排。
+
+| 部分 | 它做什么 | 它不做什么 | 什么时候从这里开始 |
+|---|---|---|---|
+| [**Hugging Face re-ranker**](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | 用于技能检索的可下载精排组件。向量检索先召回一批候选技能；它将任务与每个候选技能文档（名称、描述和正文）成对读取，为每一对返回相关性分数，再由你的应用按分数重排候选。 | 它不负责直接搜索整个语料库、选择或执行技能，也不验证安全性、质量或许可证。分数只适合同一候选列表内的排序，不能跨任务比较，也不应套用统一阈值。 | 你已经有候选技能，希望在自己的环境中进行更精准的排序。 |
+| [**SkillCorpus GitHub**](https://github.com/EverMind-AI/SkillCorpus) | 开源的技能语料构建与检索工具：聚合、筛选治理、去重、分类和导出技能集合；训练检索模型并提供基础的 `/embed` 与 `/score` 端点；查看或改造评测与集成代码。 | 它不是托管技能目录。克隆仓库不会获得论文完整快照、模型权重或复现论文结果所需的全部产物；仓库提供的推理端点也不是本地版 SkillHub。 | 你想理解或扩展系统、构建自己的语料、让已有评测组件适配你的输入，或自托管部分检索链路。 |
+| [**SkillHub**](https://evermind.ai/skillhub) | 面向客户的托管产品：浏览和搜索在线技能目录，查看元数据与来源，阅读 `SKILL.md`，以及下载技能包、交给兼容的 agent 或 harness 安装。无需克隆仓库或自行运行模型。 | 它不是源代码仓库或模型检查点，也不会代替你的 agent 执行最终任务。 | 你现在就想找到并使用技能。 |
+
+```text
+SkillCorpus GitHub —— 开源管线与参考代码
+  ├─ 语料工作支撑 ───────→ SkillHub —— 托管目录 + UI/API
+  └─ 检索工作发布 ───────→ Hugging Face reranker —— 可下载的候选精排模型
+```
+
+上图表达的是项目来源与产品分工，并不声称 SkillHub 网站的每次搜索都会调用公开的 Hugging Face 检查点。重排序模型（reranker）是 **SkillCorpus 项目公开发布的一项匹配组件**；SkillHub 是供客户发现和获取技能的**托管目录与分发入口**，使用它不需要自行运行 SkillCorpus 数据管线或模型。
 
 ## 30 秒试用：无需安装或 API key
 

@@ -4,8 +4,6 @@
 
 <div align="center">
 
-**English** | [简体中文](README.zh-CN.md)
-
 # SkillCorpus
 
 **Find a reusable skill for your agent in seconds — then read it, download it, or put it to work.**
@@ -21,7 +19,27 @@ Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/rave
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
+**English** | [简体中文](README.zh-CN.md)
+
 </div>
+
+## Three parts, one system
+
+These are **three entry points, not three setup steps**. Choose the one that matches whether you want to use skills now, build the open stack, or add self-hosted reranking:
+
+| Part | What it does | What it does not do | Start here when… |
+|---|---|---|---|
+| [**Hugging Face re-ranker**](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | A downloadable precision component for skill retrieval. After embedding search recalls a shortlist, it reads the task together with each candidate skill document—name, description, and body—and returns one relevance score per pair. Your application sorts the shortlist by those scores. | It does not search a full corpus efficiently, choose or execute a skill, or validate safety, quality, or licensing. Compare scores only within the same shortlist—not across tasks or against a universal cutoff. | You already have candidate skills and want more precise ranking in your own environment. |
+| [**SkillCorpus GitHub**](https://github.com/EverMind-AI/SkillCorpus) | The open-source corpus-building and retrieval toolkit: aggregate, curate, deduplicate, classify, and export skill collections; train retrieval models; provide basic `/embed` and `/score` endpoints; and inspect or adapt the evaluation and integration code. | It is not the hosted skill catalog. A clone does not contain the full paper snapshot, model weights, or every artifact needed to reproduce the paper results; its serving endpoints are not a local SkillHub replacement. | You want to inspect or extend the system, build your own corpus, adapt the available evaluation components to your inputs, or self-host parts of retrieval. |
+| [**SkillHub**](https://evermind.ai/skillhub) | The hosted customer experience: browse and search the live catalog, inspect metadata and provenance, read `SKILL.md`, and download a skill bundle for installation in a compatible agent or harness. You do not need to clone the repo or run the models. | It is not the source-code repository or a model checkpoint, and it does not execute your agent's final task. | You want to find and use a skill now. |
+
+```text
+SkillCorpus GitHub — open-source pipeline and reference code
+  ├─ corpus work underpins ───────→ SkillHub — hosted catalog + UI/API
+  └─ retrieval work releases ────→ Hugging Face re-ranker — downloadable shortlist scorer
+```
+
+The diagram shows project provenance and product roles; it does not claim that every SkillHub website search invokes the public Hugging Face checkpoint. The re-ranker is **one downloadable matching component released from the SkillCorpus project**. SkillHub is the **hosted catalog and distribution experience** for discovering and obtaining skills, and you can use it without operating either the GitHub pipeline or the model yourself.
 
 ## Try it in 30 seconds — no install or API key
 
