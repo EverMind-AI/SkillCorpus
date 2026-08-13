@@ -5,11 +5,7 @@
 
 # SkillCorpus
 
-**几秒钟为你的 agent 找到可复用技能——阅读、下载，或直接投入使用。**
-
-搜索公开的 [SkillHub](https://evermind.ai/skillhub)，试用 [1,000 条技能 demo 语料](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)，运行[检索模型](https://huggingface.co/EverMind-AI/models)，或阅读[论文](https://arxiv.org/abs/2607.15557)。
-
-EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/raven)，终端原生的 agent harness · [EverOS](https://github.com/EverMind-AI/EverOS)，其构建所依赖的记忆底座 · SkillCorpus，它们从中检索的社区技能语料。
+**把分散的 `SKILL.md` 整理成经过治理、面向检索的 agent 技能语料，并提供配套检索与评测工具的开源基础设施。**
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -22,23 +18,15 @@ EverMind agent 技术栈的一环 —— [Raven](https://github.com/EverMind-AI/
 
 </div>
 
-## 三个部分，一套系统
+## 从开源底座到线上产品
 
-它们是**三个入口，而不是三个必须完成的部署步骤**。根据你的目标选择即可：现在使用技能、构建开源技术栈，或加入自托管精排。
+| 入口 | 在体系中的角色 | 你可以用它做什么 |
+|---|---|---|
+| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | **开源底座：**语料处理管线、检索代码、评测代码和集成。 | 你可以在各组件声明的许可证下 fork 并修改仓库，替换数据源、规则、模型或集成，构建自己的技能库与检索链路。第三方技能和数据仍遵循各自的上游许可证。 |
+| 2. [**Hugging Face 模型与 demo**](https://huggingface.co/EverMind-AI) | **可下载产物：**[1K 示例语料](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)、生成召回向量的[嵌入模型](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b)，以及为“任务–候选”对评分的[重排序模型（reranker）](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b)。 | 运行检索实验或自托管已发布组件；语料索引、候选选择流程和编排需要由你提供。 |
+| 3. [**SkillHub**](https://evermind.ai/skillhub) | **面向用户的线上产品：**基于经筛选与治理的技能库，提供托管目录和 API。 | 无需克隆仓库或自行运行模型，即可搜索技能、查看来源、阅读 `SKILL.md`，并为兼容的 agent 下载技能包。 |
 
-| 部分 | 它做什么 | 它不做什么 | 什么时候从这里开始 |
-|---|---|---|---|
-| [**Hugging Face re-ranker**](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | 用于技能检索的可下载精排组件。向量检索先召回一批候选技能；它将任务与每个候选技能文档（名称、描述和正文）成对读取，为每一对返回相关性分数，再由你的应用按分数重排候选。 | 它不负责直接搜索整个语料库、选择或执行技能，也不验证安全性、质量或许可证。分数只适合同一候选列表内的排序，不能跨任务比较，也不应套用统一阈值。 | 你已经有候选技能，希望在自己的环境中进行更精准的排序。 |
-| [**SkillCorpus GitHub**](https://github.com/EverMind-AI/SkillCorpus) | 开源的技能语料构建与检索工具：聚合、筛选治理、去重、分类和导出技能集合；训练检索模型并提供基础的 `/embed` 与 `/score` 端点；查看或改造评测与集成代码。 | 它不是托管技能目录。克隆仓库不会获得论文完整快照、模型权重或复现论文结果所需的全部产物；仓库提供的推理端点也不是本地版 SkillHub。 | 你想理解或扩展系统、构建自己的语料、让已有评测组件适配你的输入，或自托管部分检索链路。 |
-| [**SkillHub**](https://evermind.ai/skillhub) | 面向客户的托管产品：浏览和搜索在线技能目录，查看元数据与来源，阅读 `SKILL.md`，以及下载技能包、交给兼容的 agent 或 harness 安装。无需克隆仓库或自行运行模型。 | 它不是源代码仓库或模型检查点，也不会代替你的 agent 执行最终任务。 | 你现在就想找到并使用技能。 |
-
-```text
-SkillCorpus GitHub —— 开源管线与参考代码
-  ├─ 语料工作支撑 ───────→ SkillHub —— 托管目录 + UI/API
-  └─ 检索工作发布 ───────→ Hugging Face reranker —— 可下载的候选精排模型
-```
-
-上图表达的是项目来源与产品分工，并不声称 SkillHub 网站的每次搜索都会调用公开的 Hugging Face 检查点。重排序模型（reranker）是 **SkillCorpus 项目公开发布的一项匹配组件**；SkillHub 是供客户发现和获取技能的**托管目录与分发入口**，使用它不需要自行运行 SkillCorpus 数据管线或模型。
+> **可用性说明：**目前公开可下载的语料是 1K demo。**96,401 条技能**指论文使用的生产快照，该完整版本尚未公开下载。
 
 ## 30 秒试用：无需安装或 API key
 
@@ -57,26 +45,6 @@ python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 响应先返回元数据，随后可获取 `skill_md` 并注入 agent prompt。完整的三层流程——搜索、阅读和可选下载——见 [`examples/skillhub_demo.py`](examples/skillhub_demo.py)；API 契约见 [`docs/integrations.md`](docs/integrations.md)。
 
 > **运行下载的技能之前：**随附的脚本、资源和参考资料均为第三方内容。执行任何内容前，请审阅它们及其上游条款。
-
-## 能用它做什么
-
-| 你的角色 | SkillCorpus 能帮你 | 从这里开始 |
-|---|---|---|
-| 构建 agent | 无需手工维护技能目录，即可找到相关的流程指令 | [搜索 SkillHub](https://evermind.ai/skillhub) |
-| 自动化任务 | 获取 `SKILL.md`、加入 prompt，或为兼容 harness 下载其技能包 | [运行 demo](examples/skillhub_demo.py) |
-| 评估检索 | 使用已发布的嵌入模型和 reranker 测试自己的候选集合 | [获取模型](https://huggingface.co/EverMind-AI/models) |
-| 构建专业技能库 | 聚合、许可审计、策展、去重并导出自己的来源 | [构建自己的语料](#build-your-own-corpus) |
-
-## 当前可用内容
-
-| 产物 | 当前可用 | 是什么 | 边界 |
-|---|---|---|---|
-| 🌐 **SkillHub** | [托管服务](https://evermind.ai/skillhub) | 面向语料的公开检索；搜索和阅读无需安装 | 托管 API，不是可自托管的软件包 |
-| 📚 **语料** | Hugging Face 上的 [1K demo](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) | `skills.parquet`、`attachments.tar.zst` 和数据集卡片 | 公开下载的是 1,000 条技能 demo，而非论文完整快照 |
-| 🔡 **SkillRouter** | [Bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) + [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | 基于 `Qwen3-Embedding-0.6B` 与 `Qwen3-Reranker-0.6B` 微调的检索检查点 | 语料、候选检索流程和服务环境需由你提供 |
-| 🛠️ **代码** | [本仓库](https://github.com/EverMind-AI/SkillCorpus) | `aggregate`、`curate`、`match`、`evaluate` 与 `export` 工具包 | 代码不含本地 SkillHub 兼容的语料索引或路由器 |
-
-论文的生产快照包含约 821,000 个爬取文件中选出的 **96,401 条技能**。该完整快照尚不能下载；目前公开的语料是上述 1K demo。
 
 ## 为什么需要 SkillCorpus
 

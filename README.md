@@ -6,11 +6,7 @@
 
 # SkillCorpus
 
-**Find a reusable skill for your agent in seconds — then read it, download it, or put it to work.**
-
-Search the public [SkillHub](https://evermind.ai/skillhub), try the [1,000-skill demo corpus](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k), run the [retrieval models](https://huggingface.co/EverMind-AI/models), or read the [paper](https://arxiv.org/abs/2607.15557).
-
-Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
+**Open-source infrastructure that turns scattered `SKILL.md` files into curated, retrieval-ready agent-skill corpora—with retrieval and evaluation tooling included.**
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -23,23 +19,15 @@ Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/rave
 
 </div>
 
-## Three parts, one system
+## From open-source foundation to live product
 
-These are **three entry points, not three setup steps**. Choose the one that matches whether you want to use skills now, build the open stack, or add self-hosted reranking:
+| Entry point | Role in the system | What you can do with it |
+|---|---|---|
+| 1. [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | **Open-source foundation:** corpus pipeline, retrieval code, evaluation code, and integrations. | Fork and modify it under the license stated for each component—replace sources, rules, models, or integrations to build your own skill library and retrieval workflow. Third-party skills and data retain their upstream licenses. |
+| 2. [**Hugging Face models & demo**](https://huggingface.co/EverMind-AI) | **Downloadable outputs:** a [1K demo corpus](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k), an [embedding model](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) that produces recall vectors, and a [re-ranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) that scores task–candidate pairs. | Experiment or self-host the released components. You supply the corpus index, candidate-selection flow, and orchestration. |
+| 3. [**SkillHub**](https://evermind.ai/skillhub) | **Live customer-facing product:** a hosted catalog and API over the curated skill library. | Search skills, inspect provenance, read `SKILL.md`, and download bundles for compatible agents—without cloning the repo or running the models. |
 
-| Part | What it does | What it does not do | Start here when… |
-|---|---|---|---|
-| [**Hugging Face re-ranker**](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | A downloadable precision component for skill retrieval. After embedding search recalls a shortlist, it reads the task together with each candidate skill document—name, description, and body—and returns one relevance score per pair. Your application sorts the shortlist by those scores. | It does not search a full corpus efficiently, choose or execute a skill, or validate safety, quality, or licensing. Compare scores only within the same shortlist—not across tasks or against a universal cutoff. | You already have candidate skills and want more precise ranking in your own environment. |
-| [**SkillCorpus GitHub**](https://github.com/EverMind-AI/SkillCorpus) | The open-source corpus-building and retrieval toolkit: aggregate, curate, deduplicate, classify, and export skill collections; train retrieval models; provide basic `/embed` and `/score` endpoints; and inspect or adapt the evaluation and integration code. | It is not the hosted skill catalog. A clone does not contain the full paper snapshot, model weights, or every artifact needed to reproduce the paper results; its serving endpoints are not a local SkillHub replacement. | You want to inspect or extend the system, build your own corpus, adapt the available evaluation components to your inputs, or self-host parts of retrieval. |
-| [**SkillHub**](https://evermind.ai/skillhub) | The hosted customer experience: browse and search the live catalog, inspect metadata and provenance, read `SKILL.md`, and download a skill bundle for installation in a compatible agent or harness. You do not need to clone the repo or run the models. | It is not the source-code repository or a model checkpoint, and it does not execute your agent's final task. | You want to find and use a skill now. |
-
-```text
-SkillCorpus GitHub — open-source pipeline and reference code
-  ├─ corpus work underpins ───────→ SkillHub — hosted catalog + UI/API
-  └─ retrieval work releases ────→ Hugging Face re-ranker — downloadable shortlist scorer
-```
-
-The diagram shows project provenance and product roles; it does not claim that every SkillHub website search invokes the public Hugging Face checkpoint. The re-ranker is **one downloadable matching component released from the SkillCorpus project**. SkillHub is the **hosted catalog and distribution experience** for discovering and obtaining skills, and you can use it without operating either the GitHub pipeline or the model yourself.
+> **Availability:** the public downloadable corpus is currently the 1K demo. **96,401 skills** refers to the paper's production snapshot, which is not yet published as a full download.
 
 ## Try it in 30 seconds — no install or API key
 
@@ -58,26 +46,6 @@ python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 The response starts with metadata, then lets you fetch `skill_md` to inject into an agent prompt. See the complete three-tier flow — search, read, and optional download — in [`examples/skillhub_demo.py`](examples/skillhub_demo.py) and the API contract in [`docs/integrations.md`](docs/integrations.md).
 
 > **Before you run a downloaded skill:** its bundled scripts, assets, and references are third-party content. Review them and their upstream terms before executing anything.
-
-## What you can do with it
-
-| If you are… | SkillCorpus helps you… | Start here |
-|---|---|---|
-| Building an agent | find relevant procedural instructions without hand-curating a skills folder | [Search SkillHub](https://evermind.ai/skillhub) |
-| Automating a task | retrieve a `SKILL.md`, add it to your prompt, or download its bundle for a compatible harness | [Run the demo](examples/skillhub_demo.py) |
-| Evaluating retrieval | test the released embedding model and reranker with your own candidate set | [Get the models](https://huggingface.co/EverMind-AI/models) |
-| Building a specialized library | aggregate, license-audit, curate, deduplicate, and export your own sources | [Build a corpus](#build-your-own-corpus) |
-
-## Available today
-
-| Artifact | Available now | What it is | Boundary |
-|---|---|---|---|
-| 🌐 **SkillHub** | [Hosted service](https://evermind.ai/skillhub) | public retrieval over the corpus; no install for search and read | hosted API, not a self-hosted package |
-| 📚 **Corpus** | [1K demo on Hugging Face](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) | `skills.parquet`, `attachments.tar.zst`, and dataset card | the public download is a 1,000-skill demo, not the full paper snapshot |
-| 🔡 **SkillRouter** | [Bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) + [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) | fine-tuned retrieval checkpoints based on `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | you provide the corpus, candidate retrieval flow, and serving environment |
-| 🛠️ **Code** | [This repository](https://github.com/EverMind-AI/SkillCorpus) | the `aggregate`, `curate`, `match`, `evaluate`, and `export` toolkits | code does not include a local SkillHub-compatible corpus index or router |
-
-The paper's production snapshot contains **96,401 skills** selected from roughly 821,000 crawled files. That full snapshot is not yet downloadable; the current public corpus is the 1K demo above.
 
 ## Why SkillCorpus
 
