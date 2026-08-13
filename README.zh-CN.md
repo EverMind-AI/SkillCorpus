@@ -33,7 +33,7 @@ curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF
 或者使用只依赖标准库的 demo，搜索并阅读匹配技能的 `SKILL.md` 正文：
 
 ```bash
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 ```
 
 响应先返回元数据，随后可获取 `skill_md` 并注入 agent prompt。完整的三层流程——搜索、阅读和可选下载——见 [`examples/skillhub_demo.py`](examples/skillhub_demo.py)；API 契约见 [`docs/integrations.md`](docs/integrations.md)。
@@ -83,14 +83,14 @@ Agent 技能——把可复用流程知识封装为 `SKILL.md` 的文件——�
 
 ```bash
 # 搜索并读取正文——仅用标准库，无需安装或 API key
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 
 # 将首个命中的随附文件下载到本地技能目录
-python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
+python3 examples/skillhub_demo.py --install ./skills "convert a PDF to images"
 
 # 检索后通过 OpenAI 兼容 LLM 执行任务
 export OPENAI_API_KEY=...
-python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
 
 使用 OpenRouter 或本地 vLLM 时，还需设置 `OPENAI_BASE_URL`；详见 demo 的内联帮助。端点、响应封装、状态码和速率限制见 [`docs/integrations.md`](docs/integrations.md)。
@@ -98,7 +98,7 @@ python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoic
 ### Raven 与其他 harness
 
 <details>
-<summary><b>Raven</b> —— 一方 SkillHub 来源</summary>
+<summary><b>Raven</b> —— 官方 SkillHub 来源</summary>
 
 Raven 通过加权 RRF（`skillForge.router`）将 SkillHub 与本地和 EverOS 技能来源结合：
 
@@ -120,10 +120,10 @@ skillForge:
 <details>
 <summary><b>其他 harness</b> —— OpenClaw、Hermes、Claude Code，…</summary>
 
-目前还没有一方插件。任何可读取技能目录的 harness 都能使用下载层：
+目前还没有官方插件。任何可读取技能目录的 harness 都能使用下载层：
 
 ```bash
-python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
+python3 examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
 #                                          ~/.hermes/skills      (Hermes)
 #                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
@@ -134,6 +134,14 @@ python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to im
 ## 自行运行检索模型
 
 如果希望技能选择完全在自己的环境中进行，可使用已发布的检索检查点。从公开的 1K demo 语料开始（完整的 96,401 条语料尚未发布）：
+
+选择一种加载路径，并单独安装其依赖（这些依赖不包含在检索服务器依赖中）：
+
+```bash
+pip install datasets
+# 或用于直接读取 Parquet 的路径：
+pip install pandas pyarrow
+```
 
 ```python
 from datasets import load_dataset
@@ -148,11 +156,12 @@ skills = pd.read_parquet("skills.parquet")
 
 ```bash
 pip install -r skillcorpus/match/requirements.txt
-EMBEDDING_MODEL=<embedding checkpoint dir> RERANKER_MODEL=<reranker checkpoint dir> \
+EMBEDDING_MODEL=EverMind-AI/skillcorpus-embedding-0.6b \
+RERANKER_MODEL=EverMind-AI/skillcorpus-reranker-0.6b \
   bash skillcorpus/match/scripts/run_server.sh
 ```
 
-自托管服务器提供 **`/embed`** 和 **`/score`**（[Serving](skillcorpus/match/README.md#serving)）。它**不会**提供本地 SkillHub 兼容的 `/openapi/v1/skills` 语料索引或端到端路由器：请在你的应用中加载语料、组合候选检索、top-k 选择和重排序。同一嵌入端点也可通过 `embedding.provider: skillrouter_remote` 支持生产端去重。
+自托管服务器提供 **`/embed`** 和 **`/score`**（[Serving](skillcorpus/match/README.md#serving)）。它**不会**提供本地 SkillHub 兼容的 `/openapi/v1/skills` 语料索引或端到端路由器：请在你的应用中加载语料、组合候选检索、top-k 选择和重排序。同一嵌入端点也可通过 `embedding.provider: skillrouter_remote` 支持语料生产管线去重。
 
 ## 论文结果
 
@@ -165,6 +174,8 @@ EMBEDDING_MODEL=<embedding checkpoint dir> RERANKER_MODEL=<reranker checkpoint d
 | Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
 | Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
 | **合并 ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
+
+指标定义：SkillsBench 报告 pass@1，GDPVal 报告 LLM 裁判奖励，QwenClawBench 报告其混合分数；所有数值均以 ×100 显示。
 
 报告中，SkillsBench 的提升最大，因为其任务需要模型可能不具备的流程知识；更开放的 GDPVal 任务提升最小。
 
@@ -184,7 +195,7 @@ python -m skillcorpus.cli stats     # 按来源 / 类别 / 许可证统计
 python -m skillcorpus.cli export --out ./corpus
 ```
 
-`cli build` 运行 `ingest → quality_pass → dedup_pass → license_audit → export.corpus`。当没有可连接的模型端点时，生产端的 LLM 分类和质量评分会回退为规则，因此管线仍可端到端运行。`match/` 和 `evaluate/` 是独立工具包，各自有自己的依赖，且不会随 producer 包一起安装。
+`cli build` 运行 `ingest → quality_pass → dedup_pass → license_audit → export.corpus`。当没有可连接的模型端点时，语料生产管线的 LLM 分类和质量评分会回退为规则，因此管线仍可端到端运行。`match/` 和 `evaluate/` 是独立工具包，各自有自己的依赖，且不会随 producer 包一起安装。
 
 仅来自 GREEN 许可证**来源**的技能会被导出。demo 完全信任 `audit/license_safe_sources.json` 中的白名单；生产环境按来源仓库 SPDX 进行门禁。每行仍保留声明的 `license`，因此 demo 语料仍可能包含非 GREEN 的许可证字符串。可用 `--sources-config your.yaml` 指定自己的注册表，或用 `--source <name>` 选择单一来源。
 
@@ -232,7 +243,7 @@ GREEN/RED/YELLOW 策略、许可证数据流和 opt-out 流程见 [`docs/licence
 ## 许可
 
 - **代码** —— Apache-2.0（`match/` 和 `evaluate/` 工具包均为 MIT——见其各自的 `LICENSE`）。
-- **语料** —— 每项技能保留其**原始上游许可证**；仅收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）技能，不重新授权。下游使用必须遵守逐技能条款。
+- **语料** —— 导出仅允许来自 GREEN 许可证来源仓库的技能。每行保留其声明的上游 `license`；它可能与来源仓库的许可证不同，仍需单独审阅。语料不会被重新授权，下游使用必须遵守逐技能条款。
 
 ## EverMind 生态系统
 
@@ -252,7 +263,7 @@ EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和�
 </tr>
 <tr>
 <td><strong>Agent 技能与检索</strong></td>
-<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> - 开放策展管线、SkillRouter 检索模型、公开 <a href="https://evermind.ai/skillhub">SkillHub</a> demo、agent 集成与基准测试。</td>
+<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> - 开放策展管线、SkillRouter 检索模型、公开 <a href="https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k">1K demo 语料</a>、<a href="https://evermind.ai/skillhub">SkillHub</a> 集成、agent 集成与基准测试。</td>
 </tr>
 <tr>
 <td><strong>算法引擎</strong></td>

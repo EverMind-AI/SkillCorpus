@@ -34,7 +34,7 @@ curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF
 Or use the standard-library-only demo to search and read the matching `SKILL.md` bodies:
 
 ```bash
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 ```
 
 The response starts with metadata, then lets you fetch `skill_md` to inject into an agent prompt. See the complete three-tier flow — search, read, and optional download — in [`examples/skillhub_demo.py`](examples/skillhub_demo.py) and the API contract in [`docs/integrations.md`](docs/integrations.md).
@@ -84,14 +84,14 @@ Quality and safety facet scores support corpus curation and filtering; they are 
 
 ```bash
 # search + read bodies — stdlib only, no install, no API key
-python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
 
 # download the bundled files from the top hit into a local skills directory
-python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
+python3 examples/skillhub_demo.py --install ./skills "convert a PDF to images"
 
 # retrieve and run the task with an OpenAI-compatible LLM
 export OPENAI_API_KEY=...
-python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
+python3 examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
 ```
 
 For OpenRouter or local vLLM, also set `OPENAI_BASE_URL`; see the inline help in the demo. Endpoints, response envelopes, status codes, and rate limits are documented in [`docs/integrations.md`](docs/integrations.md).
@@ -124,7 +124,7 @@ skillForge:
 There is no first-party plugin yet. A harness that reads a skills directory can use the download tier:
 
 ```bash
-python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
+python3 examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
 #                                          ~/.hermes/skills      (Hermes)
 #                                ~/.openclaw/workspace/skills    (OpenClaw)
 ```
@@ -135,6 +135,14 @@ For prompt-injection harnesses, fetch `skill_md` from the read tier and prepend 
 ## Run the retrieval models yourself
 
 Use the released retrieval checkpoints when you want selection to run in your own environment. Start with the public 1K demo corpus (the full 96,401-skill corpus is not published):
+
+Choose a loader path and install its dependencies separately from the retrieval server dependencies:
+
+```bash
+pip install datasets
+# Or, for the direct Parquet path:
+pip install pandas pyarrow
+```
 
 ```python
 from datasets import load_dataset
@@ -149,7 +157,8 @@ Attachments (`scripts/`, `references/`) ship in the sibling `attachments.tar.zst
 
 ```bash
 pip install -r skillcorpus/match/requirements.txt
-EMBEDDING_MODEL=<embedding checkpoint dir> RERANKER_MODEL=<reranker checkpoint dir> \
+EMBEDDING_MODEL=EverMind-AI/skillcorpus-embedding-0.6b \
+RERANKER_MODEL=EverMind-AI/skillcorpus-reranker-0.6b \
   bash skillcorpus/match/scripts/run_server.sh
 ```
 
@@ -166,6 +175,8 @@ These are results reported in the [paper, Table 1](https://arxiv.org/abs/2607.15
 | Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
 | Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
 | **Pooled ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
+
+Metric definitions: SkillsBench reports pass@1, GDPVal reports LLM-judge reward, and QwenClawBench reports its hybrid score; all values are shown ×100.
 
 The reported gain is largest on SkillsBench, where tasks need procedural knowledge the model may not already contain, and smallest on the more open-ended GDPVal tasks.
 
@@ -231,7 +242,7 @@ Contributions to the corpus pipeline, retrieval tooling, evaluations, integratio
 ## License
 
 - **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
-- **Corpus** — every skill keeps its **original upstream license**; only GREEN (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Downstream use must follow the per-skill terms.
+- **Corpus** — export is gated to skills from GREEN-licensed source repositories. Each row keeps its declared upstream `license`, which may differ from the source-repository license and still requires review; nothing is relicensed. Downstream use must follow the per-skill terms.
 
 ## EverMind Ecosystem
 
@@ -251,7 +262,7 @@ EverMind is an open-source ecosystem for long-term memory, self-evolving agents,
 </tr>
 <tr>
 <td><strong>Agent Skills &amp; Retrieval</strong></td>
-<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> - open curation pipeline, SkillRouter retrieval models, public <a href="https://evermind.ai/skillhub">SkillHub</a> demo, agent integrations, and benchmarks.</td>
+<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> - open curation pipeline, SkillRouter retrieval models, public <a href="https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k">1K demo corpus</a>, <a href="https://evermind.ai/skillhub">SkillHub</a> integration, agent integrations, and benchmarks.</td>
 </tr>
 <tr>
 <td><strong>Algorithm Engine</strong></td>
