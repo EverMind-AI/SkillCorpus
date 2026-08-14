@@ -15,6 +15,7 @@
 
 import { rrfMergeWeighted, type SourceResult } from './fusion.js'
 import { LLMGateFilter } from './gate.js'
+import { resolveRefs } from './refs.js'
 import { QueryRewriter } from './rewriter.js'
 import type { RouterHit, SkillSource } from './types.js'
 
@@ -30,6 +31,13 @@ export interface EngineOptions {
   readonly dedupBy?: 'name' | 'qualifiedId'
   /** Heading of the rendered block. */
   readonly heading?: string
+  /**
+   * Rewrite `{baseDir}` and bundled-file links in selected bodies to absolute
+   * paths under the skill's directory. On by default; turn it off when the
+   * host and the skills do not share a filesystem, where an absolute path
+   * would promise files the model cannot open.
+   */
+  readonly resolveRefs?: boolean
 }
 
 /** Per-turn inputs, which vary by agent and by cancellation. */
@@ -64,6 +72,7 @@ export class SkillSearchEngine {
   private readonly overFetch: number
   private readonly dedupBy: 'name' | 'qualifiedId'
   private readonly heading: string
+  private readonly refs: boolean
 
   constructor(parts: EngineParts, options: EngineOptions = {}) {
     this.sources = parts.sources
@@ -75,6 +84,7 @@ export class SkillSearchEngine {
     this.overFetch = options.overFetch ?? 2
     this.dedupBy = options.dedupBy ?? 'name'
     this.heading = options.heading ?? '# Skills'
+    this.refs = options.resolveRefs ?? true
   }
 
   /** Whether anything is configured to search. */
@@ -138,7 +148,20 @@ export class SkillSearchEngine {
     if (this.gate) {
       hits = await this.gate.filter(query, hits, options.availableTools, signal)
     }
-    return hits.slice(0, this.topK)
+    // Only the survivors: resolution stats the disk per ref, so it waits
+    // until the gate has decided what is actually going in.
+    return this.resolveHitRefs(hits.slice(0, this.topK))
+  }
+
+  /** Rewrite each on-disk survivor's refs to absolute paths, when enabled. */
+  private resolveHitRefs(hits: RouterHit[]): RouterHit[] {
+    if (!this.refs) return hits
+    return hits.map((hit) => {
+      const skillDir = hit.meta.skillDir
+      if (typeof skillDir !== 'string' || !skillDir || !hit.content) return hit
+      const { body } = resolveRefs(hit.content, skillDir)
+      return body === hit.content ? hit : { ...hit, content: body }
+    })
   }
 
   /** Fill in bodies for hits a source returned as metadata only. */

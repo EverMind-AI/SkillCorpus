@@ -17,8 +17,38 @@
   is-anything-configured paths a running host needs.
 - **`hub_client=`** on `SkillSearch`, so a host can hand over the catalog
   client it already built rather than have a second one created.
+- **`{baseDir}` and bundled-file link resolution in TypeScript**
+  ([`refs.ts`](typescript/src/refs.ts), a port of `refs.py` verified
+  byte-identical on shared fixtures), behind a `resolveRefs` config
+  defaulting on. Previously TypeScript injected the placeholders literally —
+  and the gate prompt reads a literal `{baseDir}` as proof a skill cannot
+  run, so local skills that shipped files were penalized on one side only.
+- **`hubMinSafety`** in the TypeScript config, matching Python's
+  `hub_min_safety`; catalog searches also now pass `limit` explicitly
+  instead of slicing the default page.
 
 ### Fixed
+
+- **A query containing `$&`, `` $` `` or `$'` corrupted the rewrite prompt
+  (TypeScript).** The user's text went into `String.replace` as a *string*
+  replacement, where `$`-sequences are pattern references — quoting shell's
+  `$'...'` syntax spliced pieces of the prompt into itself. The replacement
+  is a function now, and the parity suite pins a `$`-laden query.
+- **The two implementations indexed different text, so the same directory
+  could rank differently.** Python indexed the name twice and capped the
+  body at 4000 characters; TypeScript indexed the name once and the whole
+  body. TypeScript now formats index text byte-identically
+  (`formatSkillText`), pinned by the parity suite.
+- **A frontmatter-less skill was named by the wrong directory
+  (TypeScript).** The first path segment under the root, rather than the
+  skill's own directory — so nested nameless skills collapsed into one
+  entry under their grouping directory, and the split broke on Windows
+  separators. Now `basename(dir)`, matching Python.
+- **A timed-out model call was abandoned, not aborted (TypeScript).** The
+  engine stopped waiting but the stream kept running, spending tokens on a
+  reply nobody reads — and a late transport rejection surfaced as an
+  unhandled promise rejection. `bounded()` now hands the call a signal that
+  fires on timeout and on the turn's own cancellation.
 
 - **The rewrite call was effectively unbounded on the hot path.** Its only
   ceiling was an internal 120s, and it runs before the gate on every turn,
@@ -90,3 +120,10 @@
 - Removed internal ticket numbers, retired source names, and host-internal
   class references from module and class docstrings.
 - `LICENSE` carries the full Apache-2.0 text rather than the short notice.
+- READMEs rewritten for release: the repository README now positions the
+  package, points the `hub` source at
+  [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over
+  [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) — and carries
+  the corpus paper's citation; per-implementation READMEs document the new
+  configuration keys, and the cross-implementation equality claim now
+  points at the parity suite that enforces it.

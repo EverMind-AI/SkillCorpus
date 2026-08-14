@@ -73,7 +73,7 @@ Configure under the plugin's id in Raven's config:
     "config": {
       "skillsearch": {
         "skills_dir": "skills",
-        "hub_endpoint": "https://skillhub.example.com",
+        "hub_endpoint": "https://skillhub.evermind.ai",
         "model": "",
         "top_k": 5
       }
@@ -156,7 +156,7 @@ EverOS provider keeps `everos.json`:
 ```json
 {
   "skills_dir": "~/.hermes/skills",
-  "hub_endpoint": "https://skillhub.example.com",
+  "hub_endpoint": "https://skillhub.evermind.ai",
   "model": "",
   "top_k": 5
 }

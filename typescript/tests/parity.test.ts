@@ -12,10 +12,16 @@
  */
 
 import assert from 'node:assert/strict'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import { BM25Okapi, tokenize } from '../src/bm25.ts'
+import { bounded } from '../src/deadline.ts'
 import { RRF_K, rrfMergeWeighted } from '../src/fusion.ts'
 import { LLMGateFilter } from '../src/gate.ts'
+import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
+import { resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
 import type { RouterHit } from '../src/types.ts'
 
@@ -146,4 +152,79 @@ test('a rewriter that cannot answer still searches', async () => {
     needRetrieval: true,
     rewrittenQuery: '',
   })
+})
+
+test('a query full of replacement patterns reaches the prompt verbatim', async () => {
+  // String.replace reads $&, $' and $` in a *string* replacement as pattern
+  // references; a user quoting shell's `$'...'` syntax must not splice
+  // pieces of the prompt into itself.
+  const query = "why does bash print $'\\n' here, and what does $& mean?"
+  const model = capturing('{"need_retrieval": true}')
+  await new QueryRewriter(model).analyze(query)
+
+  assert.ok(model.prompt.endsWith(`\n${query}`))
+})
+
+test('the BM25 index text is byte-identical to the Python formatting', () => {
+  // Python: f"{name} {name} {description or ''} {body[:4000]}" — the name
+  // twice so it outweighs a long body, the body capped at 4000 characters.
+  // The index text decides the ranking, and the two implementations promise
+  // the same ranking over the same directory.
+  const skill = { name: 'pdf-tables', description: 'Extract tables.', content: 'x'.repeat(5000) }
+  assert.equal(
+    formatSkillText(skill),
+    `pdf-tables pdf-tables Extract tables. ${'x'.repeat(4000)}`,
+  )
+})
+
+test('a nameless skill is named by its own directory, as in Python', async () => {
+  // Python names a frontmatter-less skill after SKILL.md's parent directory.
+  // Naming it after the first path segment under the root would instead
+  // collapse every nameless skill below one grouping directory into one.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-'))
+  await mkdir(join(root, 'group', 'my-skill'), { recursive: true })
+  await writeFile(join(root, 'group', 'my-skill', 'SKILL.md'), 'Just a body.\n')
+
+  const skills = await new LocalSkillSource([{ path: root, name: 'local' }]).listAll()
+
+  assert.deepEqual(skills.map(s => s.name), ['my-skill'])
+})
+
+test('refs resolve exactly as the Python implementation resolves them', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'skillsearch-refs-'))
+  await mkdir(join(dir, 'references'), { recursive: true })
+  await mkdir(join(dir, 'scripts'), { recursive: true })
+  await writeFile(join(dir, 'references', 'x.md'), 'ref')
+  await writeFile(join(dir, 'scripts', 'y.sh'), 'run')
+
+  const body = [
+    'See [the notes](references/x.md#part) and run {baseDir}/scripts/y.sh.',
+    'Missing: [gone](references/gone.md) and {baseDir}/scripts/gone.sh.',
+    '```\n[fenced](references/x.md) stays literal\n```',
+  ].join('\n')
+  const { body: resolved, anyResolved } = resolveRefs(body, dir)
+
+  assert.ok(anyResolved)
+  assert.ok(resolved.includes(`[the notes](${dir}/references/x.md#part)`))
+  assert.ok(resolved.includes(`run ${dir}/scripts/y.sh.`))
+  // A ref whose target is not on disk stays literal, never a confident 404.
+  assert.ok(resolved.includes('[gone](references/gone.md)'))
+  assert.ok(resolved.includes('{baseDir}/scripts/gone.sh'))
+  // Code fences are never rewritten.
+  assert.ok(resolved.includes('[fenced](references/x.md) stays literal'))
+
+  // Without a directory, placeholders are stripped to bare relative paths.
+  const stripped = resolveRefs('run {baseDir}/scripts/y.sh', undefined)
+  assert.deepEqual(stripped, { body: 'run scripts/y.sh', anyResolved: false })
+})
+
+test('a timed-out model call is hung up on, not just abandoned', async () => {
+  let seen: AbortSignal | undefined
+  const never = (signal: AbortSignal) => {
+    seen = signal
+    return new Promise<string>(() => {})
+  }
+
+  await assert.rejects(bounded(never, 10), /timed out after 10ms/)
+  assert.equal(seen?.aborted, true)
 })

@@ -51,11 +51,11 @@ class RouterHit:
 
     score: float
     """Source-internal relevance. Each source normalizes to its own
-    scale (BM25 raw / cosine sim / EverMem score); RRF doesn't compare
-    them directly so absolute values across sources are not meaningful.
-    Used only for "pick the best representative when two hits collide
-    on ``name``" — :func:`rrf_merge_weighted` keeps the one with the
-    higher ``score``."""
+    scale (BM25 raw / cosine sim / memory-recall score); the scales are
+    not comparable, which is exactly why fusion never reads this value:
+    ranking and collision representatives are both decided by weighted
+    rank position. Kept as telemetry — the source's own justification
+    for the order it returned."""
 
     meta: dict[str, Any] = field(default_factory=dict)
     """Source-specific escape hatch.

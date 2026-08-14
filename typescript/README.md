@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Per-turn skill retrieval. Every turn, this searches local directories and an optional remote catalog against what the user just wrote, and puts the matching skill bodies in front of the model before it is called.
+Per-turn skill retrieval. Every turn, this searches local directories and an optional remote catalog — such as [SkillHub](https://evermind.ai/skillhub), the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted skills — against what the user just wrote, and puts the matching skill bodies in front of the model before it is called.
 
 `dsh-tool-skill` solves the same problem the other way: it publishes a catalog of every skill and lets the model load one by name. The two are alternatives — running both publishes the same skills twice, once as a tool schema and once as injected text. A deployment mounting this plugin disables `dsh-tool-skill` (and any other plugin that publishes the same skill catalog).
 
@@ -14,10 +14,11 @@ This is a DeepSeek Harness package, not a standalone npm package: its dependenci
 
 1. **Rewrite** — one model call decides whether this turn wants skills at all, and rewrites the query for retrieval, dropping paths, ids and boilerplate. A turn it answers `need_retrieval: false` for skips everything below.
 2. **Fan out** — every source ranks the rewritten query on its own scale. A source that throws or times out contributes nothing; the others still answer.
-3. **Fuse** — weighted Reciprocal Rank Fusion (K = 60) merges the lists *by position*, because a local BM25 score and a catalog quality score are not comparable numbers. Hits colliding on name collapse to the higher-scoring copy.
+3. **Fuse** — weighted Reciprocal Rank Fusion (K = 60) merges the lists *by position*, because a local BM25 score and a catalog quality score are not comparable numbers. Hits colliding on name collapse to the better-ranked copy.
 4. **Hydrate** — a candidate that arrived as catalog metadata gets its body fetched, one request per candidate that survived fusion.
 5. **Gate** — one model call selects at most `maxSelect` skills, and is instructed to return none rather than something irrelevant.
-6. **Inject** — the selection is rendered and appended to the step's messages.
+6. **Resolve** — `{baseDir}` placeholders and links to bundled files (`references/`, `scripts/`, …) in each on-disk survivor become absolute paths under the skill's directory, each substitution existence-checked. Without this a body saying `scripts/x.sh` reads as relative to the agent's cwd — the wrong place.
+7. **Inject** — the selection is rendered and appended to the step's messages.
 
 The gate is not an optimization. Fusion ranks by position, so each source's best hit reaches the shortlist however weakly it matched: without the gate, "what's the weather" injects whatever the local directory ranked first. The gate is also the only step that can reject a skill the agent *cannot run* — one whose body assumes a vendor API, a `{baseDir}` placeholder, or a slash-command dispatcher — which no ranking function can see. Configured without `provider`/`model`, retrieval runs unfiltered and injects the top `topK` by rank.
 
@@ -28,9 +29,10 @@ Retrieval never throws. A failed source, an unparseable gate reply, or a slow ca
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `skillsDirs` | `['.dsh/skills']` | Directories scanned for `SKILL.md`, up to 5 levels deep. Relative paths resolve against cwd. |
-| `hubEndpoint` | `''` | Remote catalog base URL. Empty disables the remote source. |
+| `hubEndpoint` | `''` | Remote catalog base URL — e.g. `https://skillhub.evermind.ai`, or a service of your own speaking the same API. Empty disables the remote source. |
 | `hubApiKey` | `''` | Bearer token for the catalog. |
 | `hubTimeoutMs` | `2000` | Per-request deadline for the catalog. |
+| `hubMinSafety` | `0.7` | Drop catalog entries whose safety score falls below this; only bites on catalogs that put per-skill safety in the search payload. |
 | `weightLocal` | `1.0` | Fusion weight for local skills. |
 | `weightHub` | `0.85` | Fusion weight for catalog skills — local skills are curated, so they outrank. |
 | `topK` | `5` | Upper bound on skills injected per turn. |
@@ -39,6 +41,7 @@ Retrieval never throws. A failed source, an unparseable gate reply, or a slow ca
 | `provider` / `model` | `''` | Route for the rewriter and the gate. Configure both or neither; one alone fails at load. |
 | `rewriteTimeoutMs` | `5000` | Deadline for the rewrite, the turn's first model call. Tight because it precedes everything else; on timeout the raw query is searched. |
 | `gateTimeoutMs` | `20000` | Deadline for the gate, which runs before the user sees a reply. |
+| `resolveRefs` | `true` | Rewrite `{baseDir}` and bundled-file links in selected bodies to absolute paths. Turn off when the agent does not share a filesystem with the skills it retrieves. |
 
 With no `skillsDirs` and no `hubEndpoint` there is nothing to search: the plugin logs that retrieval is off and registers no hook.
 
@@ -90,7 +93,7 @@ Replacing. The injection is appended after the derived history, and its text cha
 
 ## Known Limitations and Deferred Work
 
-- **The remote catalog's bundles are never downloaded** — a catalog skill contributes its `skill_md` body only. A skill whose procedure depends on its own scripts or reference files will describe files that are not on disk, and the gate's environment check is the only thing that filters those out.
+- **The remote catalog's bundles are never downloaded** — a catalog skill contributes its `skill_md` body only. A *local* skill's bundled files resolve (the Resolve step rewrites its refs to absolute paths), but a catalog skill whose procedure depends on its own scripts will describe files that are not on disk, and the gate's environment check is the only thing that filters those out.
 - **Retrieval is not recorded as a session event** — the injected message carries its ids in `source.skillIds`, but which candidates were considered and rejected, and what the rewriter decided, exist only in the model calls. A deployment that needs to audit *why* a skill was or was not injected has to add that event.
 - **The local scan is cached for the process lifetime** — `LocalSkillSource.invalidate()` exists but nothing calls it, so a `SKILL.md` written after the first retrieval is invisible until restart. Wiring it to a file watcher is deferred until a deployment edits skills in a live session.
 - **The rewriter's `need_retrieval` verdict costs recall, measurably.** Probed against a live model over six runs, one query — *"a test passed last week and fails now, which change broke it"* — flipped between `true` and `false` roughly half the time, and a `false` drops a skill that ranking and the gate would both have selected. The prompt already says "when in doubt, choose retrieval"; the model does not always agree. A deployment that would rather pay for the fan-out than miss a skill should set `rewrite: false` (Python) or leave `provider`/`model` unset for the rewriter path, and let the gate do the narrowing alone.

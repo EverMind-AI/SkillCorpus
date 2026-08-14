@@ -15,7 +15,7 @@
  * @module
  */
 
-import { withTimeout } from './deadline.js'
+import { bounded } from './deadline.js'
 import { extractJsonObject } from './replies.js'
 import type { RouterHit } from './types.js'
 
@@ -77,9 +77,10 @@ export class LLMGateFilter {
 
     let content: string
     try {
-      content = await withTimeout(
-        this.model.complete(prompt, { signal }),
+      content = await bounded(
+        s => this.model.complete(prompt, { signal: s }),
         this.timeoutMs,
+        signal,
       )
     } catch {
       return candidates.slice(0, this.fallbackTopK)
