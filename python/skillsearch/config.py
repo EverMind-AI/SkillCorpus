@@ -20,12 +20,10 @@ never say two things at once.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-# The engine tolerates a missing key but not a misspelled one: a typo in a
-# host's config file would otherwise fail silently as a default.
 _TRUE = {"1", "true", "yes", "on"}
 
 
@@ -83,6 +81,14 @@ class SearchConfig:
 
     hub_api_key: str = ""
     hub_timeout_s: float = 2.0
+    """Deadline for a catalog query. Deliberately tight: a search runs on
+    every turn, and a slow catalog must cost this turn its remote hits
+    rather than the turn itself."""
+
+    hub_download_timeout_s: float = 30.0
+    """Deadline for fetching one bundle zip, which is megabytes rather
+    than a JSON page. Separate from ``hub_timeout_s`` because the tight
+    catalog deadline would fail every download of any real size."""
     hub_min_safety: float = 0.7
 
     agent_id: str = ""
@@ -106,6 +112,11 @@ class SearchConfig:
     """Model for the rewriter and gate. Empty runs retrieval raw."""
 
     rewrite: bool = True
+    rewrite_timeout_s: float = 5.0
+    """Hard ceiling on the rewrite call. It runs before the gate on the
+    same hot path, so it is bounded for the same reason — a stalled
+    rewriter must degrade to "search the raw query", not hold the turn."""
+
     gate: bool = True
     gate_pool: int = 10
     max_select: int = 2
@@ -149,7 +160,7 @@ class SearchConfig:
         return base / ".skillsearch-cache"
 
     @classmethod
-    def from_mapping(cls, data: dict[str, Any] | None) -> "SearchConfig":
+    def from_mapping(cls, data: dict[str, Any] | None) -> SearchConfig:
         """Build from a host's config dict, coercing strings as needed.
 
         Unknown keys are ignored rather than rejected: hosts hand over a
@@ -163,15 +174,14 @@ class SearchConfig:
                 continue
             v = raw[f.name]
             if f.name == "extra_dirs":
-                kw[f.name] = tuple(
-                    LocalDir(**d) if isinstance(d, dict) else LocalDir(str(d))
-                    for d in (v or [])
-                )
-            elif f.type is bool or isinstance(getattr(cls, f.name, None), bool):
-                kw[f.name] = _as_bool(v, bool(f.default))
+                kw[f.name] = tuple(LocalDir(**d) if isinstance(d, dict) else LocalDir(str(d)) for d in (v or []))
+            # Coerce by the default's runtime type, not by ``f.type``:
+            # ``from __future__ import annotations`` makes the latter the
+            # string ``"bool"``, so every comparison against a type object
+            # is quietly false.
             elif isinstance(f.default, bool):
                 kw[f.name] = _as_bool(v, f.default)
-            elif isinstance(f.default, int) and not isinstance(f.default, bool):
+            elif isinstance(f.default, int):
                 kw[f.name] = _as_int(v, f.default)
             elif isinstance(f.default, float):
                 kw[f.name] = _as_float(v, f.default)

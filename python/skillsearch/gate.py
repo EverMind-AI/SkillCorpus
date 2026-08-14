@@ -1,7 +1,6 @@
 """LLM gate — relevance filter over RRF-fused router candidates.
 
-Ported from the pre-integrate-everos
-``SkillService._llm_gate_filter`` and adapted to operate on
+Adapted to operate on
 :class:`RouterHit` instead of the legacy ``SkillMeta``.
 
 The gate runs after :class:`SkillForgeRouter` fan-out + RRF: it sees
@@ -17,7 +16,6 @@ same number of skills.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -32,22 +30,26 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_TIMEOUT_S = 180.0
 _BODY_EXCERPT_CHARS = 300
-_GATE_LOG_PATH_ENV = "RAVEN_GATE_LOG_PATH"
+_GATE_LOG_PATH_ENV = "SKILLSEARCH_GATE_LOG_PATH"
 
 
 class LLMGateFilter:
-    """LLM-based selector that picks 0..N relevant skills from a pool.
+    """Selector that picks 0..N relevant skills out of a ranked pool.
 
-    Constructed once with the agent's shared :class:`ChatModel` and
-    gate-tuning knobs from :class:`SkillForgeConfig`. ``filter`` is
-    called once per ``# Skills`` segment build.
+    Constructed once with the host's :class:`~skillsearch.ports.ChatModel`
+    and the gate settings from :class:`~skillsearch.config.SearchConfig`;
+    ``filter`` is called once per retrieval.
+
+    **The caller owns the deadline.** ``filter`` awaits the model without
+    bounding it, because the engine already wraps this call in
+    ``gate_timeout_s`` and two nested ceilings would only disagree. Code
+    calling this directly must bound it itself.
     """
 
     def __init__(
         self,
-        provider: "ChatModel",
+        provider: ChatModel,
         *,
         max_select: int = 2,
         legacy_top_k: int = 5,
@@ -62,7 +64,7 @@ class LLMGateFilter:
         self._temperature = temperature
         self._max_tokens = max_tokens
 
-    def set_provider(self, provider: "ChatModel", model: str) -> None:
+    def set_provider(self, provider: ChatModel, model: str) -> None:
         """Adopt the provider a live ``/model`` switch just built.
 
         Unset, ``_model`` follows whatever the new provider defaults to.
@@ -76,6 +78,7 @@ class LLMGateFilter:
         """
         del model
         self._provider = provider
+
     async def filter(
         self,
         task: str,
@@ -88,20 +91,20 @@ class LLMGateFilter:
         prompt = self._build_prompt(task, catalog, available_tools)
 
         try:
-            resp = await asyncio.wait_for(
-                self._provider.complete(
-                    [{"role": "user", "content": prompt}],
-                    model=self._model or None,
-                    max_tokens=self._max_tokens,
-                    temperature=self._temperature,
-                ),
-                timeout=_TIMEOUT_S,
+            resp = await self._provider.complete(
+                [{"role": "user", "content": prompt}],
+                model=self._model or None,
+                max_tokens=self._max_tokens,
+                temperature=self._temperature,
             )
             content = resp if isinstance(resp, str) else str(getattr(resp, "content", "") or "")
             # A model that answers with an error still returns text; treat
             # it as the failure it is rather than parsing the message.
             if getattr(resp, "finish_reason", None) == "error":
-                raise RuntimeError(content or "provider error")
+                # Raised inside the try on purpose: a provider error and a
+                # transport error are the same event to this caller, and
+                # the handler below is where both become the fallback.
+                raise RuntimeError(content or "provider error")  # noqa: TRY301
         except Exception as exc:
             log.warning("LLM gate call failed (%s); falling back to top-N", exc)
             return candidates[: self._legacy_top_k]
@@ -160,8 +163,7 @@ class LLMGateFilter:
         catalog: str,
         available_tools: list[str] | None,
     ) -> str:
-        # Verbatim port of the pre-integrate-everos
-        # ``SkillService._llm_gate_filter`` prompt. The ONLY semantic
+        # The ONLY semantic
         # change vs. that prompt is the selection-id format:
         # ``skill_id`` → ``qualified_id`` (because the new router
         # routes across multiple sources, ``local/foo`` vs ``hub/foo``
@@ -240,13 +242,17 @@ class LLMGateFilter:
             data = json.loads(content)
         except Exception as exc:
             raise ValueError(f"not valid JSON: {content[:200]!r}") from exc
+        # ValueError, not TypeError, throughout: the caller catches
+        # ValueError to mean "the model's reply was unusable", and a
+        # wrong-typed field is exactly that rather than a Python type
+        # error in this code.
         if not isinstance(data, dict):
-            raise ValueError(f"not a JSON object: {type(data).__name__}")
+            raise ValueError(f"not a JSON object: {type(data).__name__}")  # noqa: TRY004
         if "skills" not in data:
             raise ValueError("missing 'skills' key")
         skills = data["skills"]
         if not isinstance(skills, list):
-            raise ValueError(f"'skills' is not a list: {type(skills).__name__}")
+            raise ValueError(f"'skills' is not a list: {type(skills).__name__}")  # noqa: TRY004
         plan = str(data.get("plan", "") or "").strip()
         return plan, [str(s).strip() for s in skills if s]
 

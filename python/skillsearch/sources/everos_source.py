@@ -1,10 +1,9 @@
-"""EverosSkillSource — re-emit ``MemoryRecall`` agent-track hits as RouterHits.
+"""Re-emit an agent's own recalled skills as router hits.
 
-This is the source through which **the self-evolving skill track**
-plugs into the router. The backend's ``recall(agent_id=...)``
-returns :class:`Memory` records; we re-wrap them as :class:`RouterHit`
-with the ``everos/`` prefix so :class:`SkillForgeRouter` can RRF-fuse them
-against Local + Mass.
+This is the source through which skills an agent accumulated for itself
+join the fan-out. The backend's ``recall`` returns records; they are
+re-wrapped as :class:`RouterHit` with the ``everos/`` prefix so the
+router can fuse them with every other source.
 
 The source is **host code, not part of any plugin**. The actual
 backend behind it can be the bundled EverOS plugin or any other
@@ -53,14 +52,14 @@ def _short_name_for(text: str) -> str:
 
 
 class EverosSkillSource:
-    """Adapter that turns ``backend.recall(agent_id=...)`` into the
-    third member of :class:`SkillForgeRouter`'s source set.
+    """Adapter turning a :class:`~skillsearch.ports.MemoryRecall`
+    backend into a source the router can fan out to.
 
-    ``weight = 0.9`` sits between Local (1.0 — most trusted, hand-
-    curated) and Mass (0.8 — imported, may not match project
-    conventions). Self-evolved skills are task-specific (so we trust
-    them more than Mass) but unvalidated by humans (so we trust them
-    less than Local).
+    ``weight = 0.9`` sits between the local directory (1.0 — hand-
+    curated) and a remote catalog (0.85 — may not match this project's
+    conventions). Self-accumulated skills are task-specific, so they
+    outrank imported ones, but no human reviewed them, so they rank
+    below what the team wrote.
     """
 
     name: str = "everos"
@@ -68,11 +67,15 @@ class EverosSkillSource:
 
     def __init__(
         self,
-        backend: "MemoryRecall",
+        backend: MemoryRecall,
         agent_id: str,
+        *,
+        weight: float | None = None,
     ) -> None:
         self._backend = backend
         self._agent_id = agent_id
+        if weight is not None:
+            self.weight = weight
 
     async def search(
         self,
@@ -102,7 +105,11 @@ class EverosSkillSource:
                     qualified_id=f"everos/{native_id}",
                     name=name,
                     content=m.text,
-                    score=m.score,
+                    # Optional on the backend: fusion ranks by position,
+                    # so a backend that reports no relevance number still
+                    # ranks correctly. Carried only for a consumer that
+                    # wants to show it.
+                    score=float(getattr(m, "score", 0.0) or 0.0),
                     meta={
                         "source": "everos",
                         # The original Memory.metadata flows through —

@@ -80,17 +80,42 @@ describe('weighted RRF', () => {
     expect(merged[0]?.name).toBe('both')
   })
 
-  it('keeps the higher-scoring copy when two sources carry the same skill', () => {
+  it('keeps the better-ranked copy of a collision, not the higher-scored one', () => {
+    // The rule raw scores get wrong. BM25 is unbounded and a catalog's
+    // quality score sits in 0..1, so comparing them hands every collision
+    // to the local source. Here the hub ranked it first, local ranked it
+    // third, so the hub copy is what the prompt must show.
     const merged = rrfMergeWeighted(
       [
-        { name: 'a', weight: 1, hits: [hit('a/dup', 'dup', { score: 1, content: 'thin' })] },
-        { name: 'b', weight: 1, hits: [hit('b/dup', 'dup', { score: 5, content: 'full' })] },
+        {
+          name: 'local',
+          weight: 1,
+          hits: [
+            hit('local/a', 'a'),
+            hit('local/b', 'b'),
+            hit('local/dup', 'dup', { score: 6, content: 'local copy' }),
+          ],
+        },
+        { name: 'hub', weight: 1, hits: [hit('hub/dup', 'dup', { score: 0.9, content: 'hub copy' })] },
+      ],
+      5,
+      'name',
+    )
+    expect(merged.find((h) => h.name === 'dup')?.content).toBe('hub copy')
+  })
+
+  it('collapses a collision into one entry that sums both contributions', () => {
+    const merged = rrfMergeWeighted(
+      [
+        { name: 'a', weight: 1, hits: [hit('a/dup', 'dup')] },
+        { name: 'b', weight: 0.5, hits: [hit('b/dup', 'dup')] },
       ],
       2,
       'name',
     )
     expect(merged).toHaveLength(1)
-    expect(merged[0]?.content).toBe('full')
+    expect(merged[0]?.meta.rrfScore).toBe(1 / 61 + 0.5 / 61)
+    expect(merged[0]?.meta.contributingSources).toEqual(['a', 'b'])
   })
 })
 

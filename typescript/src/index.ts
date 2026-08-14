@@ -74,6 +74,12 @@ export interface Config {
    * by position, and removing those is the gate's job.
    */
   model?: string
+  /**
+   * Deadline for the rewrite, the turn's first model call. Tight because
+   * it runs before the gate and before the model answers: a stalled
+   * rewriter must degrade to searching the raw query, not hold the turn.
+   */
+  rewriteTimeoutMs?: number
   /** Deadline for the gate, which runs before the user sees a reply. */
   gateTimeoutMs?: number
 }
@@ -90,6 +96,7 @@ export const Config: z<Config> = z.object({
   maxSelect: z.number().default(2),
   provider: z.string().default(''),
   model: z.string().default(''),
+  rewriteTimeoutMs: z.number().default(5_000),
   gateTimeoutMs: z.number().default(20_000),
 })
 
@@ -173,7 +180,13 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   return new SkillSearchEngine(
     {
       sources,
-      ...(model ? { rewriter: new QueryRewriter(model) } : {}),
+      ...(model
+        ? {
+          rewriter: new QueryRewriter(model, {
+            ...(cfg.rewriteTimeoutMs === undefined ? {} : { timeoutMs: cfg.rewriteTimeoutMs }),
+          }),
+        }
+        : {}),
       ...(model
         ? {
           gate: new LLMGateFilter(model, {

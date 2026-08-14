@@ -37,6 +37,7 @@ Retrieval never throws. A failed source, an unparseable gate reply, or a slow ca
 | `gatePool` | `10` | Candidates the gate judges. Larger gives it more to reject. |
 | `maxSelect` | `2` | Upper bound on what the gate keeps. |
 | `provider` / `model` | `''` | Route for the rewriter and the gate. Configure both or neither; one alone fails at load. |
+| `rewriteTimeoutMs` | `5000` | Deadline for the rewrite, the turn's first model call. Tight because it precedes everything else; on timeout the raw query is searched. |
 | `gateTimeoutMs` | `20000` | Deadline for the gate, which runs before the user sees a reply. |
 
 With no `skillsDirs` and no `hubEndpoint` there is nothing to search: the plugin logs that retrieval is off and registers no hook.

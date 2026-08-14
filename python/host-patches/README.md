@@ -40,10 +40,35 @@ Verify:
 python -c "from raven.plugin.manifest import ContextSegmentContribution"
 ```
 
-The patch is cut against Raven `1cb604a` and was applied to a clean
-checkout of it, then driven end to end — plugin discovered, segment built,
-skills retrieved from a local directory and a live catalog. On a newer tree
-expect conflicts in `context_engine/factory.py`, the file it touches most.
-
 It changes the plugin machinery only. Retrieval itself is this package, so
 the patch does not carry a copy of it.
+
+### Status: not end-to-end yet
+
+The patch is cut against Raven `1cb604a`; on a newer tree expect conflicts
+in `context_engine/factory.py`, the file it touches most.
+
+Read this before applying: the machinery lands, but one wire is missing,
+so applying this alone does not turn retrieval on.
+
+**What works.** The contribution kind, the registry, the discovery change,
+the `ServiceLocator` callable, the named-stage factory, and the config
+bridge — whose twenty keys are checked against `SearchConfig`'s field names
+and now all land.
+
+**What is missing.** `build_plugin_segments()` is added but never called.
+`AgentLoop` accepts `plugin_segments` and passes it to the factory, so the
+receiving end is ready; nothing constructs the dict. Until a caller is
+added wherever the host builds its `AgentLoop`, `plugin_segments` is always
+`None` and the `# Skills` block simply does not appear — no error, no log.
+
+**What that caller must also pass.** The adapter reads a live provider from
+`_provider` and a skill store from `_store` in its config slice, and
+`build_plugin_segments` currently injects neither (it takes `model` as a
+name, and `backend` which it injects as `_memory`). Without `_provider` the
+rewriter and the gate are absent, and retrieval runs unfiltered — which,
+because fusion ranks by position, means an unrelated turn gets an unrelated
+skill. Threading the provider through is part of the same missing wire.
+
+Cut this patch again once the Raven-side work lands, rather than layering
+another patch on top of it.

@@ -84,8 +84,20 @@ class DirectorySkillStore:
         return None
 
     def _scan(self) -> list[FileSkill]:
+        """Scan every root in order, the first occurrence of a name winning.
+
+        Roots arrive in precedence order — the user's directory, then any
+        bundled one, then extras — so shadowing is what the caller asked
+        for: a user's ``pdf-forms`` replaces a bundled ``pdf-forms``
+        rather than competing with it for the same rank.
+
+        The collapse key is the name alone. Keying it by ``(source,
+        name)`` would make the two copies collide only within one root,
+        which is precisely where a collision cannot happen, and let both
+        into the index everywhere it can.
+        """
         found: list[FileSkill] = []
-        seen: set[tuple[str, str]] = set()
+        seen: set[str] = set()
         for root, source in self._roots:
             if not root.is_dir():
                 continue
@@ -97,12 +109,14 @@ class DirectorySkillStore:
                     continue
                 meta, body = _parse_frontmatter(text)
                 name = meta.get("name") or path.parent.name
-                # Later roots win a name collision, matching how hosts layer
-                # a user directory over a bundled one.
-                key = (source, name)
-                if key in seen:
+                if name in seen:
+                    log.debug(
+                        "skillsearch: %s in %s is shadowed by an earlier root",
+                        name,
+                        source,
+                    )
                     continue
-                seen.add(key)
+                seen.add(name)
                 found.append(
                     FileSkill(
                         name=name,

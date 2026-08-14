@@ -5,10 +5,33 @@ description = "Skill retrieval for agent hosts — one engine, three adapters."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-dependencies = ["httpx>=0.27"]
+authors = [{ name = "EverMind AI" }]
+keywords = ["agent", "skills", "retrieval", "rrf", "bm25", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+
+# No required dependencies. The local pipeline — scan, BM25, fusion,
+# gate, render — runs on the standard library alone; ``httpx`` is
+# imported only when a remote catalog is configured, so it installs only
+# with the extra that needs it.
+dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+hub = ["httpx>=0.27"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
+Source = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
+Issues = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins/-/issues"
 
 [project.scripts]
 skillsearch-serve = "skillsearch.adapters.http_server:main"
@@ -26,7 +49,33 @@ build-backend = "setuptools.build_meta"
 include = ["skillsearch*"]
 
 [tool.setuptools.package-data]
-skillsearch = ["raven-plugin.toml"]
+skillsearch = ["raven-plugin.toml", "py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "TRY", "BLE", "S"]
+ignore = [
+    # Retrieval never raises: it runs before the model answers the user,
+    # so every stage catches broadly on purpose and degrades to fewer
+    # skills. Each such handler logs what it swallowed.
+    "BLE001",
+    # Same reason, at the two places where even logging could raise.
+    "S110",
+    # The message belongs where a reader will see it, and these
+    # exceptions are read in logs rather than caught by type.
+    "TRY003",
+    "TRY400",
+    # This package builds no SQL. Every hit is a prompt that happens to
+    # contain the word "select".
+    "S608",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert on shapes and construct deliberately broken inputs.
+"tests/*" = ["S101", "S105", "S106", "TRY002", "TRY301", "BLE001"]

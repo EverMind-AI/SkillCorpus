@@ -1,25 +1,19 @@
-"""SkillForgeRouter — fans :meth:`select` out to every registered source and
-fuses the per-source rankings via :func:`rrf_merge_weighted`.
+"""Fans one query out to every source and fuses the per-source rankings.
 
-Two policies the router enforces (not its sources):
+Two policies the router enforces, rather than leaving to its sources:
 
 - **Per-source over-fetch.** :meth:`select(k)` asks every source for
-  ``k * over_fetch_factor`` hits. RRF then narrows to ``k`` overall.
-  Over-fetching matters because a source's #3 hit might be a great
-  cross-source merge candidate even if it would never be a top-3 by
-  itself. Default factor is 2 — twice the requested ``k``.
+  ``k * over_fetch_factor`` hits and lets RRF narrow to ``k`` overall,
+  because a source's third hit can be a strong merge candidate even
+  though it would never be a top-3 on its own. The factor defaults to 2.
 
-- **Single-source failure isolation.** A source that raises (network
-  blip on Mass HTTP, EverOS HTTP down) is caught inside
-  :meth:`_safe_search` and turns into an empty list for that round.
-  The other sources still feed RRF so the router never produces a
-  whole-pipeline failure because of one transient.
+- **Single-source failure isolation.** A source that raises is caught in
+  :meth:`_safe_search` and contributes an empty list for that round, so
+  one unreachable catalog costs its own results and not the retrieval.
 
-The router's source list is **fixed at construction**. Per the design
-decision, sources are internal and hardcoded (Local + Mass + Everos
-arrive in SR-3 / SR-4); third-party skill retrieval extension goes
-through :class:`MemoryRecall` rather than through new SkillSource
-implementations.
+The source list is fixed once the router is constructed, but not fixed by
+this package: any :class:`~skillsearch.types.SkillSource` may be passed
+in, and the three that ship hold no privileged position.
 """
 
 from __future__ import annotations
@@ -63,7 +57,7 @@ class SkillForgeRouter:
         per_source_k = k * self._over_fetch_factor
         per_source = await asyncio.gather(*[self._safe_search(s, query, history, per_source_k) for s in self._sources])
         return rrf_merge_weighted(
-            [(s.name, s.weight, hits) for s, hits in zip(self._sources, per_source)],
+            [(s.name, s.weight, hits) for s, hits in zip(self._sources, per_source, strict=True)],
             k=k,
             dedup_by=self._dedup_by,
         )

@@ -21,7 +21,7 @@ from typing import Any, Protocol, runtime_checkable
 class RouterHit:
     """One ranked skill returned by a :class:`SkillSource`.
 
-    Carries everything :class:`ContextBuilder` needs to render the
+    Carries everything a consumer needs to render the
     skill into the system prompt — no further registry lookup happens
     on the consumer side.
 
@@ -38,7 +38,7 @@ class RouterHit:
 
     name: str
     """Skill display name. Used as the cross-source dedup key inside
-    :func:`rrf_merge_weighted` (lands in SR-2): two hits with the same
+    :func:`rrf_merge_weighted`: two hits with the same
     ``name`` are collapsed to one with summed RRF score, regardless of
     which source they came from."""
 
@@ -60,7 +60,7 @@ class RouterHit:
     meta: dict[str, Any] = field(default_factory=dict)
     """Source-specific escape hatch.
 
-    SR-2 stuffs ``rrf_score`` and ``contributing_sources`` here for
+    Fusion stuffs ``rrf_score`` and ``contributing_sources`` here for
     telemetry; sources stuff their physical-origin label, native id,
     confidence, ``always`` flag, etc.
     """
@@ -68,11 +68,14 @@ class RouterHit:
 
 @runtime_checkable
 class SkillSource(Protocol):
-    """One pool of skills the router can ask. Internal Protocol — the
-    set of sources is fixed at compile time (Local + Mass + Everos);
-    third parties extend retrieval by contributing a
-    :class:`MemoryRecall` whose ``agent``-track ``recall`` hits get
-    re-emitted by :class:`EverosSkillSource`.
+    """One pool of skills the router can ask.
+
+    The seam for adding a source: anything with a ``name``, a ``weight``
+    and ``async search(query, history, k)`` participates in fusion, and
+    the three that ship (local, hub, memory-recall) hold no privileged
+    position. A host that only wants to contribute recall over an
+    agent's own skills implements :class:`MemoryRecall` instead, which
+    :class:`EverosSkillSource` wraps into a source.
 
     Why ``weight`` is a class attribute, not a method param: weights
     are router-wide policy, not per-call, so they belong with the
@@ -110,9 +113,6 @@ class SkillSource(Protocol):
         ...
 
 
-__all__ = ["RouterHit", "SkillSource"]
-
-
 @dataclass
 class SkillMeta:
     """One skill as a store hands it over.
@@ -139,3 +139,6 @@ class ScoredSkill:
     name: str
     score: float
     source: str = ""
+
+
+__all__ = ["RouterHit", "ScoredSkill", "SkillMeta", "SkillSource"]

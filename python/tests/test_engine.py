@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from skillsearch import SearchConfig, SkillSearch
 
 
@@ -152,7 +150,7 @@ def _names(block: str) -> list[str]:
 class TestGate:
     async def test_gate_narrows_what_retrieval_returned(self, tmp_path: Path) -> None:
         _three_overlapping_skills(tmp_path)
-        base = dict(skills_dir="skills", workspace=str(tmp_path), top_k=5)
+        base = {"skills_dir": "skills", "workspace": str(tmp_path), "top_k": 5}
 
         ungated = await SkillSearch(SearchConfig(**base)).retrieve("extract data from documents")
         assert len(_names(ungated)) == 3

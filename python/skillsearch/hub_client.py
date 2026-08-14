@@ -7,7 +7,7 @@ response is successful only when ``error == "ok"`` and ``status == 0``):
 - ``GET /openapi/v1/skills/{id}`` — full metadata **+ ``skill_md``** (body).
 - ``GET /openapi/v1/skills/{id}/download`` — raw zip bytes (NOT enveloped).
 
-Design split (see docs/skill-hub-integration-design.md):
+Design split, one call per stage because each costs more than the last:
 
 - :meth:`search` → discovery (catalog metadata, no body).
 - :meth:`get` → read the body (``skill_md``) for fine-selection / pure-
@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import io
 import logging
+import os
+import shutil
 import uuid
 import zipfile
 from pathlib import Path
@@ -30,6 +32,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_S = 2.0
+_DEFAULT_DOWNLOAD_TIMEOUT_S = 30.0
 # Defensive limits for untrusted zip extraction.
 _MAX_ZIP_ENTRY_BYTES = 8 * 1024 * 1024  # 8 MiB per file
 _MAX_ZIP_TOTAL_BYTES = 64 * 1024 * 1024  # 64 MiB uncompressed total
@@ -86,9 +89,11 @@ class SkillHubClient:
         *,
         api_key: str | None = None,
         timeout_s: float = _DEFAULT_TIMEOUT_S,
-        # The catalog validates this against a fixed set
-        # (raven|everme|cli|web) and rejects anything else with a 422, so
-        # it is a download-stats tag to pick from, not a free label.
+        download_timeout_s: float = _DEFAULT_DOWNLOAD_TIMEOUT_S,
+        # A download-stats tag, not a free label: a catalog validates it
+        # against its own fixed set and answers 422 for anything outside
+        # it. ``cli`` is the safe default; change it only against a
+        # deployment whose set you know.
         source: str = "cli",
         cache_dir: Path | None = None,
         client: httpx.AsyncClient | None = None,
@@ -97,6 +102,7 @@ class SkillHubClient:
         self._api_key = api_key
         self._source = source
         self._cache_dir = cache_dir or (Path.home() / ".skillsearch" / "hub")
+        self._download_timeout_s = download_timeout_s
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_s))
 
@@ -160,10 +166,18 @@ class SkillHubClient:
 
     # ── Bundle (zip with scripts/assets) ────────────────────────────
     async def download(self, skill_id: str) -> bytes:
+        """Fetch one bundle zip.
+
+        Overrides the client-wide timeout: that one is sized for a catalog
+        query on the hot path, and a bundle is megabytes. An injected
+        client keeps its own configuration for every other call and only
+        this request is widened.
+        """
         r = await self._client.get(
             f"{self._base}/openapi/v1/skills/{skill_id}/download",
             params={"source": self._source},
             headers=self._headers(),
+            timeout=httpx.Timeout(self._download_timeout_s),
         )
         r.raise_for_status()
         return r.content
@@ -181,7 +195,7 @@ class SkillHubClient:
 
         ``prefetched_meta`` skips the internal ``self.get(skill_id)``
         round-trip when the caller already has the metadata (e.g. the
-        SkillsSegmentBuilder pre-gate body hydrate). This shaves
+        pre-gate body hydrate). This shaves
         ~50-200ms off post-gate hydrate per selected Hub hit.
         """
         meta = prefetched_meta if prefetched_meta is not None else await self.get(skill_id)
@@ -190,7 +204,7 @@ class SkillHubClient:
         version = str(meta.get("version") or "v0")
         dest = self._cache_dir / f"{slug}@{version}"
         if not dest.exists():
-            self._safe_extract(await self.download(skill_id), dest)
+            await self._install_atomically(skill_id, dest)
         root = self._bundle_root(dest)
         scripts = root / "scripts"
         return {
@@ -217,6 +231,33 @@ class SkillHubClient:
         if len(entries) == 1 and entries[0].is_dir():
             return entries[0]
         return dest
+
+    async def _install_atomically(self, skill_id: str, dest: Path) -> None:
+        """Extract into a scratch directory, then rename it into place.
+
+        ``dest.exists()`` is what tells later calls the bundle is cached,
+        so extraction must never populate it directly: an entry that
+        raises — a traversal attempt, an over-budget total — would leave a
+        half-written directory that every later install reads as a cache
+        hit, feeding the agent a truncated skill forever. Renaming a
+        finished directory makes the cache entry appear whole or not at
+        all.
+
+        A concurrent installer that wins the rename is accepted as-is:
+        both extracted the same version, so either copy is correct.
+        """
+        staging = dest.with_name(f"{dest.name}.incoming-{os.getpid()}-{uuid.uuid4().hex[:8]}")
+        try:
+            self._safe_extract(await self.download(skill_id), staging)
+            try:
+                staging.rename(dest)
+            except OSError:
+                if not dest.exists():
+                    raise
+                shutil.rmtree(staging, ignore_errors=True)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
 
     @staticmethod
     def _safe_extract(zip_bytes: bytes, dest: Path) -> None:

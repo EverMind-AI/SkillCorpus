@@ -30,27 +30,6 @@ index f6d7661..86a3d12 100644
          )
  
          # Runtime discipline (5th pillar). Bug2 uses ``runtime.checkpoint``;
-@@ -851,7 +856,11 @@ class AgentLoop:
-             None,
-         )
-         if skill_registry is not None or self._skill_hub_client is not None:
--            from raven.agent.tools.skill_hub import ReadSkillTool, UseSkillTool
-+            from raven.agent.tools.skill_hub import (
-+                FindSkillTool,
-+                ReadSkillTool,
-+                UseSkillTool,
-+            )
- 
-             self.tools.register(
-                 UseSkillTool(client=self._skill_hub_client, registry=skill_registry),
-@@ -863,6 +872,7 @@ class AgentLoop:
-                         registry=skill_registry,
-                     ),
-                 )
-+                self.tools.register(FindSkillTool(client=self._skill_hub_client))
- 
-         # Progressive tool disclosure. Registered last so the catalog it
-         # searches covers every built-in/plugin tool above; MCP tools join
 diff --git a/raven/cli/_plugin_stack.py b/raven/cli/_plugin_stack.py
 index 20bbac3..34a1a89 100644
 --- a/raven/cli/_plugin_stack.py
@@ -109,23 +88,23 @@ index 20bbac3..34a1a89 100644
 +
 +    return {
 +        "skills_dir": "skills",
-+        "builtin_skills_dir": "",
-+        "local_dirs": list(sf.local_dirs or []),
-+        "scan_max_depth": sf.scan_max_depth,
++        "builtin_dir": "",
++        "extra_dirs": list(sf.local_dirs or []),
++        "scan_depth": sf.scan_max_depth,
 +        "hub_endpoint": hub.endpoint or "",
 +        "hub_api_key": hub.api_key or "",
 +        "hub_timeout_s": hub.timeout_s,
 +        "hub_min_safety": hub.min_safety,
 +        "weight_local": weights.get("local", 1.0),
 +        "weight_hub": weights.get("hub", 0.85),
-+        "weight_everos": weights.get("everos", 0.9),
-+        "over_fetch_factor": router.over_fetch_factor,
++        "weight_memory": weights.get("everos", 0.9),
++        "over_fetch": router.over_fetch_factor,
 +        "dedup_by": router.dedup_by,
 +        "top_k": router.top_k,
-+        "gate_model": gate_model or "",
-+        "gate_enabled": sf.llm_gate_enabled,
-+        "rewrite_enabled": sf.rewrite_enabled,
-+        "gate_pool_size": sf.llm_gate_pool_size,
++        "model": gate_model or "",
++        "gate": sf.llm_gate_enabled,
++        "rewrite": sf.rewrite_enabled,
++        "gate_pool": sf.llm_gate_pool_size,
 +        "max_select": sf.llm_gate_max_select,
 +        "agent_id": config.memory.agent_id,
 +    }
@@ -174,14 +153,14 @@ index 20bbac3..34a1a89 100644
 +    for name in names:
 +        plugin_id = registry.context_segment_plugin_id(name)
 +        plugin_slice = (plugin_id and slices.get(plugin_id)) or slices.get(name) or {}
-+        if plugin_id == "skills-retrieval":
++        if plugin_id == "skillsearch":
 +            # Old skillForge keys underneath, explicit plugin config on top.
 +            plugin_slice = {
 +                **skills_config_from_host(config, model=model),
 +                **plugin_slice,
 +                # Not user-settable: the live backend object the everos
 +                # source recalls through.
-+                "_backend": backend,
++                "_memory": backend,
 +            }
 +        try:
 +            segment = registry.build_context_segment(

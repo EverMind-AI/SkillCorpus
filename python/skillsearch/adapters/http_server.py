@@ -4,8 +4,12 @@ OpenClaw's plugins are TypeScript, so it cannot import this package. It
 can, however, make one HTTP call on its ``before_prompt_build`` hook. This
 serves exactly that:
 
-    POST /retrieve   {"query": "...", "session_id": "..."}  ->  {"text": "..."}
-    GET  /health                                            ->  {"ok": true}
+    POST /retrieve   {"query": "..."}  ->  {"text": "..."}
+    GET  /health                       ->  {"ok": true}
+
+Retrieval is stateless: it searches the query it is given and nothing
+else, so there is no session to identify. A caller may send extra fields;
+they are ignored.
 
 Run it next to the agent::
 
@@ -78,12 +82,19 @@ class _Handler(BaseHTTPRequestHandler):
                 type(self).search.retrieve(query),
                 type(self).loop,
             )
-            self._send(200, {"text": future.result(timeout=type(self).timeout_s)})
+            try:
+                self._send(200, {"text": future.result(timeout=type(self).timeout_s)})
+            except TimeoutError:
+                # Stop the work, not just the waiting: the coroutine would
+                # otherwise run to completion on the server's loop long
+                # after nobody is waiting for its answer.
+                future.cancel()
+                raise
         except TimeoutError:
             # Fail open, like every other adapter: an empty block costs the
             # turn its skills, an error would cost the host its turn.
             self._send(200, {"text": ""})
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.warning("skillsearch: /retrieve failed (%s)", e)
             self._send(200, {"text": ""})
 

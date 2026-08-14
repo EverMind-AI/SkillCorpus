@@ -1,9 +1,7 @@
 """Query rewriter — judges whether skill retrieval is needed and rewrites
 verbose queries into concise skill-routing queries.
 
-Ported from the pre-integrate-everos branch
-One LLM call does two
-things: (1) decide whether the user query needs external skill retrieval
+One LLM call does two things: (1) decide whether the user query needs external skill retrieval
 at all (chat / greetings / general knowledge → skip the router fan-out
 entirely); (2) when retrieval IS needed, strip noise (paths, IDs,
 timestamps) and keep task type + domain so BM25 / dense fan-outs hit the
@@ -15,12 +13,10 @@ retrieval) so a flaky provider never silently turns off the skill lane.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
 
 if TYPE_CHECKING:
     from skillsearch.ports import ChatModel
@@ -44,7 +40,6 @@ Return JSON: {{"need_retrieval": true/false, "rewritten_query": "..." or null}}
 {query}"""
 
 _QUERY_MAX_LENGTH = 2000
-_TIMEOUT_S = 120.0
 
 
 @dataclass(frozen=True)
@@ -54,17 +49,20 @@ class RewriteResult:
 
 
 class QueryRewriter:
-    """Judges retrieval necessity and rewrites queries via the agent's
-    shared :class:`ChatModel`.
+    """Judges whether a turn wants skills, and rewrites its query.
 
     Goes through the host-supplied :class:`~skillsearch.ports.ChatModel`,
     so retry policy and provider extras are whatever the host already
     applies to its own calls.
+
+    **The caller owns the deadline.** ``analyze`` awaits the model without
+    bounding it, because the engine already wraps this call in
+    ``rewrite_timeout_s``. Code calling this directly must bound it itself.
     """
 
     def __init__(
         self,
-        provider: "ChatModel",
+        provider: ChatModel,
         *,
         model: str | None = None,
         max_tokens: int = 8192,
@@ -75,7 +73,7 @@ class QueryRewriter:
         self._max_tokens = max_tokens
         self._temperature = temperature
 
-    def set_provider(self, provider: "ChatModel", model: str) -> None:
+    def set_provider(self, provider: ChatModel, model: str) -> None:
         """Adopt the provider a live ``/model`` switch just built.
 
         Held rather than looked up per call, so without this the rewriter
@@ -85,6 +83,7 @@ class QueryRewriter:
         """
         del model  # the rewriter runs on the provider's default model
         self._provider = provider
+
     async def analyze(self, query: str) -> RewriteResult:
         truncated = (query or "").strip()[:_QUERY_MAX_LENGTH]
         if not truncated:
@@ -92,20 +91,20 @@ class QueryRewriter:
 
         prompt = _REWRITE_PROMPT.format(query=truncated)
         try:
-            resp = await asyncio.wait_for(
-                self._provider.complete(
-                    [{"role": "user", "content": prompt}],
-                    model=self._model or None,
-                    max_tokens=self._max_tokens,
-                    temperature=self._temperature,
-                ),
-                timeout=_TIMEOUT_S,
+            resp = await self._provider.complete(
+                [{"role": "user", "content": prompt}],
+                model=self._model or None,
+                max_tokens=self._max_tokens,
+                temperature=self._temperature,
             )
             content = resp if isinstance(resp, str) else str(getattr(resp, "content", "") or "")
             # A model that answers with an error still returns text; treat
             # it as the failure it is rather than parsing the message.
             if getattr(resp, "finish_reason", None) == "error":
-                raise RuntimeError(content or "provider error")
+                # Raised inside the try on purpose: a provider error and a
+                # transport error are the same event to this caller, and
+                # the handler below is where both become the fallback.
+                raise RuntimeError(content or "provider error")  # noqa: TRY301
         except Exception as e:
             log.warning("query rewrite failed (%s); defaulting to retrieval", e)
             return RewriteResult(need_retrieval=True)
@@ -132,11 +131,8 @@ class QueryRewriter:
         if not need:
             return RewriteResult(need_retrieval=False)
 
-        rewritten = data.get("rewritten_query")
-        if isinstance(rewritten, str):
-            rewritten = rewritten.strip() or None
-        else:
-            rewritten = None
+        raw = data.get("rewritten_query")
+        rewritten = raw.strip() or None if isinstance(raw, str) else None
         return RewriteResult(need_retrieval=True, rewritten_query=rewritten)
 
 

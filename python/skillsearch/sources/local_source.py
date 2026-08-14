@@ -26,12 +26,10 @@ if TYPE_CHECKING:
 class LocalSkillSource:
     """SkillSource adapter for the BM25 local pool.
 
-    ``weight = 1.0`` makes Local the reference scale; Hub (0.85) is
-    discounted because the remote marketplace is less likely to match
-    project conventions, and Everos (0.9) sits in between because
-    self-evolved skills are task-specific but unvalidated. (The retired
-    Mass source previously held the 0.8 slot before being replaced by
-    Hub.)
+    ``weight = 1.0`` makes the local directory the reference scale. A
+    remote catalog (0.85) is discounted because it is less likely to
+    match this project's conventions, and recall over the agent's own
+    skills (0.9) sits between the two: task-specific, but unreviewed.
     """
 
     name: str = "local"
@@ -39,11 +37,15 @@ class LocalSkillSource:
 
     def __init__(
         self,
-        pool: "LocalPool",
-        registry: "SkillStore",
+        pool: LocalPool,
+        registry: SkillStore,
+        *,
+        weight: float | None = None,
     ) -> None:
         self._pool = pool
         self._registry = registry
+        if weight is not None:
+            self.weight = weight
 
     async def search(
         self,
@@ -65,11 +67,10 @@ class LocalSkillSource:
                 # snapshot and meta lookup. Skip rather than emit a
                 # half-populated hit.
                 continue
-            # ``skill_dir`` lets the post-gate hydrate step in
-            # SkillsSegmentBuilder resolve {baseDir} / markdown-link refs
-            # without a second registry lookup. ``None`` for synthetic
-            # ``sqlite://`` rows (mass library imports without on-disk
-            # bundle); the refs helper then leaves placeholders bare.
+            # ``skill_dir`` lets the post-gate hydrate step resolve
+            # {baseDir} and markdown-link refs without a second registry
+            # lookup. ``None`` for a skill with no directory on disk;
+            # the refs helper then leaves placeholders bare.
             path_obj = getattr(meta, "path", None)
             path_str = str(path_obj) if path_obj is not None else ""
             skill_dir: str | None = None

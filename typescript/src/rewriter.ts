@@ -33,7 +33,12 @@ Return JSON: {"need_retrieval": true/false, "rewritten_query": "..." or null}
 {query}`
 
 const QUERY_MAX_LENGTH = 2000
-const TIMEOUT_MS = 120_000
+/**
+ * Tight on purpose. This is the first model call of the turn and it runs
+ * before the gate, so a provider that stalls here stalls the whole turn.
+ * Missing a rewrite costs precision; the raw query still searches.
+ */
+const TIMEOUT_MS = 5_000
 
 /** How the rewriter reaches a model. Implemented by the plugin over `ctx.llm`. */
 export interface RewriteModel {

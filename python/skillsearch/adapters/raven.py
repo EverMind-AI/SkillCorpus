@@ -8,7 +8,7 @@ Ship alongside a ``raven-plugin.toml``::
     [plugin]
     id                 = "skillsearch"
     version            = "0.1.0"
-    bundled            = true
+    bundled            = false
     enabled_by_default = true
 
     [[plugin.contributes.context_segments]]
@@ -59,9 +59,11 @@ class _ProviderAdapter:
 class SkillsSegment:
     """A Raven ``SegmentBuilder`` over :class:`SkillSearch`."""
 
-    def __init__(self, search: SkillSearch, heading: str = "# Skills") -> None:
+    def __init__(self, search: SkillSearch) -> None:
+        # No heading parameter: the heading is rendered by the engine from
+        # ``SearchConfig.heading``, so one here could only disagree with
+        # the text it claims to head.
         self._search = search
-        self._heading = heading
 
     async def build(self, ctx: Any) -> Any:
         from raven.context_engine.base import Segment  # host type, adapter-local
@@ -107,9 +109,9 @@ def make_segment(ctx: Any) -> Any | None:
         memory=cfg_map.get("_memory"),
         get_tools=getattr(services, "get_tool_definitions", None),
     )
-    if search._router is None:
+    if not search.has_sources:
         return None
-    return SkillsSegment(search, heading=config.heading)
+    return SkillsSegment(search)
 
 
 def _text_of(resp: Any) -> str:

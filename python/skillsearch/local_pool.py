@@ -14,9 +14,8 @@ so BM25 over the in-memory corpus is the right shape:
   - re-tokenize per ``select`` is cheap at this scale
 
 Index is built eagerly in ``__init__`` and refreshed via the public
-``rebuild_index()`` — :class:`SkillService` calls it from
-``invalidate_skill_cache`` so every file-watcher / evolver invalidation
-flows through to the BM25 state. Steady-state ``search`` therefore
+``rebuild_index()``, which a host calls whenever its skills change on
+disk — :meth:`SkillSearch.invalidate` is the supported way in. Steady-state ``search`` therefore
 costs one query-side tokenize + one BM25 dot-product over precomputed
 ``doc_freqs``; the per-doc tokenize and IDF accumulation only run when
 files actually changed.
@@ -31,9 +30,9 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING
 
-from skillsearch.types import ScoredSkill, SkillMeta
 from skillsearch.bm25 import BM25Okapi as _BM25Okapi
 from skillsearch.bm25 import tokenize as _tokenize
+from skillsearch.types import ScoredSkill, SkillMeta
 
 if TYPE_CHECKING:
     from skillsearch.ports import SkillStore
@@ -52,10 +51,9 @@ class LocalPool:
     """BM25 retrieval wrapper around a file-based ``SkillStore``.
 
     Holds a prebuilt ``_BM25Okapi`` over the current registry contents.
-    :class:`SkillService` calls :meth:`rebuild_index` from its
-    ``invalidate_skill_cache`` hook so file-watcher events and evolver
-    writes refresh the index directly, leaving ``search`` to a single
-    query-side tokenize + BM25 dot product.
+    A host calls :meth:`rebuild_index` when its skills change on disk,
+    leaving ``search`` to a single query-side tokenize + BM25 dot
+    product.
 
     Thread-safety: an internal :class:`threading.Lock` guards the
     ``(metas, _BM25Okapi)`` pair. ``rebuild_index`` does the expensive
@@ -64,7 +62,7 @@ class LocalPool:
     to capture the two references, then scores + sorts outside.
     """
 
-    def __init__(self, registry: "SkillStore") -> None:
+    def __init__(self, registry: SkillStore) -> None:
         self._registry = registry
         self._metas: list[SkillMeta] = []
         self._bm25: _BM25Okapi | None = None
@@ -77,9 +75,9 @@ class LocalPool:
     def rebuild_index(self) -> None:
         """Re-read the registry and rebuild the BM25 index in place.
 
-        Called from :meth:`SkillService.invalidate_skill_cache` on every
-        watcher event / evolver write, and once from ``__init__`` for the
-        initial build. Idempotent and safe to call concurrently — the
+        Called once from ``__init__`` for the initial build, and again
+        whenever the host reports its skills changed. Idempotent and
+        safe to call concurrently — the
         last writer's index wins; in-flight searches retain their
         previously captured references and finish against a consistent
         snapshot.
@@ -113,15 +111,11 @@ class LocalPool:
             return []
         scores = bm25.get_scores(query_tokens)
         # Drop zero-score docs and order by descending score, then take top_k.
-        # Exclude ``m.always`` skills: they're already injected by
-        # ``ContextBuilder`` via ``get_always_skills()`` → ``# Active Skills``
-        # block. Letting them ALSO surface here would duplicate the same
-        # body in the system prompt (once as Active, once as top-K).
-        # Mass-pool entries can't double-inject — ``get_always_skills``
-        # only reads ``_registry``, never ``_mass_registry`` — so the
-        # filter is only meaningful on the local pool side.
+        # Exclude ``m.always`` skills: a host that marks a skill
+        # always-on already injects its body every turn, so ranking it
+        # here would put the same text in the prompt twice.
         ranked = sorted(
-            ((s, m) for s, m in zip(scores, metas) if s > 0.0 and not m.always),
+            ((s, m) for s, m in zip(scores, metas, strict=True) if s > 0.0 and not m.always),
             key=lambda x: x[0],
             reverse=True,
         )[:top_k]

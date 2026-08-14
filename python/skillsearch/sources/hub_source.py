@@ -3,7 +3,7 @@
 Discovery layer (Tier 0): turns ``GET /openapi/v1/skills?q=`` catalog
 metadata into :class:`RouterHit` candidates for RRF fusion. The body
 (``skill_md``) is NOT fetched here — that's the
-:class:`SkillsSegmentBuilder`'s pre-gate body-hydrate step which calls
+the pre-gate body-hydrate step, which calls
 ``SkillHubClient.get(id)`` in parallel across all Hub candidates so the
 LLM gate sees real body excerpts when deciding what to inject.
 
@@ -36,7 +36,7 @@ class HubSkillSource:
 
     def __init__(
         self,
-        client: "SkillHubClient",
+        client: SkillHubClient,
         *,
         weight: float = 0.85,
         min_safety: float = 0.7,

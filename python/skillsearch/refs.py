@@ -3,8 +3,8 @@
 Replaces `{baseDir}/x` placeholders and markdown links to bundled files
 (``references/``, ``scripts/``, ``assets/``, ``examples/``) with absolute
 paths rooted at the skill's directory. Used by both the active-skills
-render path (in :class:`LocalSkillCatalog`) and the router-hits render
-path (in :class:`SkillsSegmentBuilder`'s post-gate hydrate step) so the
+local render path and the router-hits render path (the post-gate
+hydrate step) so the
 two flows produce identical bodies.
 
 Resolution is per-ref existence-checked: a ``{baseDir}/x`` whose target

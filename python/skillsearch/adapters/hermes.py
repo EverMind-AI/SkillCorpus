@@ -25,6 +25,7 @@ makes no network calls, and nothing on the hot path is allowed to raise.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -60,7 +61,7 @@ class SkillSearchEngine:
     # ── Hermes lifecycle ─────────────────────────────────────────────
 
     @classmethod
-    def from_hermes(cls, ctx: Any, *, hermes_home: str | None = None) -> "SkillSearchEngine":
+    def from_hermes(cls, ctx: Any, *, hermes_home: str | None = None) -> SkillSearchEngine:
         home = hermes_home or os.environ.get("HERMES_HOME") or str(Path.home() / ".hermes")
         config = load_config(home)
         model = getattr(ctx, "model_client", None) or getattr(ctx, "llm", None)
@@ -74,7 +75,7 @@ class SkillSearchEngine:
 
     def is_available(self) -> bool:
         """No network calls, per the contract — configuration only."""
-        return self._search._router is not None
+        return self._search.has_sources
 
     def initialize(self, session_id: str = "", hermes_home: str | None = None) -> None:
         self._ensure_loop()
@@ -89,11 +90,19 @@ class SkillSearchEngine:
         try:
             loop = self._ensure_loop()
             future = asyncio.run_coroutine_threadsafe(self._search.retrieve(query), loop)
-            return future.result(timeout=self._timeout_s)
+            try:
+                return future.result(timeout=self._timeout_s)
+            except TimeoutError:
+                # Stop the work, not just the waiting. The coroutine runs
+                # on a loop this adapter owns, so an abandoned one keeps
+                # its model call and its HTTP connections alive; against a
+                # slow backend, one per turn accumulates.
+                future.cancel()
+                raise
         except TimeoutError:
             log.warning("skillsearch: prefetch exceeded %.0fs; injecting nothing", self._timeout_s)
             return ""
-        except Exception as e:  # noqa: BLE001 — fail open
+        except Exception as e:
             log.warning("skillsearch: prefetch failed (%s)", e)
             return ""
 
@@ -104,10 +113,8 @@ class SkillSearchEngine:
         loop = self._loop
         if loop is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             asyncio.run_coroutine_threadsafe(self._search.aclose(), loop).result(timeout=2)
-        except Exception:  # noqa: BLE001
-            pass
         loop.call_soon_threadsafe(loop.stop)
         self._loop = None
 
@@ -145,7 +152,7 @@ def load_config(hermes_home: str) -> SearchConfig:
     if path.is_file():
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.warning("skillsearch: cannot read %s (%s); using defaults", path, e)
     raw.setdefault("workspace", hermes_home)
     raw.setdefault("skills_dir", str(Path(hermes_home) / "skills"))

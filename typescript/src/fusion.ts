@@ -52,8 +52,15 @@ export function rrfMergeWeighted(
   k: number,
   dedupBy: 'name' | 'qualifiedId' = 'name',
 ): RouterHit[] {
-  /** One accumulator per dedup key: the fused score, the best hit, its sources. */
-  const merged = new Map<string, { score: number; best: RouterHit; sources: string[] }>()
+  /**
+   * One accumulator per dedup key: the fused score, the representative,
+   * that representative's own weighted contribution, and every source that
+   * surfaced it.
+   */
+  const merged = new Map<
+    string,
+    { score: number; best: RouterHit; bestClaim: number; sources: string[] }
+  >()
 
   for (const { name: sourceName, weight, hits } of sourceResults) {
     for (const [i, hit] of hits.entries()) {
@@ -62,12 +69,26 @@ export function rrfMergeWeighted(
       const contribution = weight / (RRF_K + rank)
       const seen = merged.get(key)
       if (seen === undefined) {
-        merged.set(key, { score: contribution, best: hit, sources: [sourceName] })
+        merged.set(key, {
+          score: contribution,
+          best: hit,
+          bestClaim: contribution,
+          sources: [sourceName],
+        })
         continue
       }
       seen.score += contribution
       seen.sources.push(sourceName)
-      if (hit.score > seen.best.score) seen.best = hit
+      // Pick the representative in the same currency the fusion ranks in —
+      // weighted rank position — never by `hit.score`. Raw scores are
+      // per-source scales that do not compare: BM25 runs unbounded while a
+      // catalog's quality score sits in 0..1, so comparing them would hand
+      // every collision to the local source however each source actually
+      // ranked it.
+      if (contribution > seen.bestClaim) {
+        seen.best = hit
+        seen.bestClaim = contribution
+      }
     }
   }
 

@@ -3,8 +3,8 @@
 The classic RRF formula sums ``1 / (k + rank_i(d))`` over the sources
 that hit document ``d``. Multi-source skill retrieval needs a small
 extension: each source carries a **trust weight** so curated content
-(Local) outranks imported content (Mass) at equal rank. The weighted
-form is::
+outranks imported content at equal rank — a local directory a team wrote
+against a public catalog it merely subscribes to. The weighted form is::
 
     rrf_score(d) = Σ_i  w_i / (k + rank_i(d))
 
@@ -69,19 +69,26 @@ def rrf_merge_weighted(
     """
     rrf_scores: dict[str, float] = defaultdict(float)
     best_hit: dict[str, RouterHit] = {}
+    # The representative's own claim: its weighted RRF contribution. Kept
+    # per key so the comparison below never touches ``hit.score``.
+    best_claim: dict[str, float] = {}
     contributing: dict[str, list[str]] = defaultdict(list)
 
     for source_name, weight, hits in source_results:
         for rank, hit in enumerate(hits, start=1):
             key = getattr(hit, dedup_by)
-            rrf_scores[key] += weight / (RRF_K + rank)
+            claim = weight / (RRF_K + rank)
+            rrf_scores[key] += claim
             contributing[key].append(source_name)
-            prev = best_hit.get(key)
-            # Keep the hit with the higher per-source ``score`` as the
-            # representative — the user-facing prompt should see the
-            # best-ranked instance, not arbitrary first-seen.
-            if prev is None or hit.score > prev.score:
+            # Pick the representative by the same currency the fusion
+            # ranks in — weighted rank position — never by ``hit.score``.
+            # Raw scores are per-source scales that do not compare: BM25
+            # runs unbounded while a catalog's quality score sits in
+            # 0..1, so comparing them would hand every collision to the
+            # local source regardless of how each source ranked it.
+            if key not in best_hit or claim > best_claim[key]:
                 best_hit[key] = hit
+                best_claim[key] = claim
 
     # Stable sort by descending RRF; for ties Python's sort is stable
     # so insertion order (= dedup_key encounter order) breaks ties

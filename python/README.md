@@ -64,7 +64,7 @@ can never say two contradictory things.
 ```python
 SearchConfig(
     skills_dir="~/.agent/skills",
-    hub_endpoint="https://skillhub.example.com",   # omit → local only
+    hub_endpoint="https://skillhub.example.com",   # omit → local only, see below
     model="gpt-4o-mini",                           # omit → no rewrite, no gate
     top_k=5,
     max_select=2,
@@ -74,6 +74,38 @@ SearchConfig(
 Hosts hand over their own config dict; `SearchConfig.from_mapping` coerces
 strings and ignores keys it does not know, so a host can pass a whole slice
 without filtering it first.
+
+`hub_endpoint` is a service you run. This package speaks a catalog API —
+`GET /openapi/v1/skills?q=`, `/skills/{id}`, `/skills/{id}/download`, each
+answering `{error, requestId, status, result}` with `status == 0` for
+success — and ships no server and no public endpoint. Leave it unset and
+everything else works against a local directory.
+
+Both model calls are bounded, because both sit between the user's message
+and the model's reply: `rewrite_timeout_s` (5s) and `gate_timeout_s` (20s).
+A timeout degrades — the raw query is searched, the top hits are injected —
+rather than delaying the turn.
+
+## Beyond retrieve
+
+Four methods for what a running host needs after startup.
+
+```python
+search.has_sources          # anything configured to search? install the hook or don't
+search.invalidate()         # a SKILL.md changed on disk; rescan on the next search
+search.set_provider(p)      # a /model switch happened; move both model calls with it
+await search.aclose()       # release the HTTP pool this object built
+```
+
+`invalidate` matters more than it looks: the local scan is cached for the
+life of the object, so without it a skill written at runtime stays
+invisible until restart. `set_provider` likewise — the rewriter and the
+gate hold the provider they were built with, so a switch away from a dead
+credential fixes the conversation and leaves retrieval calling the old one.
+
+A host that already has a catalog client should pass it as `hub_client=`
+rather than let a second one be built: one connection pool, one catalog
+configuration, and `aclose` leaves an injected client alone.
 
 ## Hosts
 
