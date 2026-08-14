@@ -264,6 +264,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
 - [ ] 完整的 96,401 条语料上 HuggingFace
 - [x] 两个检索模型的部署脚本（自建 `match/`）
+- [ ] 把 skill 库 + 检索框架打包成插件，供任意 agent harness 使用
 - [ ] Hermes 集成
 
 ## 引用

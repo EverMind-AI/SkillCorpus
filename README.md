@@ -278,6 +278,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
 - [ ] Full 96,401-skill corpus on HuggingFace
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
+- [ ] Package the skill library + retrieval as a plugin for any agent harness
 - [ ] Hermes integration
 
 ## Citation
