@@ -16,6 +16,7 @@
  */
 
 import { withTimeout } from './deadline.js'
+import { extractJsonObject } from './replies.js'
 import type { RouterHit } from './types.js'
 
 /** Characters of body shown per candidate. Enough to judge, cheap to send. */
@@ -191,18 +192,9 @@ function buildCatalog(candidates: readonly RouterHit[]): {
  * fallback.
  */
 function parseResponse(content: string): string[] {
-  if (!content) throw new Error('empty content')
-  let text = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-  const fenced = /```(?:json)?\s*\n?([\s\S]*?)\n?```/.exec(text)
-  const fencedBody = fenced?.[1]
-  if (fencedBody !== undefined) text = fencedBody.trim()
-  else {
-    const braced = /\{[\s\S]*\}/.exec(text)
-    if (braced) text = braced[0]
-  }
-  const data: unknown = JSON.parse(text)
-  if (typeof data !== 'object' || data === null) throw new Error('not an object')
-  const skills = (data as { skills?: unknown }).skills
+  const data = extractJsonObject(content)
+  if (data === undefined) throw new Error('no JSON object in reply')
+  const skills = data.skills
   if (!Array.isArray(skills)) throw new Error("missing 'skills' array")
   return skills.filter((s): s is string => typeof s === 'string' && s.length > 0)
 }

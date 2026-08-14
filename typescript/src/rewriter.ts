@@ -15,6 +15,7 @@
  */
 
 import { withTimeout } from './deadline.js'
+import { extractJsonObject } from './replies.js'
 import type { RewriteResult } from './types.js'
 
 const REWRITE_PROMPT = `Given a user query, first decide if it needs external skill/tool retrieval. \
@@ -82,22 +83,8 @@ export class QueryRewriter {
 }
 
 function parse(content: string): RewriteResult {
-  let text = content.trim()
-  if (text.startsWith('```')) {
-    const nl = text.indexOf('\n')
-    text = nl === -1 ? '' : text.slice(nl + 1)
-    if (text.endsWith('```')) text = text.slice(0, -3)
-    text = text.trim()
-  }
-  let data: unknown
-  try {
-    data = JSON.parse(text)
-  } catch {
-    return { needRetrieval: true, rewrittenQuery: '' }
-  }
-  if (typeof data !== 'object' || data === null) {
-    return { needRetrieval: true, rewrittenQuery: '' }
-  }
+  const data = extractJsonObject(content)
+  if (data === undefined) return { needRetrieval: true, rewrittenQuery: '' }
   const record = data as { need_retrieval?: unknown; rewritten_query?: unknown }
   const need = record.need_retrieval === undefined ? true : Boolean(record.need_retrieval)
   if (!need) return { needRetrieval: false, rewrittenQuery: '' }

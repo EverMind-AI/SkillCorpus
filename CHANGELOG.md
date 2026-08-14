@@ -49,6 +49,12 @@
   result — a silent loss of every memory hit. The protocol now states the
   real signature, `score` is optional, and a regression test implements the
   protocol exactly as published.
+- **The two model calls disagreed about parsing the same model.** The gate
+  tolerated a fenced block anywhere, a reasoning preamble and a bare object
+  in prose; the rewriter only handled a fence that ended the reply. Found
+  against a live model: it answered `need_retrieval: false` and then added
+  a sentence of explanation, so the rewriter failed to parse its own
+  verdict and searched anyway. One extractor now serves both.
 - **A timed-out adapter call left its coroutine running.** The Hermes and
   HTTP adapters stopped waiting but never cancelled, so against a slow
   backend one abandoned retrieval per turn accumulated on their private
@@ -69,6 +75,15 @@
   rendered from `SearchConfig.heading` and the parameter was never read.
 - The HTTP adapter no longer documents a `session_id` field. Retrieval is
   stateless and it was never read.
+
+### Known, measured, not fixed
+
+- The rewriter's `need_retrieval` verdict costs recall. Over six live runs
+  one query flipped between `true` and `false` about half the time, and a
+  `false` drops a skill both ranking and the gate would have selected. The
+  prompt already says "when in doubt, choose retrieval". Recorded in both
+  READMEs rather than worked around, because changing the prompt would
+  break the byte-identical parity the two implementations are checked on.
 
 ### Documentation
 

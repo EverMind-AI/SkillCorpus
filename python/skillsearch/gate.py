@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import time
 from typing import TYPE_CHECKING
 
@@ -27,6 +26,8 @@ from skillsearch.types import RouterHit
 
 if TYPE_CHECKING:
     from skillsearch.ports import ChatModel
+
+from skillsearch.replies import extract_json_object
 
 log = logging.getLogger(__name__)
 
@@ -229,25 +230,12 @@ class LLMGateFilter:
     def _parse_response(content: str) -> tuple[str, list[str]]:
         if not content:
             raise ValueError("empty content")
-        # Strip <think> blocks (qwen3.5 reasoning).
-        content = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
-        m = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
-        if m:
-            content = m.group(1).strip()
-        else:
-            m = re.search(r"\{.*\}", content, re.DOTALL)
-            if m:
-                content = m.group()
-        try:
-            data = json.loads(content)
-        except Exception as exc:
-            raise ValueError(f"not valid JSON: {content[:200]!r}") from exc
-        # ValueError, not TypeError, throughout: the caller catches
-        # ValueError to mean "the model's reply was unusable", and a
-        # wrong-typed field is exactly that rather than a Python type
-        # error in this code.
-        if not isinstance(data, dict):
-            raise ValueError(f"not a JSON object: {type(data).__name__}")  # noqa: TRY004
+        # ValueError throughout: the caller catches it to mean "the model's
+        # reply was unusable", which a missing or wrong-typed field is —
+        # not a Python type error in this code.
+        data = extract_json_object(content)
+        if data is None:
+            raise ValueError(f"no JSON object in reply: {content[:200]!r}")
         if "skills" not in data:
             raise ValueError("missing 'skills' key")
         skills = data["skills"]

@@ -6,6 +6,7 @@ import { BM25Okapi, tokenize } from '@deepseek-ai/dsh-skill-search/src/bm25.ts'
 import { rrfMergeWeighted } from '@deepseek-ai/dsh-skill-search/src/fusion.ts'
 import { LLMGateFilter } from '@deepseek-ai/dsh-skill-search/src/gate.ts'
 import { QueryRewriter } from '@deepseek-ai/dsh-skill-search/src/rewriter.ts'
+import { extractJsonObject } from '@deepseek-ai/dsh-skill-search/src/replies.ts'
 import { LocalSkillSource } from '@deepseek-ai/dsh-skill-search/src/local-source.ts'
 import { SkillSearchEngine } from '@deepseek-ai/dsh-skill-search/src/engine.ts'
 import type { RouterHit, SkillSource } from '@deepseek-ai/dsh-skill-search/src/types.ts'
@@ -154,7 +155,41 @@ describe('LLM gate', () => {
   })
 })
 
+describe('reply extraction', () => {
+  // Every shape here came off a live model answering one of this package's
+  // two prompts. The trailing-commentary case is the one that mattered: it
+  // used to defeat the rewriter's parser but not the gate's, so a verdict
+  // the model did give was silently discarded.
+  it.each([
+    ['a bare object', '{"a": 1}'],
+    ['a fenced object', '```json\n{"a": 1}\n```'],
+    ['a fence followed by commentary', '```json\n{"a": 1}\n```\n\nThis query is general.'],
+    ['a reasoning block first', '<think>weighing it</think>\n```\n{"a": 1}\n```'],
+    ['an object embedded in prose', 'Sure! {"a": 1} hope that helps'],
+  ])('reads %s', (_label, reply) => {
+    expect(extractJsonObject(reply)).toEqual({ a: 1 })
+  })
+
+  it.each([
+    ['prose with no object', 'I think you should try rebasing.'],
+    ['an empty reply', ''],
+    ['a JSON array', '[1, 2, 3]'],
+  ])('reports nothing for %s', (_label, reply) => {
+    expect(extractJsonObject(reply)).toBeUndefined()
+  })
+})
+
 describe('query rewriter', () => {
+  it('honours a verdict the model wrapped in a fence and then explained', async () => {
+    const model = scriptedModel(
+      '```json\n{"need_retrieval": false, "rewritten_query": null}\n```\n\nThis is a general troubleshooting request.',
+    )
+    expect(await new QueryRewriter(model).analyze('why did this break')).toEqual({
+      needRetrieval: false,
+      rewrittenQuery: '',
+    })
+  })
+
   it('reports the turn wants no skills when the model says so', async () => {
     const model = scriptedModel('{"need_retrieval": false, "rewritten_query": null}')
     expect(await new QueryRewriter(model).analyze('hello')).toEqual({

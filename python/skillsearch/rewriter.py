@@ -13,13 +13,14 @@ retrieval) so a flaky provider never silently turns off the skill lane.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from skillsearch.ports import ChatModel
+
+from skillsearch.replies import extract_json_object
 
 log = logging.getLogger(__name__)
 
@@ -112,19 +113,9 @@ class QueryRewriter:
 
     @staticmethod
     def _parse(content: str) -> RewriteResult:
-        text = (content or "").strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            log.warning("rewrite response not JSON; defaulting to retrieval")
-            return RewriteResult(need_retrieval=True)
-
-        if not isinstance(data, dict):
+        data = extract_json_object(content)
+        if data is None:
+            log.warning("rewrite response carried no JSON object; defaulting to retrieval")
             return RewriteResult(need_retrieval=True)
 
         need = bool(data.get("need_retrieval", True))
