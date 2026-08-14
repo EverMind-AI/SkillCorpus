@@ -1,0 +1,350 @@
+"""The one thing a host calls.
+
+``SkillSearch.retrieve(query)`` takes what the user asked and returns the
+text to put in front of the model. Everything else in this package is an
+implementation detail of that sentence.
+
+The pipeline, in order:
+
+1. **Rewrite** the message into a retrieval query, if a model is wired.
+2. **Fan out** across configured sources and fuse by weighted RRF.
+3. **Hydrate** bodies for hits that arrived as metadata only.
+4. **Gate** the pool down with an LLM that drops what this agent cannot
+   actually run here.
+5. **Render**, resolving ``{baseDir}`` and relative links to real paths.
+
+Steps 1, 4 and 5 are optional and degrade to no-ops. A host that wires
+nothing but a skills directory still gets steps 2, 3 and a rendered block.
+
+Failure is never raised at the caller. ``retrieve`` returns ``""`` on any
+internal error, because it sits on the turn's hot path in every host that
+uses it: a retrieval problem must cost the turn its skills, never the turn
+itself.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from dataclasses import replace
+from typing import Any
+
+from skillsearch.config import SearchConfig
+from skillsearch.ports import ChatModel, MemoryRecall, SkillStore
+from skillsearch.types import RouterHit
+
+log = logging.getLogger(__name__)
+
+
+class SkillSearch:
+    """Retrieval over local, remote and self-accumulated skills.
+
+    Build once at host startup and keep it: sources hold an index and an
+    HTTP connection pool, both of which want to outlive a single turn.
+    """
+
+    def __init__(
+        self,
+        config: SearchConfig,
+        *,
+        model: ChatModel | None = None,
+        store: SkillStore | None = None,
+        memory: MemoryRecall | None = None,
+        get_tools: Any = None,
+    ) -> None:
+        """
+        ``store`` — a host's own skill scanner. Omitted, one is built over
+        ``config.skills_dir``.
+
+        ``memory`` — recall over the agent's accumulated skills. Omitted,
+        that source is simply absent.
+
+        ``get_tools`` — a callable returning the tool names the agent has
+        *this turn*. A callable rather than a list because in most hosts
+        the tool set is not final when this object is built. The gate uses
+        it to drop skills that need a tool the agent lacks; without it, the
+        gate still runs, just without that check.
+        """
+        self._cfg = config
+        self._model = model
+        self._get_tools = get_tools
+        self._router = self._build_router(store, memory)
+        self._rewriter, self._gate = self._build_narrowing()
+        self._hub = getattr(self, "_hub_client", None)
+
+    # ── Assembly ─────────────────────────────────────────────────────
+
+    def _build_router(self, store: SkillStore | None, memory: MemoryRecall | None):
+        from skillsearch.router import SkillForgeRouter
+
+        cfg = self._cfg
+        sources: list[Any] = []
+
+        local = self._build_local_source(store)
+        if local is not None:
+            sources.append(local)
+
+        self._hub_client = None
+        if cfg.hub_endpoint:
+            from skillsearch.hub_client import SkillHubClient
+            from skillsearch.sources.hub_source import HubSkillSource
+
+            self._hub_client = SkillHubClient(
+                cfg.hub_endpoint,
+                api_key=cfg.hub_api_key or None,
+                timeout_s=cfg.hub_timeout_s,
+                cache_dir=cfg.resolved_cache_dir(),
+            )
+            sources.append(
+                HubSkillSource(
+                    self._hub_client,
+                    weight=cfg.weight_hub,
+                    min_safety=cfg.hub_min_safety,
+                ),
+            )
+
+        if memory is not None and cfg.agent_id:
+            from skillsearch.sources.everos_source import EverosSkillSource
+
+            src = EverosSkillSource(backend=memory, agent_id=cfg.agent_id)
+            src.weight = cfg.weight_memory
+            sources.append(src)
+
+        self._sources = sources
+        if not sources:
+            log.info("skillsearch: no sources configured; retrieval is off")
+            return None
+        log.info(
+            "skillsearch: %d source(s): %s",
+            len(sources),
+            ", ".join(getattr(s, "name", "?") for s in sources),
+        )
+        return SkillForgeRouter(
+            sources=sources,
+            over_fetch_factor=cfg.over_fetch,
+            dedup_by=cfg.dedup_by,
+        )
+
+    def _build_local_source(self, store: SkillStore | None):
+        from skillsearch.local_pool import LocalPool
+        from skillsearch.sources.local_source import LocalSkillSource
+
+        cfg = self._cfg
+        if store is None:
+            root = cfg.resolved_skills_dir()
+            roots: list[tuple[Any, str]] = []
+            if root and root.is_dir():
+                roots.append((root, "local"))
+            if cfg.builtin_dir:
+                from pathlib import Path
+
+                builtin = Path(cfg.builtin_dir).expanduser()
+                if builtin.is_dir():
+                    roots.append((builtin, "builtin"))
+            for extra in cfg.extra_dirs:
+                if not extra.enabled:
+                    continue
+                from pathlib import Path
+
+                p = Path(extra.path).expanduser()
+                if p.is_dir():
+                    roots.append((p, extra.name or p.name))
+            if not roots:
+                return None
+            from skillsearch.local_store import DirectorySkillStore
+
+            store = DirectorySkillStore(roots, max_depth=cfg.scan_depth)
+
+        source = LocalSkillSource(pool=LocalPool(store), registry=store)
+        source.weight = cfg.weight_local
+        return source
+
+    def _build_narrowing(self):
+        cfg = self._cfg
+        if self._model is None or not cfg.model:
+            return None, None
+        rewriter = gate = None
+        if cfg.rewrite:
+            from skillsearch.rewriter import QueryRewriter
+
+            rewriter = QueryRewriter(self._model, model=cfg.model)
+        if cfg.gate:
+            from skillsearch.gate import LLMGateFilter
+
+            gate = LLMGateFilter(
+                self._model,
+                max_select=cfg.max_select,
+                legacy_top_k=cfg.max_select,
+                model=cfg.model,
+            )
+        return rewriter, gate
+
+    # ── The entry point ──────────────────────────────────────────────
+
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        history: list[dict[str, Any]] | None = None,
+    ) -> str:
+        """Return the block to inject, or ``""`` when there is nothing."""
+        if self._router is None or not (query or "").strip():
+            return ""
+        try:
+            hits = await self._search(query, history or [])
+            if not hits:
+                return ""
+            return self._render(hits)
+        except Exception as e:  # noqa: BLE001 — never break the host's turn
+            log.warning("skillsearch: retrieval failed (%s); injecting nothing", e)
+            return ""
+
+    async def hits(
+        self,
+        query: str,
+        *,
+        history: list[dict[str, Any]] | None = None,
+    ) -> list[RouterHit]:
+        """The selected skills as records, for hosts that render their own.
+
+        Same pipeline as :meth:`retrieve` minus the final rendering — for a
+        host whose prompt format differs enough that our block would look
+        foreign in it.
+        """
+        try:
+            return await self._search(query, history or [])
+        except Exception as e:  # noqa: BLE001
+            log.warning("skillsearch: retrieval failed (%s)", e)
+            return []
+
+    # ── Pipeline ─────────────────────────────────────────────────────
+
+    async def _search(self, query: str, history: list[dict[str, Any]]) -> list[RouterHit]:
+        cfg = self._cfg
+        search_query = query
+        if self._rewriter is not None:
+            try:
+                result = await self._rewriter.analyze(query)
+                search_query = getattr(result, "query", None) or query
+            except Exception as e:  # noqa: BLE001 — rewriting is a nicety
+                log.debug("skillsearch: rewrite failed (%s); using raw query", e)
+
+        pool_size = cfg.gate_pool if self._gate is not None else cfg.top_k
+        hits = await self._router.select(search_query, history, k=pool_size)
+        if not hits:
+            return []
+
+        hits = await self._hydrate_bodies(hits)
+
+        if self._gate is not None:
+            hits = await self._run_gate(query, hits)
+        return hits[: cfg.top_k]
+
+    async def _run_gate(self, task: str, hits: list[RouterHit]) -> list[RouterHit]:
+        """Gate with a hard deadline; on timeout keep the top hits.
+
+        The gate is one LLM call on the turn's hot path. Left unbounded it
+        would make retrieval the slowest thing in the turn, so a slow gate
+        degrades to "inject what ranked highest" rather than holding up the
+        response.
+        """
+        tools = None
+        if self._get_tools is not None:
+            try:
+                raw = self._get_tools()
+                tools = [_tool_name(t) for t in (raw or [])]
+                tools = [t for t in tools if t]
+            except Exception:  # noqa: BLE001
+                tools = None
+        try:
+            return await asyncio.wait_for(
+                self._gate.filter(task, hits, tools),
+                timeout=self._cfg.gate_timeout_s,
+            )
+        except TimeoutError:
+            log.warning(
+                "skillsearch: gate exceeded %.0fs; keeping top %d unfiltered",
+                self._cfg.gate_timeout_s,
+                self._cfg.max_select,
+            )
+            return hits[: self._cfg.max_select]
+        except Exception as e:  # noqa: BLE001
+            log.warning("skillsearch: gate failed (%s); keeping top hits", e)
+            return hits[: self._cfg.max_select]
+
+    async def _hydrate_bodies(self, hits: list[RouterHit]) -> list[RouterHit]:
+        """Fetch bodies for hits that arrived as catalog metadata only."""
+        if self._hub_client is None:
+            return hits
+        targets = [(i, h) for i, h in enumerate(hits) if h.meta.get("source") == "hub" and not h.content]
+        if not targets:
+            return hits
+
+        async def _one(hit: RouterHit) -> dict[str, Any] | None:
+            try:
+                return await self._hub_client.get(hit.meta["id"])
+            except Exception as e:  # noqa: BLE001
+                log.warning("skillsearch: body fetch failed for %s: %s", hit.meta.get("id"), e)
+                return None
+
+        metas = await asyncio.gather(*(_one(h) for _, h in targets))
+        out = list(hits)
+        for (i, hit), meta in zip(targets, metas):
+            if meta is None:
+                continue
+            new_meta = dict(hit.meta)
+            new_meta["_fetched"] = meta
+            out[i] = replace(hit, content=meta.get("skill_md", "") or "", meta=new_meta)
+        return out
+
+    def _render(self, hits: list[RouterHit]) -> str:
+        cfg = self._cfg
+        parts = [cfg.heading, ""]
+        for hit in hits:
+            body = hit.content or ""
+            if cfg.resolve_refs:
+                body = self._resolve(hit, body)
+            parts.append(f"### {hit.name}  [{hit.qualified_id}]")
+            desc = (hit.meta or {}).get("description")
+            if desc:
+                parts.append(str(desc))
+            parts.append("")
+            parts.append(body)
+            parts.append("")
+        return "\n".join(parts).rstrip() + "\n"
+
+    def _resolve(self, hit: RouterHit, body: str) -> str:
+        from skillsearch.refs import resolve_refs
+
+        skill_dir = (hit.meta or {}).get("skill_dir")
+        if not skill_dir:
+            return body
+        try:
+            resolved, _ = resolve_refs(body, skill_dir)
+            return resolved
+        except Exception:  # noqa: BLE001
+            return body
+
+    async def aclose(self) -> None:
+        """Release the HTTP pool. Hosts with a shutdown hook should call it."""
+        if self._hub_client is not None:
+            try:
+                await self._hub_client.aclose()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _tool_name(tool: Any) -> str:
+    """Accept the several shapes hosts describe a tool in."""
+    if isinstance(tool, str):
+        return tool
+    if isinstance(tool, dict):
+        fn = tool.get("function")
+        if isinstance(fn, dict) and fn.get("name"):
+            return str(fn["name"])
+        if tool.get("name"):
+            return str(tool["name"])
+    return str(getattr(tool, "name", "") or "")
+
+
+__all__ = ["SkillSearch"]
