@@ -134,9 +134,19 @@ class SearchConfig:
         return p if p.is_absolute() else Path(self.workspace) / p
 
     def resolved_cache_dir(self) -> Path:
+        """Where downloaded bundles are extracted.
+
+        Deliberately a sibling of the skills directory rather than a child
+        of it. Underneath, the local scanner would pick every downloaded
+        bundle back up as a local skill, so a remote hit would reappear
+        next turn as a second, local-looking copy of itself — competing
+        with the original in the same ranking.
+        """
         if self.cache_dir:
             return Path(os.path.expanduser(self.cache_dir))
-        return Path(self.workspace) / "skills" / "hub"
+        skills = self.resolved_skills_dir()
+        base = skills.parent if skills else Path(self.workspace)
+        return base / ".skillsearch-cache"
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "SearchConfig":

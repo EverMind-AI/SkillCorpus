@@ -43,6 +43,13 @@ query
 The optional steps degrade to no-ops. Configure nothing but a skills
 directory and you still get local retrieval and a rendered block.
 
+**Configure a `model` if you can.** Fusion ranks by position, not by
+score — that is what lets sources with different scoring scales be
+compared — so a source's best hit enters the shortlist even when it is a
+weak match. Filtering those out is the gate's job, and without a model
+there is no gate: ask about the weather with a PDF skill installed and the
+PDF skill still shows up.
+
 **`retrieve` never raises.** It sits on the turn's hot path in every host,
 so a retrieval failure returns `""` — the turn loses its skills, not its
 response.

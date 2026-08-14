@@ -222,3 +222,35 @@ class TestGate:
             model=model,
         ).retrieve("extract data")
         assert model.prompts, "the engine never called ChatModel.complete()"
+
+
+class TestCacheLocation:
+    def test_bundle_cache_sits_outside_the_scanned_tree(self, tmp_path: Path) -> None:
+        # Downloaded bundles must not land where the local scanner walks:
+        # a remote skill would come back next turn as a local-looking copy
+        # of itself, competing with the original in the same ranking.
+        cfg = SearchConfig(skills_dir="skills", workspace=str(tmp_path))
+        skills = cfg.resolved_skills_dir()
+        cache = cfg.resolved_cache_dir()
+        assert skills is not None
+        assert not str(cache).startswith(str(skills) + "/")
+        assert cache != skills
+
+    def test_explicit_cache_dir_is_honoured(self, tmp_path: Path) -> None:
+        cfg = SearchConfig(cache_dir=str(tmp_path / "elsewhere"), workspace=str(tmp_path))
+        assert cfg.resolved_cache_dir() == tmp_path / "elsewhere"
+
+    def test_downloaded_bundles_are_not_rescanned(self, tmp_path: Path) -> None:
+        from skillsearch.local_store import DirectorySkillStore
+
+        # Simulate a bundle that was extracted into the default cache.
+        cfg = SearchConfig(skills_dir="skills", workspace=str(tmp_path))
+        skills = cfg.resolved_skills_dir()
+        (skills / "mine").mkdir(parents=True)
+        (skills / "mine" / "SKILL.md").write_text("---\nname: mine\ndescription: d\n---\n\nx\n")
+        pulled = cfg.resolved_cache_dir() / "remote@v1" / "remote"
+        pulled.mkdir(parents=True)
+        (pulled / "SKILL.md").write_text("---\nname: remote\ndescription: d\n---\n\nx\n")
+
+        store = DirectorySkillStore([(skills, "local")])
+        assert {s.name for s in store.list_all()} == {"mine"}
