@@ -14,7 +14,7 @@
  * @module
  */
 
-import { withTimeout } from './deadline.js'
+import { bounded } from './deadline.js'
 import { extractJsonObject } from './replies.js'
 import type { RewriteResult } from './types.js'
 
@@ -71,10 +71,18 @@ export class QueryRewriter {
     const truncated = query.trim().slice(0, QUERY_MAX_LENGTH)
     if (!truncated) return { needRetrieval: false, rewrittenQuery: '' }
 
-    const prompt = REWRITE_PROMPT.replace('{query}', truncated)
+    // A function replacement, never the string: `truncated` is the user's
+    // text, and String.replace reads `$&`/`$'`/$` in a string replacement
+    // as pattern references — a query containing shell's `$'` would splice
+    // pieces of this prompt into itself.
+    const prompt = REWRITE_PROMPT.replace('{query}', () => truncated)
     let content: string
     try {
-      content = await withTimeout(this.model.complete(prompt, { signal }), this.timeoutMs)
+      content = await bounded(
+        s => this.model.complete(prompt, { signal: s }),
+        this.timeoutMs,
+        signal,
+      )
     } catch {
       return { needRetrieval: true, rewrittenQuery: '' }
     }

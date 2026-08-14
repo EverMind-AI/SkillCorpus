@@ -42,6 +42,7 @@ export { LocalSkillSource } from './local-source.js'
 export { QueryRewriter } from './rewriter.js'
 export { BM25Okapi, tokenize } from './bm25.js'
 export { RRF_K, rrfMergeWeighted } from './fusion.js'
+export { resolveRefs } from './refs.js'
 
 /** Per-turn skill retrieval configuration. */
 export interface Config {
@@ -53,6 +54,11 @@ export interface Config {
   hubApiKey?: string
   /** Per-request deadline for the catalog, search and body fetch alike. */
   hubTimeoutMs?: number
+  /**
+   * Drop catalog entries whose safety score falls below this. Only bites on
+   * catalogs that put per-skill safety in the search payload.
+   */
+  hubMinSafety?: number
   /** Fusion weight for local skills, which are curated and so outrank. */
   weightLocal?: number
   /** Fusion weight for catalog skills. */
@@ -82,6 +88,12 @@ export interface Config {
   rewriteTimeoutMs?: number
   /** Deadline for the gate, which runs before the user sees a reply. */
   gateTimeoutMs?: number
+  /**
+   * Rewrite `{baseDir}` and bundled-file links in selected bodies to absolute
+   * paths. Turn off when the agent does not share a filesystem with the
+   * skills it retrieves.
+   */
+  resolveRefs?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -89,6 +101,7 @@ export const Config: z<Config> = z.object({
   hubEndpoint: z.string().default(''),
   hubApiKey: z.string().default(''),
   hubTimeoutMs: z.number().default(2000),
+  hubMinSafety: z.number().default(0.7),
   weightLocal: z.number().default(1.0),
   weightHub: z.number().default(0.85),
   topK: z.number().default(5),
@@ -98,6 +111,7 @@ export const Config: z<Config> = z.object({
   model: z.string().default(''),
   rewriteTimeoutMs: z.number().default(5_000),
   gateTimeoutMs: z.number().default(20_000),
+  resolveRefs: z.boolean().default(true),
 })
 
 /** Marks the messages this plugin publishes. */
@@ -172,7 +186,12 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
       ...(cfg.hubApiKey ? { apiKey: cfg.hubApiKey } : {}),
       timeoutMs: cfg.hubTimeoutMs ?? 2000,
     })
-    sources.push(new HubSkillSource(client, { weight: cfg.weightHub ?? 0.85 }))
+    sources.push(
+      new HubSkillSource(client, {
+        weight: cfg.weightHub ?? 0.85,
+        minSafety: cfg.hubMinSafety ?? 0.7,
+      }),
+    )
   }
 
   const route = resolveRoute(cfg)
@@ -207,6 +226,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
     {
       topK: cfg.topK ?? 5,
       gatePool: cfg.gatePool ?? 10,
+      resolveRefs: cfg.resolveRefs ?? true,
     },
   )
 }

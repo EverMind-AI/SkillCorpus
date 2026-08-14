@@ -33,8 +33,12 @@ interface CatalogItem {
 export interface HubClientOptions {
   readonly apiKey?: string
   readonly timeoutMs?: number
-  /** Download tag the catalog records. It validates against a fixed set. */
-  readonly source?: 'raven' | 'everme' | 'cli' | 'web'
+  /**
+   * Download-stats tag, not a free label: a catalog validates it against its
+   * own fixed set and answers 422 for anything outside it. `cli` is the safe
+   * default; change it only against a deployment whose set you know.
+   */
+  readonly source?: string
 }
 
 /** HTTP client for the catalog's three endpoints. */
@@ -55,10 +59,14 @@ export class SkillHubClient {
    * Search the catalog. Metadata only — no bodies.
    * @param query - the search text, sent as `q`.
    * @param signal - aborts the request when the turn is cancelled.
+   * @param limit - how many entries to ask the catalog for. Sent explicitly:
+   *   the catalog's own default page may be smaller than the fan-out wants.
    * @returns the entries the catalog matched, in its own order.
    */
-  async search(query: string, signal?: AbortSignal): Promise<CatalogItem[]> {
-    const url = `${this.base}/openapi/v1/skills?q=${encodeURIComponent(query)}`
+  async search(query: string, signal?: AbortSignal, limit = 20): Promise<CatalogItem[]> {
+    const url =
+      `${this.base}/openapi/v1/skills` +
+      `?q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.floor(limit))}`
     const result = await this.getJson(url, signal)
     const items = (result as { items?: unknown }).items
     return Array.isArray(items) ? (items as CatalogItem[]) : []
@@ -130,7 +138,7 @@ export class HubSkillSource implements SkillSource {
    * fetched later or shown to the model now.
    */
   async search(query: string, options: SearchOptions, k: number): Promise<RouterHit[]> {
-    const items = await this.client.search(query, options.signal)
+    const items = await this.client.search(query, options.signal, k)
     const hits: RouterHit[] = []
     for (const item of items.slice(0, k)) {
       const id = item.id

@@ -14,11 +14,14 @@
  */
 
 import { readFile, readdir } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { basename, join } from 'node:path'
 import { BM25Okapi, tokenize } from './bm25.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
 const SKILL_FILE = 'SKILL.md'
+
+/** Characters of body indexed per skill. Retrieval signal lives up front. */
+const INDEXED_BODY_CHARS = 4000
 
 /** Build output and version-control noise, never a skill. */
 const SKIP_DIRS = new Set(['.git', '__pycache__', 'node_modules', '.venv', 'venv'])
@@ -89,7 +92,7 @@ export class LocalSkillSource implements SkillSource {
   private async ensureIndex(): Promise<{ bm25: BM25Okapi; skills: FileSkill[] }> {
     if (this.index) return this.index
     const skills = await this.listAll()
-    const corpus = skills.map(s => tokenize(`${s.name} ${s.description} ${s.content}`))
+    const corpus = skills.map(s => tokenize(formatSkillText(s)))
     this.index = { bm25: new BM25Okapi(corpus), skills }
     return this.index
   }
@@ -112,7 +115,11 @@ export class LocalSkillSource implements SkillSource {
         }
         const { meta, body } = parseFrontmatter(text)
         const dir = file.slice(0, file.length - SKILL_FILE.length - 1)
-        const name = meta.name ?? relative(root.path, dir).split('/')[0] ?? dir
+        // The skill's own directory names it, exactly as the Python
+        // implementation does — never a segment further up, which would
+        // collapse every nameless skill under one grouping directory
+        // into a single entry.
+        const name = meta.name ?? basename(dir)
         const key = `${root.name}/${name}`
         if (seen.has(key)) continue
         seen.add(key)
@@ -128,6 +135,27 @@ export class LocalSkillSource implements SkillSource {
     this.cache = found
     return found
   }
+}
+
+/**
+ * The text one skill contributes to the BM25 index.
+ *
+ * Byte-for-byte the Python implementation's `_format_skill_text`, because the
+ * index text decides the ranking and the two implementations promise the same
+ * ranking: the name twice, so a query naming a skill outweighs a long body
+ * mentioning the same words; the body capped, so a huge skill does not drown
+ * its own signal fields.
+ *
+ * @param skill - the name, description and body to index.
+ * @returns the line handed to the tokenizer.
+ */
+export function formatSkillText(skill: {
+  name: string
+  description: string
+  content: string
+}): string {
+  const body = skill.content.slice(0, INDEXED_BODY_CHARS)
+  return `${skill.name} ${skill.name} ${skill.description} ${body}`
 }
 
 async function* walk(root: string, maxDepth: number): AsyncGenerator<string> {

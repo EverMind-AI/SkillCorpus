@@ -7,8 +7,6 @@ two calls previously disagreed about how much of that to tolerate — the
 gate handled all of it, the rewriter handled only a fence that ended the
 string — and the difference was invisible until a live model appended a
 sentence and the rewriter's verdict was silently discarded.
-
-@module
 """
 
 from __future__ import annotations

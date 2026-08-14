@@ -25,8 +25,10 @@ export interface RouterHit {
   readonly content: string
   /**
    * Relevance on the source's own scale — BM25 here, cosine there. Not
-   * comparable across sources, which is exactly why fusion ranks by position
-   * instead. Used only to pick the better of two hits that collide on name.
+   * comparable across sources, which is exactly why fusion never reads it:
+   * ranking and collision representatives are both decided by weighted rank
+   * position. Kept as telemetry — the source's own justification for the
+   * order it returned.
    */
   readonly score: number
   /** Source-specific extras: physical origin, native id, fusion telemetry. */
@@ -44,9 +46,9 @@ export interface SearchOptions {
 /**
  * One place skills come from.
  *
- * Implement `name`, `weight` and `search` and a source joins the fusion. Three
- * ship here — a local directory, a remote catalog, an agent's own accumulated
- * skills — and a host is free to add its own.
+ * Implement `name`, `weight` and `search` and a source joins the fusion. Two
+ * ship here — a local directory and a remote catalog — and a host is free to
+ * add its own, an agent's accumulated-skill store being the natural third.
  */
 export interface SkillSource {
   /** Stable identifier, used as the `qualifiedId` prefix and in telemetry. */

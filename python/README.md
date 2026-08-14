@@ -4,9 +4,11 @@ Skill retrieval for agent hosts. One engine, three adapters.
 
 An agent host wants to answer one question before every turn: *given what
 the user just said, which skills should the model see?* This package
-answers it — searching a local skills directory, a remote catalog, and the
-agent's own accumulated skills, fusing the results, narrowing them with a
-model, and returning the text to inject.
+answers it — searching a local skills directory, a remote catalog such as
+[SkillHub](https://evermind.ai/skillhub) (the hosted endpoint over
+[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted
+skills), and the agent's own accumulated skills, fusing the results,
+narrowing them with a model, and returning the text to inject.
 
 ```python
 from skillsearch import SearchConfig, SkillSearch
@@ -64,7 +66,7 @@ can never say two contradictory things.
 ```python
 SearchConfig(
     skills_dir="~/.agent/skills",
-    hub_endpoint="https://skillhub.example.com",   # omit → local only, see below
+    hub_endpoint="https://skillhub.evermind.ai",   # omit → local only, see below
     model="gpt-4o-mini",                           # omit → no rewrite, no gate
     top_k=5,
     max_select=2,
@@ -75,11 +77,15 @@ Hosts hand over their own config dict; `SearchConfig.from_mapping` coerces
 strings and ignores keys it does not know, so a host can pass a whole slice
 without filtering it first.
 
-`hub_endpoint` is a service you run. This package speaks a catalog API —
+`hub_endpoint` is any service speaking the three-tier catalog API —
 `GET /openapi/v1/skills?q=`, `/skills/{id}`, `/skills/{id}/download`, each
 answering `{error, requestId, status, result}` with `status == 0` for
-success — and ships no server and no public endpoint. Leave it unset and
-everything else works against a local directory.
+success. [SkillHub](https://evermind.ai/skillhub) is a public one, serving
+the [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) corpus —
+96,401 skills, each carrying its upstream license, retrieval quality
+measured in the [corpus paper](https://arxiv.org/abs/2607.15557) — or run
+your own. Leave it unset and everything else works against a local
+directory.
 
 Both model calls are bounded, because both sit between the user's message
 and the model's reply: `rewrite_timeout_s` (5s) and `gate_timeout_s` (20s).
@@ -166,4 +172,8 @@ portable, and an `import raven` anywhere outside `adapters/` is a bug.
 
 ## License
 
-Apache-2.0. `bm25.py` is vendored from Raven (same license).
+Apache-2.0. `bm25.py` is vendored from
+[Raven](https://github.com/EverMind-AI/Raven) (same license).
+
+If skill retrieval over SkillCorpus is part of your work, please cite the
+corpus paper — the BibTeX is in the [repository README](../README.md#citation).
