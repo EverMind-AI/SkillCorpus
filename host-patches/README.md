@@ -15,7 +15,7 @@ patch adds one, and moves the `skills` stage from built-in code to that
 socket, with no built-in fallback: disabling the plugin turns retrieval off
 rather than silently reverting.
 
-Six files, +/- ~690 lines:
+Seven files, ~730 lines:
 
 | File | Change |
 |---|---|
@@ -24,6 +24,7 @@ Six files, +/- ~690 lines:
 | `plugin/context.py` | `ServiceLocator.get_tool_definitions` — a callable, since the tool set is not final when segments are built |
 | `cli/_plugin_stack.py` | `build_plugin_segments()`, plus a bridge from the old `skillForge` config keys |
 | `context_engine/factory.py` | ordered, *named* stages; `skills` left for a plugin to claim |
+| `plugin/discover.py` | accept several bundled roots, so a plugin need not live under `plugin/memory/` |
 | `agent/loop/main.py` | pass the built segments through |
 
 Apply:
@@ -39,5 +40,10 @@ Verify:
 python -c "from raven.plugin.manifest import ContextSegmentContribution"
 ```
 
-The patch is cut against Raven `1cb604a`. On a newer tree expect conflicts
-in `context_engine/factory.py`, which is the file it touches most.
+The patch is cut against Raven `1cb604a` and was applied to a clean
+checkout of it, then driven end to end — plugin discovered, segment built,
+skills retrieved from a local directory and a live catalog. On a newer tree
+expect conflicts in `context_engine/factory.py`, the file it touches most.
+
+It changes the plugin machinery only. Retrieval itself is this package, so
+the patch does not carry a copy of it.
