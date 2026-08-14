@@ -1,0 +1,690 @@
+diff --git a/raven/agent/loop/main.py b/raven/agent/loop/main.py
+index f6d7661..86a3d12 100644
+--- a/raven/agent/loop/main.py
++++ b/raven/agent/loop/main.py
+@@ -336,6 +336,10 @@ class AgentLoop:
+         # in ``_register_default_tools``. ``None`` / empty = no plugin
+         # tools, default behavior unchanged.
+         plugin_tools: "list[Tool] | None" = None,
++        # Context stages contributed by activated plugins, keyed by the
++        # built-in stage each replaces. Skill retrieval arrives this way;
++        # ``None`` / empty means no ``# Skills`` block is assembled.
++        plugin_segments: "dict[str, Any] | None" = None,
+         empty_recovery: RecoveryLimits | None = None,
+     ):
+         from raven.agent.hook import (
+@@ -491,13 +495,14 @@ class AgentLoop:
+             context_window_tokens=self.context_window_tokens,
+             get_tool_definitions=self.tools.get_definitions,
+             now_fn=now_fn,
+-            # The factory uses these to assemble the unified engine's
+-            # SkillForgeRouter + EverOS recall lane.
++            # The factory uses these to assemble the EverOS recall lane.
+             backend=backend,
+             memory_config=memory_config,
+             skill_forge_router_config=skill_forge_router_config,
+             skill_forge_config=skill_forge_config,
+             skill_hub_client=self._skill_hub_client,
++            # Skill retrieval is a plugin stage, not a built-in one.
++            plugin_segments=plugin_segments,
+         )
+ 
+         # Runtime discipline (5th pillar). Bug2 uses ``runtime.checkpoint``;
+@@ -851,7 +856,11 @@ class AgentLoop:
+             None,
+         )
+         if skill_registry is not None or self._skill_hub_client is not None:
+-            from raven.agent.tools.skill_hub import ReadSkillTool, UseSkillTool
++            from raven.agent.tools.skill_hub import (
++                FindSkillTool,
++                ReadSkillTool,
++                UseSkillTool,
++            )
+ 
+             self.tools.register(
+                 UseSkillTool(client=self._skill_hub_client, registry=skill_registry),
+@@ -863,6 +872,7 @@ class AgentLoop:
+                         registry=skill_registry,
+                     ),
+                 )
++                self.tools.register(FindSkillTool(client=self._skill_hub_client))
+ 
+         # Progressive tool disclosure. Registered last so the catalog it
+         # searches covers every built-in/plugin tool above; MCP tools join
+diff --git a/raven/cli/_plugin_stack.py b/raven/cli/_plugin_stack.py
+index 20bbac3..34a1a89 100644
+--- a/raven/cli/_plugin_stack.py
++++ b/raven/cli/_plugin_stack.py
+@@ -26,6 +26,7 @@ the await around them.
+ from __future__ import annotations
+ 
+ import logging
++from collections.abc import Callable
+ from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+@@ -58,8 +59,15 @@ def plugin_discovery_sources() -> dict:
+     """
+     import raven
+ 
++    # Two bundled roots because scanning is one level deep and the two
++    # groups nest differently: ``plugin/<id>/`` is where a bundled plugin
++    # lives now (``plugin/skills/``), while ``plugin/memory/`` is an older
++    # grouping directory that holds ``everos/`` inside it.
+     return {
+-        "bundled_dir": Path(raven.__path__[0]) / "plugin" / "memory",
++        "bundled_dir": [
++            Path(raven.__path__[0]) / "plugin",
++            Path(raven.__path__[0]) / "plugin" / "memory",
++        ],
+         "user_dir": Path.home() / ".raven" / "plugins",
+         "project_dir": Path.cwd() / ".raven" / "plugins",
+         "entry_points_group": "raven.plugins",
+@@ -225,6 +233,128 @@ def build_plugin_tools(
+     return tools
+ 
+ 
++def skills_config_from_host(config: "RavenConfig", *, model: str | None = None) -> dict:
++    """Translate the host's ``skillForge`` block into the plugin's slice.
++
++    Skill retrieval used to be assembled by the host from
++    ``config.skill_forge``; it is now a plugin reading
++    ``plugins.config["skills-retrieval"]``. Without this bridge every
++    existing deployment would silently fall back to plugin defaults on
++    upgrade — no gate, no Hub, default weights — so the old keys keep
++    working and an explicit plugin slice simply wins over them.
++
++    ``model`` is the agent's model, used as the gate's when the old
++    ``llm_gate_model`` was left unset. That mirrors the previous
++    behaviour, where the gate shared the host's provider.
++    """
++    sf = config.skill_forge
++    router = sf.router
++    hub = router.hub
++    weights = router.weights or {}
++
++    # An empty gate model means "no gate" to the plugin, so only fill one
++    # in when the old config actually wanted a gate.
++    gate_model = sf.llm_gate_model or (model if sf.llm_gate_enabled else None)
++
++    return {
++        "skills_dir": "skills",
++        "builtin_skills_dir": "",
++        "local_dirs": list(sf.local_dirs or []),
++        "scan_max_depth": sf.scan_max_depth,
++        "hub_endpoint": hub.endpoint or "",
++        "hub_api_key": hub.api_key or "",
++        "hub_timeout_s": hub.timeout_s,
++        "hub_min_safety": hub.min_safety,
++        "weight_local": weights.get("local", 1.0),
++        "weight_hub": weights.get("hub", 0.85),
++        "weight_everos": weights.get("everos", 0.9),
++        "over_fetch_factor": router.over_fetch_factor,
++        "dedup_by": router.dedup_by,
++        "top_k": router.top_k,
++        "gate_model": gate_model or "",
++        "gate_enabled": sf.llm_gate_enabled,
++        "rewrite_enabled": sf.rewrite_enabled,
++        "gate_pool_size": sf.llm_gate_pool_size,
++        "max_select": sf.llm_gate_max_select,
++        "agent_id": config.memory.agent_id,
++    }
++
++
++def build_plugin_segments(
++    workspace: Path,
++    config: "RavenConfig",
++    *,
++    registry: PluginRegistry | None = None,
++    get_tool_definitions: "Callable[[], list[dict]] | None" = None,
++    model: str | None = None,
++    backend: "MemoryBackend | None" = None,
++) -> dict:
++    """Construct every plugin-contributed context segment.
++
++    Same shape as :func:`build_plugin_tools`, keyed the way the host wants
++    it: each entry maps the built-in stage the segment ``replaces`` to the
++    builder itself, which is what ``build_context_engine`` consumes. A
++    segment replacing nothing is keyed by its own name and appends after
++    the built-in stages.
++
++    ``get_tool_definitions`` is the one host service a segment may take —
++    the skill-retrieval gate uses it to drop skills whose workflow needs a
++    tool the agent lacks. Pass the agent's
++    ``ToolRegistry.get_definitions``: a callable, not a snapshot, because
++    the tool set is only complete once plugin tools are registered too.
++
++    Lenient like the tool path — a factory that raises is logged and
++    skipped, one returning ``None`` declines quietly, so neither keeps the
++    agent from booting.
++    """
++    if registry is None:
++        registry = build_plugin_registry(config)
++    names = registry.context_segment_names()
++    if not names:
++        return {}
++    services = ServiceLocator(
++        workspace=workspace,
++        user_id=config.memory.user_id,
++        agent_id=config.memory.agent_id,
++        get_tool_definitions=get_tool_definitions,
++    )
++    slices = config.plugins.config
++    segments: dict = {}
++    for name in names:
++        plugin_id = registry.context_segment_plugin_id(name)
++        plugin_slice = (plugin_id and slices.get(plugin_id)) or slices.get(name) or {}
++        if plugin_id == "skills-retrieval":
++            # Old skillForge keys underneath, explicit plugin config on top.
++            plugin_slice = {
++                **skills_config_from_host(config, model=model),
++                **plugin_slice,
++                # Not user-settable: the live backend object the everos
++                # source recalls through.
++                "_backend": backend,
++            }
++        try:
++            segment = registry.build_context_segment(
++                name,
++                config=plugin_slice,
++                services=services,
++            )
++        except Exception as e:
++            logger.warning(
++                "plugin context segment %r factory raised at construction (%s); skipping it.",
++                name,
++                e,
++            )
++            continue
++        if segment is None:
++            logger.debug(
++                "plugin context segment %r factory opted out (returned None); skipping it.",
++                name,
++            )
++            continue
++        segments[registry.context_segment_replaces(name) or name] = segment
++    return segments
++
++
+ def _resolve_plugin_config_slice(
+     registry: PluginRegistry,
+     config: "RavenConfig",
+@@ -275,6 +405,8 @@ def _plugin_id_for_backend(
+ 
+ __all__ = [
+     "build_plugin_registry",
++    "build_plugin_segments",
++    "skills_config_from_host",
+     "build_plugin_tools",
+     "maybe_build_memory_backend",
+ ]
+diff --git a/raven/context_engine/factory.py b/raven/context_engine/factory.py
+index 7151324..2920ea1 100644
+--- a/raven/context_engine/factory.py
++++ b/raven/context_engine/factory.py
+@@ -7,31 +7,27 @@ design it runs three lanes per turn (the prior ``legacy`` / ``curator`` /
+ - **Curator lane** — manifest build + fast / slow / fallback history
+   selection + ``# Curator Working State``. Owns ``*history``.
+ - **EverOS lane** — ``backend.recall(user_id=...)`` (segment 3,
+-  ``# Memory``) and a :class:`SkillForgeRouter` over 1–3 sources (segment 5,
+-  ``# Skills``).
++  ``# Memory``).
+ - **Host** — identity / bootstrap / always-skills, rendered by
+   :class:`ContextBuilder`.
+ 
+-The SkillForgeRouter is assembled from up to three hardcoded sources:
+-
+-- :class:`LocalSkillSource` — always; wraps the builder's existing
+-  ``LocalPool`` + ``SkillRegistry`` (no second disk scan).
+-- :class:`EverosSkillSource` — only when a ``backend`` is wired. Bridges
+-  ``backend.recall(agent_id=...)`` into the router.
+-- :class:`HubSkillSource` — only when ``skillForge.router.hub.endpoint``
+-  is set. The remote Skill Hub marketplace (replaces the retired Mass
+-  source).
++Skill retrieval (segment 5, ``# Skills``) is **not** assembled here. It
++is contributed by the bundled ``skills-retrieval`` plugin
++(:mod:`raven.plugin.skills`), which owns its own sources, fusion, gate
++and index; the host only reserves an ordered slot named ``skills`` that
++the plugin claims via ``replaces``. Disabling that plugin turns retrieval
++off — there is no built-in fallback, so behaviour never silently differs
++from what the manifest says.
+ 
+ With no ``backend`` the engine still constructs: the recall lane yields
+-``[]`` and the router runs Local-only, so the agent boots even when no
+-memory plugin is installed.
++``[]``, so the agent boots even when no memory plugin is installed.
+ """
+ 
+ from __future__ import annotations
+ 
+ from datetime import datetime
+ from pathlib import Path
+-from typing import TYPE_CHECKING, Callable
++from typing import TYPE_CHECKING, Any, Callable
+ 
+ from raven.agent.context import ContextBuilder
+ from raven.context_engine.assembler import ContextAssembler
+@@ -41,7 +37,6 @@ from raven.context_engine.segments import (
+     BootstrapSegmentBuilder,
+     IdentitySegmentBuilder,
+     MemorySegmentBuilder,
+-    SkillsSegmentBuilder,
+ )
+ from raven.context_engine.segments.curator import CuratorSegmentBuilder
+ from raven.providers.base import LLMProvider
+@@ -54,11 +49,6 @@ if TYPE_CHECKING:
+         SkillForgeRouterConfig,
+     )
+     from raven.memory_engine.backend import MemoryBackend
+-    from raven.memory_engine.skill_forge import (
+-        LLMGateFilter,
+-        QueryRewriter,
+-        SkillForgeRouter,
+-    )
+     from raven.skill_hub import SkillHubClient
+ 
+ 
+@@ -77,6 +67,7 @@ def build_context_engine(
+     skill_forge_router_config: "SkillForgeRouterConfig | None" = None,
+     skill_forge_config: "SkillForgeConfig | None" = None,
+     skill_hub_client: "SkillHubClient | None" = None,
++    plugin_segments: "dict[str, Any] | None" = None,
+ ) -> ContextEngine:
+     """Build the one :class:`ContextAssembler` from a flat SegmentBuilder list.
+ 
+@@ -98,162 +89,49 @@ def build_context_engine(
+     if skill_forge_router_config is None:
+         skill_forge_router_config = _SkillForgeRouterConfig()
+ 
+-    router = _build_router(
+-        builder=builder,
+-        backend=backend,
+-        memory_config=memory_config,
+-        skill_forge_router_config=skill_forge_router_config,
+-        skill_hub_client=skill_hub_client,
+-    )
+-
+-    rewriter, gate = _build_rewriter_and_gate(
+-        provider=provider,
+-        model=model,
+-        skill_forge_config=skill_forge_config,
+-        skill_forge_router_config=skill_forge_router_config,
+-    )
+-
+-    builders = [
+-        IdentitySegmentBuilder(workspace),
+-        BootstrapSegmentBuilder(workspace),
+-        MemorySegmentBuilder(
+-            builder.memory,
+-            backend,
+-            user_id=memory_config.user_id,
+-            memory_top_k=memory_config.memory_top_k,
+-        ),
+-        ActiveSkillsSegmentBuilder(builder.skills),
+-        SkillsSegmentBuilder(
+-            router,
+-            skill_top_k=skill_forge_router_config.top_k,
+-            rewriter=rewriter,
+-            gate=gate,
+-            gate_pool_size=(
+-                int(getattr(skill_forge_config, "llm_gate_pool_size", 10)) if skill_forge_config is not None else 10
++    # Ordered stages, named so a plugin can take one over by declaring
++    # ``replaces = "<name>"`` in its manifest. ``skills`` (retrieval) has
++    # no built-in implementation any more — the bundled
++    # ``skills-retrieval`` plugin contributes it, and the stage stays
++    # empty when that plugin is disabled or declines the slot (no sources
++    # configured).
++    stages: list[tuple[str, Any]] = [
++        ("identity", IdentitySegmentBuilder(workspace)),
++        ("bootstrap", BootstrapSegmentBuilder(workspace)),
++        (
++            "memory",
++            MemorySegmentBuilder(
++                builder.memory,
++                backend,
++                user_id=memory_config.user_id,
++                memory_top_k=memory_config.memory_top_k,
+             ),
+-            hub_client=skill_hub_client,
+-            get_tool_definitions=get_tool_definitions,
+         ),
+-        CuratorSegmentBuilder(
+-            workspace=workspace,
+-            config=config,
+-            provider=provider,
+-            model=model,
+-            context_window_tokens=context_window_tokens,
+-            get_tool_definitions=get_tool_definitions,
+-            now_fn=now_fn,
++        ("active_skills", ActiveSkillsSegmentBuilder(builder.skills)),
++        ("skills", None),
++        (
++            "curator",
++            CuratorSegmentBuilder(
++                workspace=workspace,
++                config=config,
++                provider=provider,
++                model=model,
++                context_window_tokens=context_window_tokens,
++                get_tool_definitions=get_tool_definitions,
++                now_fn=now_fn,
++            ),
+         ),
+     ]
+-    return ContextAssembler(builders, get_tool_definitions, now_fn=now_fn)
+-
+-
+-def _build_router(
+-    *,
+-    builder: ContextBuilder,
+-    backend: "MemoryBackend | None",
+-    memory_config: "MemoryConfig",
+-    skill_forge_router_config: "SkillForgeRouterConfig",
+-    skill_hub_client: "SkillHubClient | None" = None,
+-) -> "SkillForgeRouter":
+-    """Assemble the 1-to-3 source SkillForgeRouter for segment 5."""
+-    from raven.memory_engine.skill_forge import (
+-        EverosSkillSource,
+-        HubSkillSource,
+-        LocalSkillSource,
+-        SkillForgeRouter,
+-    )
+ 
+-    weights = skill_forge_router_config.weights or {}
+-
+-    # ── Source 1: Local (always) ────────────────────────────────────
+-    # Reuse the builder's in-memory BM25 index / registry — no second
+-    # disk scan.
+-    local_source = LocalSkillSource(
+-        pool=builder.skills.pool,
+-        registry=builder.skills.registry,
++    provided = dict(plugin_segments or {})
++    builders = [provided.pop(name, stage) for name, stage in stages]
++    # A segment that named no built-in stage appends after them, in the
++    # order the registry handed it over.
++    builders.extend(provided.values())
++    return ContextAssembler(
++        [b for b in builders if b is not None],
++        get_tool_definitions,
++        now_fn=now_fn,
+     )
+-    if "local" in weights:
+-        local_source.weight = float(weights["local"])
+-    sources = [local_source]
+-
+-    # ── Source 2: Everos (conditional on backend) ───────────────────
+-    if backend is not None:
+-        everos_source = EverosSkillSource(
+-            backend=backend,
+-            agent_id=memory_config.agent_id,
+-        )
+-        if "everos" in weights:
+-            everos_source.weight = float(weights["everos"])
+-        sources.append(everos_source)
+-
+-    # ── Source 4: Hub (conditional on remote endpoint) ──────────────
+-    hub_cfg = skill_forge_router_config.hub
+-    if hub_cfg.endpoint:
+-        from raven.skill_hub import SkillHubClient
+-
+-        # Reuse the host-built client (shared with the read_skill / use_skill
+-        # tools) when provided, so discovery and retrieval share one
+-        # connection pool + identical config; build one here otherwise.
+-        client = skill_hub_client or SkillHubClient(
+-            hub_cfg.endpoint,
+-            api_key=hub_cfg.api_key,
+-            timeout_s=hub_cfg.timeout_s,
+-            source=hub_cfg.source,
+-        )
+-        hub_source = HubSkillSource(
+-            client,
+-            weight=float(weights.get("hub", 0.85)),
+-            min_safety=hub_cfg.min_safety,
+-        )
+-        sources.append(hub_source)
+-
+-    return SkillForgeRouter(
+-        sources=sources,
+-        over_fetch_factor=skill_forge_router_config.over_fetch_factor,
+-        dedup_by=skill_forge_router_config.dedup_by,
+-    )
+-
+-
+-def _build_rewriter_and_gate(
+-    *,
+-    provider: LLMProvider,
+-    model: str,
+-    skill_forge_config: "SkillForgeConfig | None",
+-    skill_forge_router_config: "SkillForgeRouterConfig",
+-) -> "tuple[QueryRewriter | None, LLMGateFilter | None]":
+-    """Construct the optional rewriter + gate from the parent SkillForge
+-    config. Both fall to ``None`` when their respective flag is off or
+-    no provider is wired — :class:`SkillsSegmentBuilder` then skips that
+-    stage.
+-
+-    Per-stage isolation matters: gate-off + rewriter-on is a valid
+-    deployment (cheap retrieval, no LLM selector); rewriter-off + gate-on
+-    is also valid (always retrieve, then filter)."""
+-    if skill_forge_config is None or provider is None:
+-        return None, None
+-
+-    from raven.memory_engine.skill_forge import LLMGateFilter, QueryRewriter
+-
+-    rewriter: "QueryRewriter | None" = None
+-    if bool(getattr(skill_forge_config, "rewrite_enabled", False)):
+-        rewriter = QueryRewriter(
+-            provider,
+-            model=model,
+-            max_tokens=int(getattr(skill_forge_config, "rewrite_max_tokens", 8192) or 8192),
+-        )
+ 
+-    gate: "LLMGateFilter | None" = None
+-    if bool(getattr(skill_forge_config, "llm_gate_enabled", False)):
+-        # ``legacy_top_k`` is the gate's failure-fallback size — must match
+-        # what the no-gate path renders (i.e. ``skill_top_k``) so a gate
+-        # outage doesn't change injection volume vs. having gate disabled.
+-        gate = LLMGateFilter(
+-            provider,
+-            max_select=int(getattr(skill_forge_config, "llm_gate_max_select", 2) or 2),
+-            legacy_top_k=int(skill_forge_router_config.top_k or 5),
+-            model=getattr(skill_forge_config, "llm_gate_model", None) or model or None,
+-            temperature=float(getattr(skill_forge_config, "llm_gate_temperature", 0.0)),
+-            max_tokens=int(getattr(skill_forge_config, "llm_gate_max_tokens", 8192) or 8192),
+-        )
+ 
+-    return rewriter, gate
+diff --git a/raven/plugin/context.py b/raven/plugin/context.py
+index 6b21cc8..900d53b 100644
+--- a/raven/plugin/context.py
++++ b/raven/plugin/context.py
+@@ -21,6 +21,7 @@ view of available services, only read from it.
+ from __future__ import annotations
+ 
+ import logging
++from collections.abc import Callable
+ from dataclasses import dataclass, field
+ from pathlib import Path
+ from typing import Any
+@@ -53,6 +54,20 @@ class ServiceLocator:
+     agent_id: str
+     """Agent-track owner identity. Same single-source rule as ``user_id``."""
+ 
++    get_tool_definitions: Callable[[], list[dict[str, Any]]] | None = None
++    """Callable answering "what tools does the agent have right now?".
++
++    A callable rather than a list because the tool set is only complete
++    after plugin-contributed tools are registered — a segment factory that
++    asked for the list at build time would see a half-filled registry. Call
++    it per turn instead.
++
++    ``None`` when the host has no registry to expose (tests, or a factory
++    invoked outside the agent loop); consumers must degrade rather than
++    require it. Everything else a plugin needs — model endpoints, data
++    paths — comes from its own ``config`` slice, not from here.
++    """
++
+ 
+ @dataclass(frozen=True)
+ class PluginContext:
+diff --git a/raven/plugin/manifest.py b/raven/plugin/manifest.py
+index 789723a..fe03bb7 100644
+--- a/raven/plugin/manifest.py
++++ b/raven/plugin/manifest.py
+@@ -6,9 +6,9 @@ contribution points, and config schema — everything the registry needs
+ to know without importing the plugin's code.
+ 
+ The single root table is ``[plugin]``. Contribution arrays are
+-``[[plugin.contributes.<kind>]]``. Per design, the only contribution
+-kind that lands in PG-1 is ``memory_backends``; the model accepts
+-unknown extras silently so future kinds don't break old hosts.
++``[[plugin.contributes.<kind>]]`` — ``memory_backends``, ``tools`` and
++``context_segments``; the model accepts unknown extras silently so future
++kinds don't break old hosts.
+ 
+ Validation rules worth flagging:
+ 
+@@ -83,16 +83,45 @@ class ToolContribution(_ManifestBase):
+         return v
+ 
+ 
++class ContextSegmentContribution(_ManifestBase):
++    """One ``[[plugin.contributes.context_segments]]`` entry.
++
++    ``factory`` is a ``module.path:callable`` resolving to a
++    ``Callable[[PluginContext], SegmentBuilder | None]`` — one stage of
++    the per-turn context assembly, e.g. the skill retrieval that renders
++    the ``# Skills`` block. Returning ``None`` declines the slot, which is
++    how a segment opts out when its config is absent.
++
++    ``replaces`` names the built-in segment this one stands in for, so a
++    plugin can take over a stage rather than only appending to the
++    pipeline. Unset means "append at the end".
++    """
++
++    name: str = Field(min_length=1)
++    factory: str = Field(min_length=1)
++    replaces: str | None = None
++
++    @field_validator("factory")
++    @classmethod
++    def _factory_is_module_path(cls, v: str) -> str:
++        if not _FACTORY_REF_RE.match(v):
++            raise ValueError(
++                f"factory must be 'module.path:callable', got {v!r}",
++            )
++        return v
++
++
+ class Contributes(_ManifestBase):
+     """All contribution arrays for a single manifest.
+ 
+-    ``memory_backends`` and ``tools`` are consumed today; the model keeps
+-    extra fields silently so future contribution types don't break
+-    older hosts reading newer manifests.
++    ``memory_backends``, ``tools`` and ``context_segments`` are consumed
++    today; the model keeps extra fields silently so future contribution
++    types don't break older hosts reading newer manifests.
+     """
+ 
+     memory_backends: list[MemoryBackendContribution] = Field(default_factory=list)
+     tools: list[ToolContribution] = Field(default_factory=list)
++    context_segments: list[ContextSegmentContribution] = Field(default_factory=list)
+ 
+ 
+ class PluginManifest(_ManifestBase):
+@@ -119,6 +148,7 @@ class PluginManifest(_ManifestBase):
+         for kind, items in (
+             ("memory_backend", self.contributes.memory_backends),
+             ("tool", self.contributes.tools),
++            ("context_segment", self.contributes.context_segments),
+         ):
+             names = [c.name for c in items]
+             if len(names) != len(set(names)):
+diff --git a/raven/plugin/registry.py b/raven/plugin/registry.py
+index fbf4f3a..f4c0f92 100644
+--- a/raven/plugin/registry.py
++++ b/raven/plugin/registry.py
+@@ -82,6 +82,8 @@ class PluginRegistry:
+         self._manifests: dict[str, PluginManifest] = {}
+         self._memory_backends: dict[str, _ActivatedFactory] = {}
+         self._tools: dict[str, _ActivatedFactory] = {}
++        self._context_segments: dict[str, _ActivatedFactory] = {}
++        self._segment_replaces: dict[str, str | None] = {}
+ 
+     # ── Activation ───────────────────────────────────────────────
+ 
+@@ -164,6 +166,26 @@ class PluginRegistry:
+             )
+             logger.debug("registered tool %s from %s", tool.name, mf.id)
+ 
++        for segment in mf.contributes.context_segments:
++            if segment.name in self._context_segments:
++                prev = self._context_segments[segment.name]
++                raise PluginConflictError(
++                    f"context_segment {segment.name!r} contributed by both {prev.plugin_id!r} and {mf.id!r}",
++                )
++            factory = self._resolve_factory(mf.id, segment.factory)
++            self._context_segments[segment.name] = _ActivatedFactory(
++                plugin_id=mf.id,
++                name=segment.name,
++                factory=factory,
++            )
++            self._segment_replaces[segment.name] = segment.replaces
++            logger.debug(
++                "registered context_segment %s from %s (replaces=%s)",
++                segment.name,
++                mf.id,
++                segment.replaces,
++            )
++
+     @staticmethod
+     def _ensure_importable(source: Source, location: Path | None) -> None:
+         """Put a file-based plugin's directory on ``sys.path`` so its
+@@ -309,6 +331,47 @@ class PluginRegistry:
+         )
+         return factory(ctx)
+ 
++    # ── Context segments ────────────────────────────────────────────
++
++    def context_segment_names(self) -> list[str]:
++        """Names of all activated context segments, sorted."""
++        return sorted(self._context_segments)
++
++    def context_segment_plugin_id(self, name: str) -> str | None:
++        """Which plugin contributed segment ``name``, or None."""
++        entry = self._context_segments.get(name)
++        return entry.plugin_id if entry is not None else None
++
++    def context_segment_replaces(self, name: str) -> str | None:
++        """Built-in segment this one stands in for, or None to append."""
++        return self._segment_replaces.get(name)
++
++    def build_context_segment(
++        self,
++        name: str,
++        *,
++        config: dict[str, Any],
++        services: "ServiceLocator",
++        logger: logging.Logger | None = None,
++    ) -> Any:
++        """Build one context segment. Returns whatever the factory returns,
++        including ``None`` when the segment declines the slot."""
++        from raven.plugin.context import PluginContext  # local: cycle-safe
++
++        try:
++            factory = self._context_segments[name].factory
++        except KeyError as e:
++            raise PluginNotFoundError(
++                f"no context_segment named {name!r} "
++                f"(registered: {self.context_segment_names()})",
++            ) from e
++        ctx = PluginContext(
++            config=config,
++            services=services,
++            logger=logger or logging.getLogger(f"raven.plugin.{name}"),
++        )
++        return factory(ctx)
++
+ 
+ # Forward import for the type hint above. Kept at module-bottom so the
+ # import cost is paid only when someone reads the class — and to avoid

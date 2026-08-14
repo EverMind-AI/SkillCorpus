@@ -31,6 +31,30 @@ cannot import a Python package — so it calls the HTTP adapter instead.
 
 Retrieval claims the `skills` stage in Raven's ordered prompt assembly.
 
+### Prerequisite: Raven must support context segments
+
+**Raven's plugin system has to know about `context_segments` before this
+plugin can attach.** Upstream Raven contributes two kinds — memory backends
+and tools — and neither is a place to hang a prompt-assembly stage. The
+missing piece is four changes in Raven itself:
+
+| File | Change |
+|---|---|
+| `raven/plugin/manifest.py` | a `ContextSegmentContribution` kind, with a `replaces` field |
+| `raven/plugin/registry.py` | register / look up / build those segments |
+| `raven/plugin/context.py` | `ServiceLocator.get_tool_definitions`, so the gate can see the agent's tools |
+| `raven/cli/_plugin_stack.py` | `build_plugin_segments()`, and `build_context_engine` taking them |
+
+Without them, `pip install skillsearch` attaches nothing: Raven discovers
+the entry point, finds a contribution kind it does not recognise, and
+ignores it — no error, no `# Skills` block. Check with:
+
+```bash
+python -c "from raven.plugin.manifest import ContextSegmentContribution"
+```
+
+An `ImportError` means the host is not ready yet.
+
 ### Install
 
 ```bash

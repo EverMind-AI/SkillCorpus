@@ -70,14 +70,21 @@ without filtering it first.
 
 ## Hosts
 
-| Host | How it plugs in |
-|---|---|
-| **Raven** | context segment claiming the `skills` stage |
-| **Hermes** | context engine, via the per-turn `prefetch` hook |
-| **OpenClaw** | HTTP call from `before_prompt_build` (TypeScript host) |
+| Host | How it plugs in | Status |
+|---|---|---|
+| **Raven** | context segment claiming the `skills` stage | needs a host-side change, see below |
+| **Hermes** | context engine, via the per-turn `prefetch` hook | adapter written, not yet packaged |
+| **OpenClaw** | HTTP call from `before_prompt_build` (TypeScript host) | server ready, TS plugin not written |
 
-Full wiring for each, including manifests and config placement:
-[`docs/adapters.md`](docs/adapters.md).
+**Raven needs a host-side change first.** Its plugin system contributes
+memory backends and tools; a prompt-assembly stage is neither, so
+`context_segments` has to be added to Raven before this plugin can attach.
+Until then `pip install` succeeds and the plugin is silently ignored.
+[`docs/adapters.md`](docs/adapters.md) lists the four files involved and
+gives a one-line check.
+
+Full wiring for each host, including manifests and config placement, is in
+that same document.
 
 ## Layout
 
