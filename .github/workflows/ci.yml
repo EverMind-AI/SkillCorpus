@@ -1,3 +1,7 @@
+# GitHub Actions. This repository lives on GitLab, where this file is
+# inert — `.gitlab-ci.yml` at the root is the one that runs. Kept for a
+# GitHub mirror; change the two together or delete this one.
+#
 # Both implementations, each on its own runner: a change to one must not
 # be able to break the other's signal, and neither needs the other's
 # toolchain installed to run.
