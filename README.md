@@ -48,10 +48,12 @@ source repository is license-audited, so the released set is commercially redist
 
 | | Artifact | What | Link |
 |---|---|---|---|
-| 🌐 | **SkillHub** | hosted retrieval endpoint over the corpus — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 🌐 | **SkillHub** | the corpus + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
 | 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 96,401-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
-| 🛠️ | **Code** | this repo — `aggregate` · `curate` · `match` · `evaluate` · `export` | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+
+*Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
 
 <div align="center">
 <img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
