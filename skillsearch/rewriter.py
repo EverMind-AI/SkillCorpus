@@ -102,6 +102,10 @@ class QueryRewriter:
                 timeout=_TIMEOUT_S,
             )
             content = resp if isinstance(resp, str) else str(getattr(resp, "content", "") or "")
+            # A model that answers with an error still returns text; treat
+            # it as the failure it is rather than parsing the message.
+            if getattr(resp, "finish_reason", None) == "error":
+                raise RuntimeError(content or "provider error")
         except Exception as e:
             log.warning("query rewrite failed (%s); defaulting to retrieval", e)
             return RewriteResult(need_retrieval=True)

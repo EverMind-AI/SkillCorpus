@@ -24,6 +24,7 @@ callable that answers which tools the agent has this turn.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from typing import Any
 
 from skillsearch.config import SearchConfig
@@ -67,10 +68,21 @@ class SkillsSegment:
 
         query = getattr(ctx, "current_message", "") or ""
         history = list(getattr(ctx, "session_messages", None) or [])
-        text = await self._search.retrieve(query, history=history)
+        hits = await self._search.hits(query, history=history)
+        if not hits:
+            return None
+        text = self._search.render(hits)
         if not text:
             return None
-        return Segment(text=text, meta={})
+        # Raven's after-turn feedback correlates skills shown against
+        # skills used, which needs the ids that went in.
+        return Segment(
+            text=text,
+            meta={
+                "injected_skill_ids": [h.qualified_id for h in hits if getattr(h, "qualified_id", None)],
+                "skill_hits_by_source": dict(Counter((h.meta or {}).get("source") or "?" for h in hits)),
+            },
+        )
 
 
 def make_segment(ctx: Any) -> Any | None:

@@ -225,7 +225,12 @@ class SkillSearch:
         if self._rewriter is not None:
             try:
                 result = await self._rewriter.analyze(query)
-                search_query = getattr(result, "query", None) or query
+                # The rewriter also judges whether the turn wants skills at
+                # all — "thanks, that worked" does not. Honouring that skips
+                # the fan-out entirely rather than ranking noise.
+                if not getattr(result, "need_retrieval", True):
+                    return []
+                search_query = getattr(result, "rewritten_query", None) or query
             except Exception as e:  # noqa: BLE001 — rewriting is a nicety
                 log.debug("skillsearch: rewrite failed (%s); using raw query", e)
 
@@ -238,7 +243,13 @@ class SkillSearch:
 
         if self._gate is not None:
             hits = await self._run_gate(query, hits)
-        return hits[: cfg.top_k]
+        hits = hits[: cfg.top_k]
+
+        # Only the survivors: materialising a bundle is a download, so it
+        # waits until the gate has decided what is actually going in.
+        if cfg.resolve_refs:
+            hits = await self._hydrate_refs(hits)
+        return hits
 
     async def _run_gate(self, task: str, hits: list[RouterHit]) -> list[RouterHit]:
         """Gate with a hard deadline; on timeout keep the top hits.
@@ -297,33 +308,91 @@ class SkillSearch:
             out[i] = replace(hit, content=meta.get("skill_md", "") or "", meta=new_meta)
         return out
 
-    def _render(self, hits: list[RouterHit]) -> str:
-        cfg = self._cfg
-        parts = [cfg.heading, ""]
-        for hit in hits:
-            body = hit.content or ""
-            if cfg.resolve_refs:
-                body = self._resolve(hit, body)
-            parts.append(f"### {hit.name}  [{hit.qualified_id}]")
-            desc = (hit.meta or {}).get("description")
-            if desc:
-                parts.append(str(desc))
-            parts.append("")
-            parts.append(body)
-            parts.append("")
-        return "\n".join(parts).rstrip() + "\n"
+    async def _hydrate_refs(self, hits: list[RouterHit]) -> list[RouterHit]:
+        """Put each selected skill's bundled files on disk and point at them.
 
-    def _resolve(self, hit: RouterHit, body: str) -> str:
+        A skill body routinely says ``run scripts/x.py`` or ``see
+        references/y.md``. Those paths mean nothing until the bundle is
+        materialised, so this is what makes a skill usable rather than
+        merely readable:
+
+        - local — the directory is already known; resolve in place.
+        - remote — download and extract the bundle, then resolve against
+          the extracted directory. Cached by ``<slug>@<version>``, so a
+          repeat is a stat.
+        - anything else ships no files; passed through.
+
+        An install failure keeps the unresolved body: the agent loses the
+        absolute paths, not the instructions.
+        """
+        if not hits:
+            return hits
+
         from skillsearch.refs import resolve_refs
 
-        skill_dir = (hit.meta or {}).get("skill_dir")
-        if not skill_dir:
-            return body
-        try:
-            resolved, _ = resolve_refs(body, skill_dir)
-            return resolved
-        except Exception:  # noqa: BLE001
-            return body
+        async def _one(hit: RouterHit) -> RouterHit:
+            meta = hit.meta or {}
+            source = meta.get("source")
+            try:
+                if source == "local":
+                    skill_dir = meta.get("skill_dir")
+                    if not skill_dir:
+                        return hit
+                    resolved, _ = resolve_refs(hit.content or "", skill_dir)
+                    return replace(hit, content=resolved)
+                if source == "hub" and self._hub_client is not None:
+                    installed = await self._hub_client.install(
+                        meta["id"],
+                        prefetched_meta=meta.get("_fetched"),
+                    )
+                    body = installed.get("skill_md", "") or hit.content
+                    resolved, _ = resolve_refs(body, installed.get("dir"))
+                    new_meta = dict(meta)
+                    new_meta["skill_dir"] = installed.get("dir")
+                    return replace(hit, content=resolved, meta=new_meta)
+            except Exception as e:  # noqa: BLE001
+                log.warning(
+                    "skillsearch: could not materialise %s (%s); "
+                    "injecting its body without resolved paths",
+                    meta.get("id") or hit.name,
+                    e,
+                )
+            return hit
+
+        return list(await asyncio.gather(*(_one(h) for h in hits)))
+
+    def render(self, hits: list[RouterHit]) -> str:
+        """Render selected hits into the block. Public so an adapter can
+        pair it with :meth:`hits` when the host also wants the ids."""
+        return self._render(hits)
+
+    def _render(self, hits: list[RouterHit]) -> str:
+        """Render the block.
+
+        When a skill's files are on disk, its header names the directory
+        and says how to reach them — without that sentence an agent reads
+        ``scripts/x.py`` as a path relative to its own cwd, which is the
+        wrong place.
+        """
+        parts: list[str] = []
+        for hit in hits:
+            skill_dir = (hit.meta or {}).get("skill_dir")
+            if skill_dir:
+                header = (
+                    f"### Skill: {hit.name}  [{hit.qualified_id}]\n"
+                    f"**Skill directory**: `{skill_dir}`\n"
+                    "Relative refs (e.g. `references/x.md`, `./scripts/y.sh`) "
+                    "resolve under this directory — use the absolute form for "
+                    "read_file / exec.\n"
+                )
+            else:
+                header = f"### Skill: {hit.name}  [{hit.qualified_id}]\n"
+            parts.append(header)
+            content = (hit.content or "").strip()
+            if content:
+                parts.append(content)
+        body = "\n\n".join(parts)
+        return f"{self._cfg.heading}\n\n{body}" if body else ""
 
     async def aclose(self) -> None:
         """Release the HTTP pool. Hosts with a shutdown hook should call it."""

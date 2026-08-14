@@ -86,7 +86,10 @@ class SkillHubClient:
         *,
         api_key: str | None = None,
         timeout_s: float = _DEFAULT_TIMEOUT_S,
-        source: str = "skillsearch",
+        # The catalog validates this against a fixed set
+        # (raven|everme|cli|web) and rejects anything else with a 422, so
+        # it is a download-stats tag to pick from, not a free label.
+        source: str = "cli",
         cache_dir: Path | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:

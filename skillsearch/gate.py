@@ -98,6 +98,10 @@ class LLMGateFilter:
                 timeout=_TIMEOUT_S,
             )
             content = resp if isinstance(resp, str) else str(getattr(resp, "content", "") or "")
+            # A model that answers with an error still returns text; treat
+            # it as the failure it is rather than parsing the message.
+            if getattr(resp, "finish_reason", None) == "error":
+                raise RuntimeError(content or "provider error")
         except Exception as exc:
             log.warning("LLM gate call failed (%s); falling back to top-N", exc)
             return candidates[: self._legacy_top_k]
