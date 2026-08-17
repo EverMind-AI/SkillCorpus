@@ -1,22 +1,15 @@
-"""Hermes adapter — a context engine.
+"""Hermes adapter — the engine behind a memory provider's ``prefetch``.
 
-Hermes drives a selected provider through a fixed pipeline; the hook that
-matters here is ``prefetch(query, session_id) -> str``, called before each
-model call, whose return value the runtime injects into that turn.
+Hermes drives a selected memory provider through a fixed pipeline; the hook
+that matters here is ``prefetch(query, *, session_id="") -> str``, called
+before each model call, whose return value the runtime injects into that
+turn. The memory slot is simply the slot that hook is routed through —
+nothing here writes memory.
 
-Ship alongside a ``plugin.yaml``::
-
-    name: skillsearch
-    version: "0.1.0"
-    manifest_version: 1
-    description: "Skill retrieval — local, remote catalog, and the agent's own."
-
-and an ``__init__.py`` exposing ``register(ctx)``::
-
-    from skillsearch.adapters.hermes import SkillSearchEngine
-
-    def register(ctx):
-        ctx.register_context_engine(SkillSearchEngine.from_hermes(ctx))
+This module is the engine side. The packaged plugin that registers it —
+manifest, provider subclass, configuration UI — is ``plugin-hermes/`` in
+this repository; install that rather than assembling one by hand. A host
+registers a provider with ``ctx.register_memory_provider(...)``.
 
 Two contract points Hermes states and this adapter honours: ``is_available``
 makes no network calls, and nothing on the hot path is allowed to raise.

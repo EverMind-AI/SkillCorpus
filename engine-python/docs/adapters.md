@@ -15,17 +15,20 @@ host's configuration reaches `SearchConfig`.
 
 ## What differs between hosts
 
-| | Raven | Hermes | OpenClaw |
-|---|---|---|---|
-| Language | Python | Python | TypeScript |
-| Manifest | `raven-plugin.toml` | `plugin.yaml` | `openclaw.plugin.json` |
-| Injection point | `SegmentBuilder.build(ctx) -> Segment` | `prefetch(query, session_id) -> str` | `api.on("before_prompt_build", …)` |
-| Extension category | context segment | context engine | memory slot |
-| Config location | plugin slice in TOML | `$HERMES_HOME/*.json` | env vars in `configSchema` |
-| Can import this package | yes | yes | **no** |
+This document covers the two hosts served by *this* engine. OpenClaw and
+the DeepSeek Harness are served by the TypeScript engine — see
+[`../../plugin-openclaw/`](../../plugin-openclaw) and
+[`../../engine-typescript/`](../../engine-typescript) — and neither calls
+Python.
 
-The first two embed the engine. OpenClaw cannot — a TypeScript plugin
-cannot import a Python package — so it calls the HTTP adapter instead.
+| | Raven | Hermes |
+|---|---|---|
+| Manifest | `raven-plugin.toml` | `plugin.yaml` |
+| Injection point | `SegmentBuilder.build(ctx) -> Segment` | `prefetch(query, *, session_id="") -> str` |
+| Extension category | context segment | memory provider (the slot `prefetch` is routed through) |
+| Config location | plugin slice in TOML | `$HERMES_HOME/skillsearch.json` |
+| Packaged plugin | not yet — adapter only | [`../../plugin-hermes/`](../../plugin-hermes) |
+| Host change needed | yes, see below | none |
 
 ## Raven
 
@@ -128,9 +131,9 @@ a gate is routinely meant to run on a cheaper model than the agent. Set
 
 ## Hermes
 
-Hermes drives a selected engine through a fixed pipeline. The hook that
-matters is `prefetch`, called before each model call, whose return value
-the runtime injects into that turn.
+Hermes drives a selected memory provider through a fixed pipeline. The hook
+that matters is `prefetch`, called before each model call, whose return
+value the runtime injects into that turn.
 
 `plugin.yaml`:
 
@@ -141,14 +144,18 @@ manifest_version: 1
 description: "Skill retrieval — local, remote catalog, and the agent's own."
 ```
 
-`__init__.py`:
+`__init__.py` — the registration is `register_memory_provider`, because the
+memory slot is the one Hermes routes `prefetch` through. The provider
+subclasses the host's `agent.memory_provider.MemoryProvider`:
 
 ```python
-from skillsearch.adapters.hermes import SkillSearchEngine
-
 def register(ctx):
-    ctx.register_context_engine(SkillSearchEngine.from_hermes(ctx))
+    ctx.register_memory_provider(SkillSearchProvider(ctx))
 ```
+
+A packaged version of all this is [`../../plugin-hermes/`](../../plugin-hermes);
+install that rather than assembling it by hand. What follows is the shape it
+implements, for anyone adapting a different host the same way.
 
 Configuration lives in `$HERMES_HOME/skillsearch.json`, mirroring where the
 EverOS provider keeps `everos.json`:
@@ -173,38 +180,13 @@ Two contract points Hermes states, both honoured by the adapter:
 
 ## OpenClaw
 
-OpenClaw's plugins are TypeScript. Run the HTTP adapter beside the agent
-and call it from the `before_prompt_build` hook:
+Not through this engine. [`../../plugin-openclaw/`](../../plugin-openclaw)
+is a native TypeScript plugin that embeds the TypeScript engine and
+registers on `before_prompt_build` — no Python process, no HTTP hop, and
+no second copy of the pipeline to keep in step.
 
-```bash
-python -m skillsearch.adapters.http_server --config ./skillsearch.json --port 8477
-```
-
-```ts
-api.on("before_prompt_build", async (ctx) => {
-  const res = await fetch("http://127.0.0.1:8477/retrieve", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: ctx.userMessage }),
-    signal: AbortSignal.timeout(5000),
-  });
-  const { text } = await res.json();
-  if (text) ctx.addSystemContext(text);
-}, { timeoutMs: 5000 });
-```
-
-The server always answers `200` with `{"text": "..."}`, empty on any
-internal failure — the same fail-open rule the in-process adapters follow,
-so a retrieval problem cannot break a turn.
-
-**One caveat specific to this route.** If the server and the agent are on
-different machines they share no filesystem, so `{baseDir}` and relative
-links inside a skill body cannot be resolved to paths the agent can open.
-Set `resolve_refs: false` in that case; otherwise the injected text
-promises files the agent cannot read.
-
-The server binds to loopback and has no authentication. Put a proxy in
-front before exposing it anywhere else.
+The HTTP adapter below remains for a host that can embed neither
+implementation.
 
 ## Writing an adapter for another host
 

@@ -115,11 +115,16 @@ configuration, and `aclose` leaves an injected client alone.
 
 ## Hosts
 
-| Host | How it plugs in | Status |
+| Host | How it plugs in | Where |
 |---|---|---|
-| **Raven** | context segment claiming the `skills` stage | needs a host-side change, see below |
-| **Hermes** | context engine, via the per-turn `prefetch` hook | adapter written, not yet packaged |
-| **OpenClaw** | HTTP call from `before_prompt_build` (TypeScript host) | server ready, TS plugin not written |
+| **Hermes** | a memory provider's per-turn `prefetch` hook | [`../plugin-hermes/`](../plugin-hermes) — a packaged plugin |
+| **Raven** | a context segment claiming the `skills` stage | `skillsearch/adapters/raven.py`, plus a host change below |
+| **Any other host** | one HTTP call per turn | `skillsearch/adapters/http_server.py` |
+
+OpenClaw is served by [`../plugin-openclaw/`](../plugin-openclaw), which
+embeds the TypeScript engine rather than calling this one over HTTP. The
+HTTP adapter remains for hosts that neither implementation can be embedded
+in.
 
 **Raven needs a host-side change first.** Its plugin system contributes
 memory backends and tools; a prompt-assembly stage is neither, so
