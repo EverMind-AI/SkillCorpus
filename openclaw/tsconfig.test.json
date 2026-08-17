@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "test"
+  ],
+  "files": [
+    "../typescript/src/bm25.ts",
+    "../typescript/src/deadline.ts",
+    "../typescript/src/engine.ts",
+    "../typescript/src/fusion.ts",
+    "../typescript/src/gate.ts",
+    "../typescript/src/hub-source.ts",
+    "../typescript/src/local-source.ts",
+    "../typescript/src/refs.ts",
+    "../typescript/src/replies.ts",
+    "../typescript/src/rewriter.ts",
+    "../typescript/src/types.ts"
+  ]
+}

@@ -48,3 +48,22 @@ typescript:
   script:
     - cd typescript
     - npx --yes tsx --test tests/parity.test.ts
+
+# The Hermes plugin drives the engine through the host's provider contract.
+# Its own tests import the engine from `python/`, so both live in one job.
+hermes-plugin:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install --quiet -e './python[dev,hub]'
+    - pytest hermes/tests -q
+
+# The OpenClaw plugin bundles the TypeScript engine; `ci` typechecks it
+# against the host types it copied, runs the suite, and builds the bundle.
+openclaw-plugin:
+  stage: test
+  image: node:22-slim
+  script:
+    - cd openclaw
+    - npm install --no-audit --no-fund
+    - npm run ci

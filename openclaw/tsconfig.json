@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ],
+    "outDir": "dist",
+    "declaration": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src"
+  ],
+  "files": [
+    "../typescript/src/bm25.ts",
+    "../typescript/src/deadline.ts",
+    "../typescript/src/engine.ts",
+    "../typescript/src/fusion.ts",
+    "../typescript/src/gate.ts",
+    "../typescript/src/hub-source.ts",
+    "../typescript/src/local-source.ts",
+    "../typescript/src/refs.ts",
+    "../typescript/src/replies.ts",
+    "../typescript/src/rewriter.ts",
+    "../typescript/src/types.ts"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "skillsearch",
+  "name": "Skill Search",
+  "description": "Per-turn skill retrieval: local directory, remote catalog, model-gated selection.",
+  "version": "0.1.0",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "skillsDirs": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": ["~/.openclaw/skills"],
+        "description": "Directories scanned for SKILL.md files"
+      },
+      "hubEndpoint": { "type": "string", "default": "", "description": "Remote catalog base URL; empty disables the remote source" },
+      "hubApiKey": { "type": "string", "default": "", "description": "Bearer token for the remote catalog" },
+      "model": { "type": "string", "default": "", "description": "Model for the rewriter and the gate; empty runs retrieval unfiltered" },
+      "modelBaseUrl": { "type": "string", "default": "https://api.openai.com/v1", "description": "OpenAI-compatible endpoint for that model" },
+      "modelApiKey": { "type": "string", "default": "", "description": "Credential for that endpoint" },
+      "topK": { "type": "number", "default": 5, "description": "Upper bound on skills injected per turn" },
+      "gatePool": { "type": "number", "default": 10, "description": "Candidates the gate judges" },
+      "maxSelect": { "type": "number", "default": 2, "description": "Upper bound on what the gate keeps" },
+      "timeoutMs": { "type": "number", "default": 8000, "description": "Deadline for one retrieval" },
+      "availableTools": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "description": "Tool names this agent can call; the host does not report them to a hook, so stating them here restores the gate's environment check"
+      }
+    }
+  },
+  "uiHints": {
+    "hubApiKey": { "sensitive": true },
+    "modelApiKey": { "sensitive": true }
+  }
+}

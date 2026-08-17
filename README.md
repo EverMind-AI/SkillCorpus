@@ -21,10 +21,22 @@ query
 
 | | [`python/`](python) | [`typescript/`](typescript) |
 | --- | --- | --- |
-| Hosts | Raven · Hermes · any host over HTTP | DeepSeek Harness |
-| Entry | `SkillSearch.retrieve(query) -> str` | `agent/pre-step` waterfall, or `SkillSearchEngine` directly |
+| Entry | `SkillSearch.retrieve(query) -> str` | `SkillSearchEngine.retrieve(query)` |
 | Install | `pip install -e python` | copy into `packages/skill/skill-search/` |
-| Host changes | Raven needs the patch in [`python/host-patches/`](python/host-patches) | none |
+| Ships a host plugin | [`hermes/`](hermes) | [`openclaw/`](openclaw) |
+| Also drives | Raven, and any host over HTTP | DeepSeek Harness |
+
+## Four hosts
+
+Each plugin is a thin adapter over one of the two implementations — the
+pipeline is the same either way, and only the seam differs.
+
+| Plugin | Host | Seam | Host change needed |
+| --- | --- | --- | --- |
+| [`hermes/`](hermes) | Hermes | the memory provider's `prefetch` | none |
+| [`openclaw/`](openclaw) | OpenClaw | the `before_prompt_build` hook | none |
+| [`typescript/src/index.ts`](typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
+| [`python/skillsearch/adapters/raven.py`](python/skillsearch/adapters/raven.py) | Raven | a context segment | yes — [`python/host-patches/`](python/host-patches) |
 
 They are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`typescript/tests/parity.test.ts`](typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
 

@@ -9,3 +9,4 @@ dist/
 node_modules/
 lib/
 *.tsbuildinfo
+dist/
