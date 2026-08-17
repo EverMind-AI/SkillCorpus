@@ -8,7 +8,13 @@ Per-turn skill retrieval. Every turn, this searches local directories and an opt
 
 ## Where this goes
 
-This is a DeepSeek Harness package, not a standalone npm package: its dependencies are `workspace:^` and its `tsconfig.json` references resolve from one exact location. Copy the directory to `packages/skill/skill-search/` in a harness checkout, add `{ "path": "./packages/skill/skill-search" }` to `tsconfig.host.json`, and run `pnpm install`.
+This is a DeepSeek Harness package, not a standalone npm package: its dependencies are `workspace:^` and its `tsconfig.json` references resolve from one exact location. In a harness checkout:
+
+1. Copy this directory to `packages/skill/skill-search/`, leaving `docs/` and `tests/parity.test.ts` behind — the first documents the decision, the second pins cross-language equality and belongs to this repository.
+2. Add `{ "path": "./packages/skill/skill-search" }` to `tsconfig.host.json`.
+3. Copy `docs/harness-design-note.md` and its `.zh.md` counterpart into `.agents/notes/implemented/architecture/`; the harness requires an Agent Note for a change of this size.
+4. `pnpm install`, then `pnpm run verify-translation-pairing --write packages/skill/skill-search/README.md` — the bilingual gate records a hash pair per document, and `doc-sync` fails without it.
+5. Mount it, and disable `dsh-tool-skill`: see [Mounting it in place of the catalog](#mounting-it-in-place-of-the-catalog).
 
 ## Pipeline
 

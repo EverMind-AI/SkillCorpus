@@ -8,7 +8,13 @@
 
 ## 放在哪里
 
-这是一个 DeepSeek Harness 包，不是独立的 npm 包：依赖是 `workspace:^`，`tsconfig.json` 的 references 也只在一个确切位置解析得开。把该目录复制到 harness 检出的 `packages/skill/skill-search/`，在 `tsconfig.host.json` 里加一行 `{ "path": "./packages/skill/skill-search" }`，然后 `pnpm install`。
+这是一个 DeepSeek Harness 包，不是独立的 npm 包：依赖是 `workspace:^`，`tsconfig.json` 的 references 也只在一个确切位置解析得开。在 harness 检出里：
+
+1. 把本目录复制到 `packages/skill/skill-search/`，但留下 `docs/` 和 `tests/parity.test.ts`——前者记录设计决策，后者钉住跨语言等价，属于本仓库。
+2. 在 `tsconfig.host.json` 里加一行 `{ "path": "./packages/skill/skill-search" }`。
+3. 把 `docs/harness-design-note.md` 及其 `.zh.md` 复制到 `.agents/notes/implemented/architecture/`；这种规模的改动 harness 要求配一份 Agent Note。
+4. `pnpm install`，然后跑 `pnpm run verify-translation-pairing --write packages/skill/skill-search/README.md`——双语门禁按文档记录哈希对，不生成这份记录 `doc-sync` 会失败。
+5. 挂载它，并禁用 `dsh-tool-skill`：见[替换目录方案挂载](#替换目录方案挂载)。
 
 ## 流水线
 

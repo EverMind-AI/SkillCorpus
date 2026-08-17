@@ -110,6 +110,39 @@ Point `hub_endpoint` (Python) or `hubEndpoint` (TypeScript) at it, or at any ser
 
 [Raven](https://github.com/EverMind-AI/Raven), the terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory substrate · [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus), the community skill corpus. skillsearch is the retrieval layer that connects hosts — these and hosts that are none of these — to the skills.
 
+## Working on this repository
+
+Each directory carries its own suite, and they are independent — nothing
+below needs the others to have run.
+
+```bash
+cd engine-python     && pip install -e '.[dev,hub]' && pytest -q && ruff check skillsearch tests
+cd engine-typescript && npx tsx --test tests/parity.test.ts
+cd plugin-hermes     && pytest tests -q
+cd plugin-openclaw   && npm install && npm run ci
+```
+
+Two of the suites check more when a host is on disk, and say so rather than
+quietly checking less:
+
+```bash
+# The Hermes plugin declares a fallback base class so it imports without the
+# host. That fallback verifies nothing — an unimplemented abstract method
+# passes. Against the real ABC it does not:
+git clone --depth 1 https://github.com/NousResearch/hermes-agent.git
+PYTHONPATH=hermes-agent pytest plugin-hermes/tests -q
+
+# `plugin-openclaw/src/openclaw-types.ts` is a hand-copy of the host's types,
+# and a hand-copy drifts. This compiles the copies against the originals:
+git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
+npm --prefix plugin-openclaw run check:host
+```
+
+CI runs the first set on every push, and clones the Hermes host so its job
+uses the real ABC too. The OpenClaw host check is not in CI: it needs a
+full checkout of a large repository for a check that only moves when
+upstream changes.
+
 ## Citation
 
 If skill retrieval over SkillCorpus is part of your work, please cite the corpus paper:
