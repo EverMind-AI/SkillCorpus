@@ -37,10 +37,18 @@ plugin-openclaw/     an OpenClaw plugin over engine-typescript
 
 Prefixed by role rather than by language, because the languages do not line
 up with the roles: the Hermes plugin is Python and the OpenClaw plugin is
-TypeScript. Two of the four host integrations do not have a directory of
-their own — the Harness entry and the Raven adapter live inside the engine
-they are built on, which is why there is no `plugins/` folder pretending to
-hold all four.
+TypeScript.
+
+Two host integrations have no directory of their own, for different reasons.
+The **Harness** entry cannot have one: `engine-typescript/` *is* the package
+`@deepseek-ai/dsh-skill-search`, and `src/index.ts` plus `src/invariant.ts`
+are the two files in it that bind to the host. They ship as one npm package,
+so splitting them would turn "copy this directory into
+`packages/skill/skill-search/`" into "merge two directories into one". The
+**Raven** adapter could have one — it is an ordinary module that a
+`raven.plugins` entry point exposes, no different in shape from
+`plugin-hermes/` — and is left in place until the host-side work it depends
+on lands.
 
 ## Four hosts
 
