@@ -1,5 +1,5 @@
 diff --git a/raven/agent/loop/main.py b/raven/agent/loop/main.py
-index f6d7661..86a3d12 100644
+index f6d7661..d5bddad 100644
 --- a/raven/agent/loop/main.py
 +++ b/raven/agent/loop/main.py
 @@ -336,6 +336,10 @@ class AgentLoop:
@@ -31,7 +31,7 @@ index f6d7661..86a3d12 100644
  
          # Runtime discipline (5th pillar). Bug2 uses ``runtime.checkpoint``;
 diff --git a/raven/cli/_plugin_stack.py b/raven/cli/_plugin_stack.py
-index 20bbac3..34a1a89 100644
+index 20bbac3..feeb345 100644
 --- a/raven/cli/_plugin_stack.py
 +++ b/raven/cli/_plugin_stack.py
 @@ -26,6 +26,7 @@ the await around them.
@@ -59,7 +59,7 @@ index 20bbac3..34a1a89 100644
          "user_dir": Path.home() / ".raven" / "plugins",
          "project_dir": Path.cwd() / ".raven" / "plugins",
          "entry_points_group": "raven.plugins",
-@@ -225,6 +233,128 @@ def build_plugin_tools(
+@@ -225,6 +233,135 @@ def build_plugin_tools(
      return tools
  
  
@@ -118,6 +118,7 @@ index 20bbac3..34a1a89 100644
 +    get_tool_definitions: "Callable[[], list[dict]] | None" = None,
 +    model: str | None = None,
 +    backend: "MemoryBackend | None" = None,
++    provider: "Any | None" = None,
 +) -> dict:
 +    """Construct every plugin-contributed context segment.
 +
@@ -158,9 +159,15 @@ index 20bbac3..34a1a89 100644
 +            plugin_slice = {
 +                **skills_config_from_host(config, model=model),
 +                **plugin_slice,
-+                # Not user-settable: the live backend object the everos
-+                # source recalls through.
++                # Not user-settable: live objects, not configuration.
++                # ``_memory`` is what the everos source recalls through;
++                # ``_provider`` is the chat model the rewriter and the
++                # relevance gate call. Without the latter retrieval runs
++                # unfiltered, and unfiltered means an unrelated turn still
++                # gets a skill — fusion ranks by position, so every source
++                # contributes its best hit however weakly it matched.
 +                "_memory": backend,
++                "_provider": provider,
 +            }
 +        try:
 +            segment = registry.build_context_segment(
@@ -188,7 +195,7 @@ index 20bbac3..34a1a89 100644
  def _resolve_plugin_config_slice(
      registry: PluginRegistry,
      config: "RavenConfig",
-@@ -275,6 +405,8 @@ def _plugin_id_for_backend(
+@@ -275,6 +412,8 @@ def _plugin_id_for_backend(
  
  __all__ = [
      "build_plugin_registry",
@@ -197,6 +204,44 @@ index 20bbac3..34a1a89 100644
      "build_plugin_tools",
      "maybe_build_memory_backend",
  ]
+diff --git a/raven/cli/agent_commands.py b/raven/cli/agent_commands.py
+index 715c64f..8ace3fa 100644
+--- a/raven/cli/agent_commands.py
++++ b/raven/cli/agent_commands.py
+@@ -36,6 +36,7 @@ from raven.cli._helpers import (
+ )
+ from raven.cli._plugin_stack import (
+     build_plugin_registry,
++    build_plugin_segments,
+     build_plugin_tools,
+     maybe_build_memory_backend,
+ )
+@@ -319,6 +320,17 @@ def register(app: typer.Typer) -> None:
+             ec_config,
+             registry=plugin_registry,
+         )
++        # Context stages contributed by plugins, keyed by the built-in stage
++        # each replaces. Skill retrieval arrives this way; an empty dict
++        # leaves prompt assembly exactly as it was.
++        plugin_segments = build_plugin_segments(
++            config.workspace_path,
++            ec_config,
++            registry=plugin_registry,
++            model=config.agents.defaults.model,
++            backend=backend,
++            provider=provider,
++        )
+ 
+         agent_loop = AgentLoop(
+             provider=provider,
+@@ -357,6 +369,7 @@ def register(app: typer.Typer) -> None:
+             memory_config=ec_config.memory,
+             skill_forge_router_config=ec_config.skill_forge.router,
+             plugin_tools=plugin_tools,
++            plugin_segments=plugin_segments,
+         )
+         agent_loop.configure_personalization(config.agents.defaults.enable_personalization)
+         attach_sentinel_spawn(sentinel_runner, agent_loop)
 diff --git a/raven/context_engine/factory.py b/raven/context_engine/factory.py
 index 7151324..2920ea1 100644
 --- a/raven/context_engine/factory.py

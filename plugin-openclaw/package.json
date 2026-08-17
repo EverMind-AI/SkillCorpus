@@ -27,14 +27,6 @@
       "dist/index.js"
     ]
   },
-  "peerDependencies": {
-    "openclaw": ">=2026.6.10"
-  },
-  "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "esbuild": "^0.28.0",

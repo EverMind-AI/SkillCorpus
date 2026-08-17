@@ -43,32 +43,36 @@ python -c "from raven.plugin.manifest import ContextSegmentContribution"
 It changes the plugin machinery only. Retrieval itself is this package, so
 the patch does not carry a copy of it.
 
-### Status: not end-to-end yet
+### Status: applied and driven, on `1cb604a`
 
-The patch is cut against Raven `1cb604a`; on a newer tree expect conflicts
-in `context_engine/factory.py`, the file it touches most.
+Cut against Raven `1cb604a` and verified there: applied to a clean checkout
+of it, the engine installed, and the `# Skills` block produced through the
+host's own path — `build_plugin_registry` discovers the entry point,
+`skillsearch` claims the `skills` stage, `build_plugin_segments` constructs
+the segment, and `build()` returns the text Raven puts in the prompt.
 
-Read this before applying: the machinery lands, but one wire is missing,
-so applying this alone does not turn retrieval on.
+On a newer tree expect conflicts. It does **not** apply to `5e6478e`:
+`agent/loop/main.py`, `context_engine/factory.py`, `plugin/context.py` and
+`plugin/registry.py` have all moved since. Re-cut it against the target
+commit rather than forcing it.
 
-**What works.** The contribution kind, the registry, the discovery change,
-the `ServiceLocator` callable, the named-stage factory, and the config
-bridge — whose twenty keys are checked against `SearchConfig`'s field names
-and now all land.
+Eight files. Six add the contribution kind, the registry, the discovery
+change, the `ServiceLocator` callable, the named-stage factory and the
+config bridge, whose twenty keys are checked against `SearchConfig`'s field
+names. The other two are the wire that makes them do anything:
 
-**What is missing.** `build_plugin_segments()` is added but never called.
-`AgentLoop` accepts `plugin_segments` and passes it to the factory, so the
-receiving end is ready; nothing constructs the dict. Until a caller is
-added wherever the host builds its `AgentLoop`, `plugin_segments` is always
-`None` and the `# Skills` block simply does not appear — no error, no log.
+- `cli/agent_commands.py` calls `build_plugin_segments()` beside the
+  existing `build_plugin_tools()` call and passes the result to
+  `AgentLoop`. Without this the machinery all lands and nothing happens —
+  `plugin_segments` stays `None` and the block simply never appears, with
+  no error and no log.
+- `cli/_plugin_stack.py` injects the live provider as `_provider`. The
+  adapter reads it to build the rewriter and the relevance gate; without
+  it retrieval runs unfiltered, and unfiltered means an unrelated turn
+  still gets a skill, because fusion ranks by position and every source
+  contributes its best hit however weakly it matched.
 
-**What that caller must also pass.** The adapter reads a live provider from
-`_provider` and a skill store from `_store` in its config slice, and
-`build_plugin_segments` currently injects neither (it takes `model` as a
-name, and `backend` which it injects as `_memory`). Without `_provider` the
-rewriter and the gate are absent, and retrieval runs unfiltered — which,
-because fusion ranks by position, means an unrelated turn gets an unrelated
-skill. Threading the provider through is part of the same missing wire.
-
-Cut this patch again once the Raven-side work lands, rather than layering
-another patch on top of it.
+`agent_commands.py` is one of three places that construct an `AgentLoop`
+(`gateway_commands.py` and `tui_commands.py` are the others). Only the one
+is wired here, so retrieval is on for `raven agent` and absent from the
+gateway and the TUI. Wiring those is the same three lines each.

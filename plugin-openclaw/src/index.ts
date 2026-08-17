@@ -1,25 +1,22 @@
 /**
  * Skill retrieval for OpenClaw.
  *
- * Every turn, this searches a local skills directory and an optional remote
- * catalog against what the user just wrote, narrows the result with a model,
- * and returns the matching skill bodies through `before_prompt_build` for the
- * host to prepend. The wiring lives in `./register.js`, which imports no
- * runtime value from the host and is therefore unit-testable.
+ * The default export is a plain plugin definition — `{ id, name, register }`
+ * — which every OpenClaw version accepts: older ones (2026.3.x) read it
+ * directly, and `definePluginEntry` in newer ones only stamps the same
+ * fields. Importing that helper would have made this plugin refuse to load
+ * on any host older than 2026.6.10 for no gain.
  *
  * @module
  */
-import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry'
-
-import type { DefinedPluginEntry } from './openclaw-types.js'
 import { register } from './register.js'
 
-const entry: DefinedPluginEntry = definePluginEntry({
+const entry = {
   id: 'skillsearch',
   name: 'Skill Search',
   description: 'Per-turn skill retrieval: local directory, remote catalog, model-gated selection.',
   register,
-})
+}
 export default entry
 
 export type { SkillSearchConfig } from './config.js'

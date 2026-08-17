@@ -18,6 +18,14 @@ npm run --prefix plugin-openclaw build
 #   plugins.entries.skillsearch.enabled = true
 ```
 
+The bundle imports nothing from the host: the entry is a plain
+`{ id, name, register }` object, and the host types it compiles against are
+copied into `src/openclaw-types.ts`. So it loads on any OpenClaw that reads
+a default-exported plugin definition — verified on `2026.3.8`, which
+predates the `definePluginEntry` helper that newer plugins use. Importing
+that helper would have made this plugin fail to load on anything older
+than `2026.6.10` and bought nothing: it stamps the same fields.
+
 ## Configuration
 
 Set under `plugins.entries.skillsearch.config`, or through the environment,

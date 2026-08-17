@@ -1,10 +1,9 @@
 /**
- * Plugin wiring, split from `index.ts` so it can be driven by a test.
+ * Plugin wiring, kept apart from the entry object in `index.ts`.
  *
- * `index.ts` imports `definePluginEntry`, a runtime value from the `openclaw`
- * peer, which does not resolve outside the host — importing it in a test
- * crashes at module load. This module imports only types from the host, which
- * erase at runtime, so a test can call `register` with a fake `api`.
+ * Nothing here imports a runtime value from the host — only types, which
+ * erase — so a test drives `register` with a fake `api` and the built bundle
+ * carries no dependency on any particular OpenClaw version.
  *
  * @module
  */
