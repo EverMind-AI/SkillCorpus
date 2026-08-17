@@ -57,7 +57,23 @@ class _ProviderAdapter:
 
 
 class SkillsSegment:
-    """A Raven ``SegmentBuilder`` over :class:`SkillSearch`."""
+    """A Raven ``SegmentBuilder`` over :class:`SkillSearch`.
+
+    The three class attributes are the host's ``SegmentBuilder`` protocol,
+    read by :class:`ContextAssembler` before anything is built: ``order``
+    sorts the builders into the system prompt, and ``needs_prefix`` routes
+    a builder to the phase that can read the assembled prefix. Retrieval
+    reads only the current message, so it stays in the parallel phase.
+
+    ``order = 5`` is the slot the host reserves for ``# Skills``, between
+    the always-on skills (4) and the Curator (6). Missing these attributes
+    does not fail at build time — the assembler raises while sorting, so
+    the agent never starts.
+    """
+
+    name = "skills"
+    order = 5
+    needs_prefix = False
 
     def __init__(self, search: SkillSearch) -> None:
         # No heading parameter: the heading is rendered by the engine from
