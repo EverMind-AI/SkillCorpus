@@ -21,5 +21,8 @@
     "../typescript/src/replies.ts",
     "../typescript/src/rewriter.ts",
     "../typescript/src/types.ts"
+  ],
+  "exclude": [
+    "test/host-contract.check.ts"
   ]
 }

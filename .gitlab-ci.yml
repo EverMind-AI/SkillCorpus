@@ -56,7 +56,12 @@ hermes-plugin:
   image: python:3.12-slim
   script:
     - pip install --quiet -e './python[dev,hub]'
-    - pytest hermes/tests -q
+    - apt-get update -qq && apt-get install -y -qq git
+    # Against the host's real ABC, not the fallback base class the plugin
+    # declares for standalone use — that fallback checks nothing, so a
+    # missing abstract method would pass without this.
+    - git clone --depth 1 -q https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
+    - PYTHONPATH=/tmp/hermes-agent pytest hermes/tests -q
 
 # The OpenClaw plugin bundles the TypeScript engine; `ci` typechecks it
 # against the host types it copied, runs the suite, and builds the bundle.

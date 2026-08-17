@@ -80,10 +80,21 @@ returns no block and the turn proceeds without skills.
 npm run --prefix openclaw ci     # typecheck, tests, build
 ```
 
-The host is not installed, so the tests pin the contract instead — the hook
-name, the event fields read, and the result field honored, each copied from
-OpenClaw's `src/plugins/types.ts` — and drive the real pipeline against a
-local HTTP endpoint standing in for the provider.
+The suite runs without an OpenClaw checkout: it drives `register` with a
+fake `api` and points the pipeline at a local HTTP server standing in for
+the model provider, so the request the plugin sends, the reply it parses and
+the selection the gate makes are all the shipping code.
+
+What that suite cannot check is whether the host still looks like the copy in
+`src/openclaw-types.ts`. Against a checkout, this does:
+
+```bash
+npm run --prefix openclaw check:host    # needs ../openclaw-host/src
+```
+
+It compiles the copied types against the host's own declarations and fails
+when either gains or loses a field. Verified to fail on a deliberate drift
+before being relied on.
 
 ## Known limitations
 

@@ -56,10 +56,20 @@ costs the turn its skills and never the turn itself.
 python -m pytest hermes/tests -q
 ```
 
-The host is not importable outside a Hermes runtime, so the tests pin the
-contract instead — the method names, signatures and return types Hermes
-calls, taken from the shipped EverOS provider in the same plugin family —
-and drive the real pipeline over a local HTTP endpoint.
+The suite runs without a Hermes checkout, against the fallback base class
+this plugin declares when `agent.memory_provider` is unimportable. That
+fallback is also what hides a missing method, so run the suite against a
+real checkout too — the provider then subclasses the host's own ABC, and an
+unimplemented abstract method fails at instantiation:
+
+```bash
+git clone --depth 1 https://github.com/NousResearch/hermes-agent.git
+PYTHONPATH=hermes-agent python -m pytest hermes/tests -q
+```
+
+Verified further by loading the plugin through the host's own discovery:
+copied to `$HERMES_HOME/plugins/skillsearch/`, `load_memory_provider(
+"skillsearch")` returns this provider and `prefetch` produces the block.
 
 ## Known limitations
 
