@@ -64,15 +64,22 @@ The other three are ordinary plugin packages over an engine.
 Each plugin is a thin adapter over one of the two implementations — the
 pipeline is the same either way, and only the seam differs.
 
-| Plugin | Host | Seam | Host change needed |
-| --- | --- | --- | --- |
-| [`plugin-hermes/`](plugin-hermes) | Hermes | the memory provider's `prefetch` | none |
-| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw | the `before_prompt_build` hook | none |
-| [`engine-typescript/src/index.ts`](engine-typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
-| [`plugin-raven/`](plugin-raven) | Raven | a context segment claiming the `skills` stage | yes — [`plugin-raven/host-patches/`](plugin-raven/host-patches) |
+| Plugin | Host | Seam | How the host finds it | Host change |
+| --- | --- | --- | --- | --- |
+| [`plugin-hermes/`](plugin-hermes#install) | Hermes | the memory provider's `prefetch` | a directory in `$HERMES_HOME/plugins/` | none |
+| [`plugin-raven/`](plugin-raven#install) | Raven | a context segment claiming the `skills` stage | a `raven.plugins` entry point, or a directory in `~/.raven/plugins/` | **yes** — [`host-patches/`](plugin-raven/host-patches) |
+| [`plugin-openclaw/`](plugin-openclaw#install) | OpenClaw | the `before_prompt_build` hook | `plugins.load.paths` naming the plugin root | none |
+| [`engine-typescript/`](engine-typescript#where-this-goes) | DeepSeek Harness | the `agent/pre-step` waterfall | a `cordis.yml` row naming the package | none |
 
-Every one of the four is loaded through its host's own mechanism and driven
-end to end — see [Working on this repository](#working-on-this-repository).
+Each seam is the same moment — after the user's message, before the model —
+which is what lets one pipeline serve four hosts that agree on nothing else.
+A host offering only session-level hooks could not carry this.
+
+Only Raven needs a change: the others already expose a per-turn extension
+point, while Raven has no contribution kind for a prompt stage until the
+patch adds one. Every install command is in the linked section, and every
+one of the four is loaded through its host's own mechanism and driven end
+to end — see [Working on this repository](#working-on-this-repository).
 
 ## Quick start
 

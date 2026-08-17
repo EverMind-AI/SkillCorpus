@@ -14,12 +14,18 @@ Raven needs a host-side change first; see
 pip install ./engine-python ./plugin-raven      # the engine, then the plugin
 ```
 
-Or copy the package into Raven's user plugin directory, which takes
-priority over a pip install so a local edit shadows the installed copy:
+Or copy the package into Raven's user plugin directory, which the host
+ranks above a pip install so a local edit shadows the installed copy:
 
 ```bash
-cp -r plugin-raven/skillsearch_raven "$RAVEN_HOME/plugins/skillsearch"
+cp -r plugin-raven/skillsearch_raven ~/.raven/plugins/skillsearch
 ```
+
+The path is fixed by the host (`Path.home() / ".raven" / "plugins"`), and
+each subdirectory must hold a `raven-plugin.toml`; the directory name is
+informational, the id inside the manifest is canonical. Discovery only
+reads manifests — plugin code is imported later, when the registry resolves
+the factory the manifest names.
 
 Either route needs `skillsearch` importable — the plugin is an adapter, and
 the pipeline lives in the engine.

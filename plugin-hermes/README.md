@@ -7,10 +7,15 @@ wants, and does nothing else.
 ## Install
 
 ```bash
-pip install ./python                       # the retrieval engine
-cp -r hermes ~/.hermes/plugins/memory/skillsearch
-hermes memory setup                        # pick "skillsearch"; answer the prompts
+pip install ./engine-python                        # the retrieval engine
+cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch"
+hermes memory setup                                # pick "skillsearch"
 ```
+
+`$HERMES_HOME/plugins/<name>/` is where the host scans for user-installed
+providers — one of four sources it walks, ranked bundled > user > project >
+pip entry point. The directory needs an `__init__.py` exposing a class that
+implements the `MemoryProvider` ABC, which is what this package is.
 
 The provider occupies the **memory slot**, because that is the slot Hermes
 routes `prefetch` through. Nothing here writes memory — there is no

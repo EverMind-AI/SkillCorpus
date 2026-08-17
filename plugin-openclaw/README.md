@@ -13,10 +13,30 @@ this one and the DeepSeek Harness plugin.
 
 ```bash
 npm install --prefix plugin-openclaw
-npm run --prefix plugin-openclaw build
-# then point OpenClaw at the built plugin, and enable it:
-#   plugins.entries.skillsearch.enabled = true
+npm run --prefix plugin-openclaw build     # -> dist/index.js
 ```
+
+Then two keys in OpenClaw's config — one names the directory, the other
+configures the plugin the manifest inside it declares:
+
+```jsonc
+{
+  "plugins": {
+    "load": { "paths": ["/abs/path/to/plugin-openclaw"] },
+    "entries": {
+      "skillsearch": {
+        "enabled": true,
+        "config": { "skillsDirs": ["~/.openclaw/skills"], "model": "gpt-4o-mini" }
+      }
+    }
+  }
+}
+```
+
+`load.paths` points at the plugin **root** — the directory holding
+`openclaw.plugin.json` — not at the built file. The host reads that
+manifest to validate `entries.skillsearch.config` without executing any
+plugin code, and only then imports `dist/index.js`.
 
 The bundle imports nothing from the host: the entry is a plain
 `{ id, name, register }` object, and the host types it compiles against are
