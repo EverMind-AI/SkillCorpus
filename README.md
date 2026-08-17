@@ -2,14 +2,14 @@
 
 **Per-turn skill retrieval for agent hosts: given what the user just said, decide which skills the model should see — and put them in front of it.**
 
-Agent skills (`SKILL.md` files packaging reusable procedural knowledge) only help if the right ones reach the prompt at the right moment. Publishing a full catalog to the model wastes context and asks it to know names in advance; injecting everything is worse. skillsearch retrieves instead: every turn it searches the skills you have — a local directory, a remote catalog, an agent's own accumulated skills — fuses the rankings, asks a model to keep only what this agent can actually run here, and injects the survivors.
+Agent skills (`SKILL.md` files packaging reusable procedural knowledge) only help if the right ones reach the prompt at the right moment. Publishing a full catalog to the model wastes context and asks it to know names in advance; injecting everything is worse. skillsearch retrieves instead: every turn it searches the skills you have — a local directory and a remote catalog, plus an agent's own accumulated skills where the host offers them — fuses the rankings, asks a model to keep only what this agent can actually run here, and injects the survivors.
 
 Pairs naturally with [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus), the open corpus of 96,401 vetted, permissively-licensed skills, whose hosted [SkillHub](https://evermind.ai/skillhub) endpoint is a ready-made remote catalog for the `hub` source below — no server of your own required. Local-only setups need neither.
 
 ```
 query
   ├─ rewrite          turn the message into a retrieval query   (optional)
-  ├─ fan out          local BM25 · remote catalog · agent recall
+  ├─ fan out          local BM25 · remote catalog · agent recall¹
   ├─ fuse             weighted RRF (K = 60), deduplicated
   ├─ hydrate          fetch bodies for metadata-only hits
   ├─ gate             drop what this agent cannot run here      (optional)
@@ -17,14 +17,22 @@ query
 → text to inject
 ```
 
+¹ Agent recall is a Python-only source, and only where the host supplies a
+memory backend. Both implementations ship the local and catalog sources,
+and `SkillSource` is open — a host adds its own by implementing three
+members.
+
 ## Two implementations
 
 | | [`engine-python/`](engine-python) | [`engine-typescript/`](engine-typescript) |
 | --- | --- | --- |
 | Entry | `SkillSearch.retrieve(query) -> str` | `SkillSearchEngine.retrieve(query)` |
 | Install | `pip install -e engine-python` | copy into `packages/skill/skill-search/` |
-| Ships a host plugin | [`plugin-hermes/`](plugin-hermes) | [`plugin-openclaw/`](plugin-openclaw) |
-| Also drives | Raven, and any host over HTTP | DeepSeek Harness |
+| Ships a host plugin | [`plugin-hermes/`](plugin-hermes) · [`plugin-raven/`](plugin-raven) | [`plugin-openclaw/`](plugin-openclaw) |
+| Also drives | any host over HTTP, via `adapters/http_server.py` | DeepSeek Harness, via `src/index.ts` |
+| Extra sources | agent recall, over a host memory backend | — |
+
+The two are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`engine-typescript/tests/parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
 
 ## Layout
 
@@ -63,7 +71,8 @@ pipeline is the same either way, and only the seam differs.
 | [`engine-typescript/src/index.ts`](engine-typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
 | [`plugin-raven/`](plugin-raven) | Raven | a context segment claiming the `skills` stage | yes — [`plugin-raven/host-patches/`](plugin-raven/host-patches) |
 
-They are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`engine-typescript/tests/parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
+Every one of the four is loaded through its host's own mechanism and driven
+end to end — see [Working on this repository](#working-on-this-repository).
 
 ## Quick start
 
@@ -124,8 +133,10 @@ cd engine-typescript && npx tsx --test tests/parity.test.ts
 cd plugin-openclaw   && npm install && npm run ci
 ```
 
-Two of the suites check more when a host is on disk, and say so rather than
-quietly checking less:
+### What a suite without a host cannot check
+
+Each suite stands in for its host, and a stand-in cannot fail on the host
+refusing to load the plugin. Two checks close part of that gap:
 
 ```bash
 # The Hermes plugin declares a fallback base class so it imports without the
@@ -138,6 +149,26 @@ PYTHONPATH=hermes-agent pytest plugin-hermes/tests -q
 # and a hand-copy drifts. This compiles the copies against the originals:
 git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
 npm --prefix plugin-openclaw run check:host
+```
+
+Only a real checkout closes the rest. Every plugin here has been installed
+into its host and driven through that host's own loader — the same four
+queries each, expecting three specific skills and one empty result:
+
+| Host | Loaded by | Driven to |
+|---|---|---|
+| Hermes | `discover_memory_providers` → `load_memory_provider` | `prefetch()` |
+| Raven | `build_plugin_registry` → `build_plugin_segments` | the assembled system prompt, through the host's own `ContextAssembler` |
+| DeepSeek Harness | a `cordis.yml` row naming the package | the `agent/pre-step` waterfall |
+| OpenClaw | `discoverOpenClawPlugins` → the built `dist/index.js` | the `before_prompt_build` hook |
+
+Three defects came out of doing that, none of which any suite here could
+have caught: the Raven segment was missing the class attributes the host
+sorts builders on, so the agent failed to start rather than retrieving
+badly; the OpenClaw entry imported a helper that does not exist before host
+version 2026.6.10, so the host discovered the plugin and then could not
+import it; and the Raven patch landed its machinery without the two lines
+that call it.
 ```
 
 CI runs the first set on every push, and clones the Hermes host so its job
