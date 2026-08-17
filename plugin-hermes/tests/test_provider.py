@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PLUGIN_ROOT.parent / "python"))
+sys.path.insert(0, str(PLUGIN_ROOT.parent / "engine-python"))
 
 
 def load_plugin() -> Any:

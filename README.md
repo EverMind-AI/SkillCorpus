@@ -19,12 +19,28 @@ query
 
 ## Two implementations
 
-| | [`python/`](python) | [`typescript/`](typescript) |
+| | [`engine-python/`](engine-python) | [`engine-typescript/`](engine-typescript) |
 | --- | --- | --- |
 | Entry | `SkillSearch.retrieve(query) -> str` | `SkillSearchEngine.retrieve(query)` |
-| Install | `pip install -e python` | copy into `packages/skill/skill-search/` |
-| Ships a host plugin | [`hermes/`](hermes) | [`openclaw/`](openclaw) |
+| Install | `pip install -e engine-python` | copy into `packages/skill/skill-search/` |
+| Ships a host plugin | [`plugin-hermes/`](plugin-hermes) | [`plugin-openclaw/`](plugin-openclaw) |
 | Also drives | Raven, and any host over HTTP | DeepSeek Harness |
+
+## Layout
+
+```
+engine-python/       the pipeline in Python, plus the Raven adapter
+engine-typescript/   the pipeline in TypeScript, plus the DeepSeek Harness entry
+plugin-hermes/       a Hermes plugin over engine-python
+plugin-openclaw/     an OpenClaw plugin over engine-typescript
+```
+
+Prefixed by role rather than by language, because the languages do not line
+up with the roles: the Hermes plugin is Python and the OpenClaw plugin is
+TypeScript. Two of the four host integrations do not have a directory of
+their own — the Harness entry and the Raven adapter live inside the engine
+they are built on, which is why there is no `plugins/` folder pretending to
+hold all four.
 
 ## Four hosts
 
@@ -33,12 +49,12 @@ pipeline is the same either way, and only the seam differs.
 
 | Plugin | Host | Seam | Host change needed |
 | --- | --- | --- | --- |
-| [`hermes/`](hermes) | Hermes | the memory provider's `prefetch` | none |
-| [`openclaw/`](openclaw) | OpenClaw | the `before_prompt_build` hook | none |
-| [`typescript/src/index.ts`](typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
-| [`python/skillsearch/adapters/raven.py`](python/skillsearch/adapters/raven.py) | Raven | a context segment | yes — [`python/host-patches/`](python/host-patches) |
+| [`plugin-hermes/`](plugin-hermes) | Hermes | the memory provider's `prefetch` | none |
+| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw | the `before_prompt_build` hook | none |
+| [`engine-typescript/src/index.ts`](engine-typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
+| [`engine-python/skillsearch/adapters/raven.py`](engine-python/skillsearch/adapters/raven.py) | Raven | a context segment | yes — [`engine-python/host-patches/`](engine-python/host-patches) |
 
-They are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`typescript/tests/parity.test.ts`](typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
+They are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`engine-typescript/tests/parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
 
 ## Quick start
 
@@ -62,7 +78,7 @@ block = await search.retrieve("extract tables from a scanned PDF invoice")
     model: deepseek-v4-flash
 ```
 
-Per-runtime configuration, host wiring and known limitations live in each directory's README: [`python/README.md`](python/README.md) · [`typescript/README.md`](typescript/README.md).
+Per-runtime configuration, host wiring and known limitations live in each directory's README: [`engine-python/README.md`](engine-python/README.md) · [`engine-typescript/README.md`](engine-typescript/README.md).
 
 ## The remote catalog
 

@@ -13,7 +13,7 @@ stages:
   stage: test
   image: python:${PY_VERSION}-slim
   before_script:
-    - cd python
+    - cd engine-python
     - pip install --quiet -e '.[dev,hub]'
 
 python:
@@ -33,7 +33,7 @@ python-no-extras:
   stage: test
   image: python:3.12-slim
   script:
-    - cd python
+    - cd engine-python
     - pip install --quiet -e . pytest pytest-asyncio
     - pytest -q --ignore=tests/test_hub_client.py
 
@@ -46,22 +46,22 @@ typescript:
   stage: test
   image: node:22-slim
   script:
-    - cd typescript
+    - cd engine-typescript
     - npx --yes tsx --test tests/parity.test.ts
 
 # The Hermes plugin drives the engine through the host's provider contract.
-# Its own tests import the engine from `python/`, so both live in one job.
+# Its own tests import the engine from `engine-python/`, so both live in one job.
 hermes-plugin:
   stage: test
   image: python:3.12-slim
   script:
-    - pip install --quiet -e './python[dev,hub]'
+    - pip install --quiet -e './engine-python[dev,hub]'
     - apt-get update -qq && apt-get install -y -qq git
     # Against the host's real ABC, not the fallback base class the plugin
     # declares for standalone use — that fallback checks nothing, so a
     # missing abstract method would pass without this.
     - git clone --depth 1 -q https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
-    - PYTHONPATH=/tmp/hermes-agent pytest hermes/tests -q
+    - PYTHONPATH=/tmp/hermes-agent pytest plugin-hermes/tests -q
 
 # The OpenClaw plugin bundles the TypeScript engine; `ci` typechecks it
 # against the host types it copied, runs the suite, and builds the bundle.
@@ -69,6 +69,6 @@ openclaw-plugin:
   stage: test
   image: node:22-slim
   script:
-    - cd openclaw
+    - cd plugin-openclaw
     - npm install --no-audit --no-fund
     - npm run ci

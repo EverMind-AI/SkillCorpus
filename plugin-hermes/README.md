@@ -53,7 +53,7 @@ costs the turn its skills and never the turn itself.
 ## Tests
 
 ```bash
-python -m pytest hermes/tests -q
+python -m pytest plugin-hermes/tests -q
 ```
 
 The suite runs without a Hermes checkout, against the fallback base class
@@ -64,7 +64,7 @@ unimplemented abstract method fails at instantiation:
 
 ```bash
 git clone --depth 1 https://github.com/NousResearch/hermes-agent.git
-PYTHONPATH=hermes-agent python -m pytest hermes/tests -q
+PYTHONPATH=hermes-agent python -m pytest plugin-hermes/tests -q
 ```
 
 Verified further by loading the plugin through the host's own discovery:

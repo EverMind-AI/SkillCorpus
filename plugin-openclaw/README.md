@@ -12,8 +12,8 @@ this one and the DeepSeek Harness plugin.
 ## Install
 
 ```bash
-npm install --prefix openclaw
-npm run --prefix openclaw build
+npm install --prefix plugin-openclaw
+npm run --prefix plugin-openclaw build
 # then point OpenClaw at the built plugin, and enable it:
 #   plugins.entries.skillsearch.enabled = true
 ```
@@ -77,7 +77,7 @@ returns no block and the turn proceeds without skills.
 ## Tests
 
 ```bash
-npm run --prefix openclaw ci     # typecheck, tests, build
+npm run --prefix plugin-openclaw ci     # typecheck, tests, build
 ```
 
 The suite runs without an OpenClaw checkout: it drives `register` with a
@@ -89,7 +89,7 @@ What that suite cannot check is whether the host still looks like the copy in
 `src/openclaw-types.ts`. Against a checkout, this does:
 
 ```bash
-npm run --prefix openclaw check:host    # needs ../openclaw-host/src
+npm run --prefix plugin-openclaw check:host    # needs ../openclaw-host/src
 ```
 
 It compiles the copied types against the host's own declarations and fails

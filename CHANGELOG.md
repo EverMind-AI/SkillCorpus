@@ -4,10 +4,10 @@
 
 ### Added
 
-- **A TypeScript implementation** under [`typescript/`](typescript), for
+- **A TypeScript implementation** under [`engine-typescript/`](engine-typescript), for
   DeepSeek Harness. Both implementations now sit side by side and the
-  Python one moved into [`python/`](python); `pip install -e .` becomes
-  `pip install -e python`.
+  Python one moved into [`engine-python/`](engine-python); `pip install -e .` becomes
+  `pip install -e engine-python`.
 - **`rewrite_timeout_s`** (Python, default 5s) and **`rewriteTimeoutMs`**
   (TypeScript, default 5s) bound the rewrite call.
 - **`hub_download_timeout_s`** (default 30s) bounds a bundle download
@@ -18,7 +18,7 @@
 - **`hub_client=`** on `SkillSearch`, so a host can hand over the catalog
   client it already built rather than have a second one created.
 - **`{baseDir}` and bundled-file link resolution in TypeScript**
-  ([`refs.ts`](typescript/src/refs.ts), a port of `refs.py` verified
+  ([`refs.ts`](engine-typescript/src/refs.ts), a port of `refs.py` verified
   byte-identical on shared fixtures), behind a `resolveRefs` config
   defaulting on. Previously TypeScript injected the placeholders literally —
   and the gate prompt reads a literal `{baseDir}` as proof a skill cannot

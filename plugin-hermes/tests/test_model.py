@@ -95,7 +95,7 @@ def test_the_gate_runs_over_real_http_end_to_end(tmp_path: Path, provider) -> No
             '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
         ]
     )
-    sys.path.insert(0, str(PLUGIN_ROOT.parent / "python"))
+    sys.path.insert(0, str(PLUGIN_ROOT.parent / "engine-python"))
     spec = importlib.util.spec_from_file_location(
         "skillsearch_hermes_plugin",
         PLUGIN_ROOT / "__init__.py",

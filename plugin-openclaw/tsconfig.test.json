@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "test"
+  ],
+  "files": [
+    "../engine-typescript/src/bm25.ts",
+    "../engine-typescript/src/deadline.ts",
+    "../engine-typescript/src/engine.ts",
+    "../engine-typescript/src/fusion.ts",
+    "../engine-typescript/src/gate.ts",
+    "../engine-typescript/src/hub-source.ts",
+    "../engine-typescript/src/local-source.ts",
+    "../engine-typescript/src/refs.ts",
+    "../engine-typescript/src/replies.ts",
+    "../engine-typescript/src/rewriter.ts",
+    "../engine-typescript/src/types.ts"
+  ],
+  "exclude": [
+    "test/host-contract.check.ts"
+  ]
+}

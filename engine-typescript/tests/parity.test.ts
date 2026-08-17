@@ -3,7 +3,7 @@
  *
  * The two implementations in this repository are independent ports, so
  * nothing structural keeps them equal — only these numbers and these exact
- * strings do. Every value pinned below is what `python/` produces for the
+ * strings do. Every value pinned below is what `engine-python/` produces for the
  * same input; the Python suite pins its side against the same literals.
  *
  * Written against `node:test` and importing only the pipeline modules,

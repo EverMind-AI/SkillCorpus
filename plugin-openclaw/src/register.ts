@@ -11,12 +11,12 @@
 
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
-import { SkillSearchEngine } from '../../typescript/src/engine.js'
-import { LLMGateFilter } from '../../typescript/src/gate.js'
-import { HubSkillSource, SkillHubClient } from '../../typescript/src/hub-source.js'
-import { LocalSkillSource } from '../../typescript/src/local-source.js'
-import { QueryRewriter } from '../../typescript/src/rewriter.js'
-import type { SkillSource } from '../../typescript/src/types.js'
+import { SkillSearchEngine } from '../../engine-typescript/src/engine.js'
+import { LLMGateFilter } from '../../engine-typescript/src/gate.js'
+import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-source.js'
+import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
+import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
+import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { loadConfig, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
 import type {
