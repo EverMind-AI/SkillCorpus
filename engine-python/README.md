@@ -118,7 +118,7 @@ configuration, and `aclose` leaves an injected client alone.
 | Host | How it plugs in | Where |
 |---|---|---|
 | **Hermes** | a memory provider's per-turn `prefetch` hook | [`../plugin-hermes/`](../plugin-hermes) — a packaged plugin |
-| **Raven** | a context segment claiming the `skills` stage | `skillsearch/adapters/raven.py`, plus a host change below |
+| **Raven** | a context segment claiming the `skills` stage | [`../plugin-raven/`](../plugin-raven) — a packaged plugin, plus a host patch it carries |
 | **Any other host** | one HTTP call per turn | `skillsearch/adapters/http_server.py` |
 
 OpenClaw is served by [`../plugin-openclaw/`](../plugin-openclaw), which

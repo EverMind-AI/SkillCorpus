@@ -36,11 +36,6 @@ Issues = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins/-/issues"
 [project.scripts]
 skillsearch-serve = "skillsearch.adapters.http_server:main"
 
-# Raven finds pip-installed plugins through this group, then reads
-# raven-plugin.toml from inside the named package.
-[project.entry-points."raven.plugins"]
-skillsearch = "skillsearch"
-
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
@@ -49,7 +44,7 @@ build-backend = "setuptools.build_meta"
 include = ["skillsearch*"]
 
 [tool.setuptools.package-data]
-skillsearch = ["raven-plugin.toml", "py.typed"]
+skillsearch = ["py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

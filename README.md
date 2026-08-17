@@ -29,9 +29,10 @@ query
 ## Layout
 
 ```
-engine-python/       the pipeline in Python, plus the Raven adapter
+engine-python/       the pipeline in Python
 engine-typescript/   the pipeline in TypeScript, plus the DeepSeek Harness entry
-plugin-hermes/       a Hermes plugin over engine-python
+plugin-hermes/       a Hermes plugin   over engine-python
+plugin-raven/        a Raven plugin    over engine-python
 plugin-openclaw/     an OpenClaw plugin over engine-typescript
 ```
 
@@ -39,16 +40,16 @@ Prefixed by role rather than by language, because the languages do not line
 up with the roles: the Hermes plugin is Python and the OpenClaw plugin is
 TypeScript.
 
-Two host integrations have no directory of their own, for different reasons.
-The **Harness** entry cannot have one: `engine-typescript/` *is* the package
-`@deepseek-ai/dsh-skill-search`, and `src/index.ts` plus `src/invariant.ts`
-are the two files in it that bind to the host. They ship as one npm package,
-so splitting them would turn "copy this directory into
-`packages/skill/skill-search/`" into "merge two directories into one". The
-**Raven** adapter could have one — it is an ordinary module that a
-`raven.plugins` entry point exposes, no different in shape from
-`plugin-hermes/` — and is left in place until the host-side work it depends
-on lands.
+One host integration has no directory of its own. `engine-typescript/`
+*is* the package `@deepseek-ai/dsh-skill-search`, and `src/index.ts` plus
+`src/invariant.ts` are the two files in it that bind to the host. The
+Harness does not install a package — it takes a copy of a workspace
+directory, type-checks it through `src/`, and holds `packages/*/*/src` to
+per-file coverage. So the entry cannot move out without turning "copy this
+directory" into "merge two directories", and cannot be bundled the way the
+OpenClaw plugin bundles the engine without breaking all three of those.
+
+The other three are ordinary plugin packages over an engine.
 
 ## Four hosts
 
@@ -60,7 +61,7 @@ pipeline is the same either way, and only the seam differs.
 | [`plugin-hermes/`](plugin-hermes) | Hermes | the memory provider's `prefetch` | none |
 | [`plugin-openclaw/`](plugin-openclaw) | OpenClaw | the `before_prompt_build` hook | none |
 | [`engine-typescript/src/index.ts`](engine-typescript/src/index.ts) | DeepSeek Harness | the `agent/pre-step` waterfall | none |
-| [`engine-python/skillsearch/adapters/raven.py`](engine-python/skillsearch/adapters/raven.py) | Raven | a context segment | yes — [`engine-python/host-patches/`](engine-python/host-patches) |
+| [`plugin-raven/`](plugin-raven) | Raven | a context segment claiming the `skills` stage | yes — [`plugin-raven/host-patches/`](plugin-raven/host-patches) |
 
 They are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`engine-typescript/tests/parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
 
@@ -116,9 +117,10 @@ Each directory carries its own suite, and they are independent — nothing
 below needs the others to have run.
 
 ```bash
-cd engine-python     && pip install -e '.[dev,hub]' && pytest -q && ruff check skillsearch tests
+pip install -e './engine-python[dev,hub]' -e ./plugin-raven
+pytest engine-python/tests plugin-hermes/tests plugin-raven/tests -q
+ruff check engine-python/skillsearch engine-python/tests plugin-raven
 cd engine-typescript && npx tsx --test tests/parity.test.ts
-cd plugin-hermes     && pytest tests -q
 cd plugin-openclaw   && npm install && npm run ci
 ```
 

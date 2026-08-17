@@ -102,7 +102,7 @@ enabled_by_default = true
 
 [[plugin.contributes.context_segments]]
 name     = "skills"
-factory  = "skillsearch.adapters.raven:make_segment"
+factory  = "skillsearch_raven:make_segment"
 replaces = "skills"
 
 [plugin.config_schema]

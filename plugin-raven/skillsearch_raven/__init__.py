@@ -13,7 +13,7 @@ Ship alongside a ``raven-plugin.toml``::
 
     [[plugin.contributes.context_segments]]
     name     = "skills"
-    factory  = "skillsearch.adapters.raven:make_segment"
+    factory  = "skillsearch_raven:make_segment"
     replaces = "skills"
 
 Raven hands the factory a ``PluginContext`` carrying the plugin's config
@@ -86,10 +86,16 @@ class SkillsSegment:
 
         query = getattr(ctx, "current_message", "") or ""
         history = list(getattr(ctx, "session_messages", None) or [])
-        hits = await self._search.hits(query, history=history)
-        if not hits:
+        try:
+            hits = await self._search.hits(query, history=history)
+            text = self._search.render(hits) if hits else ""
+        except Exception as e:
+            # Declining the stage is the only safe failure here. The host
+            # keeps no built-in fallback for `skills`, and an exception out
+            # of a segment builder aborts assembly — so a broken catalog
+            # would cost the turn itself rather than its skills.
+            log.warning("skillsearch: segment build failed (%s); no skills this turn", e)
             return None
-        text = self._search.render(hits)
         if not text:
             return None
         # Raven's after-turn feedback correlates skills shown against

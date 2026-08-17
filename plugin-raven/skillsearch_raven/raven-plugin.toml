@@ -11,7 +11,7 @@ enabled_by_default = true
 # retrieval off — the host keeps no built-in fallback.
 [[plugin.contributes.context_segments]]
 name     = "skills"
-factory  = "skillsearch.adapters.raven:make_segment"
+factory  = "skillsearch_raven:make_segment"
 replaces = "skills"
 
 [plugin.config_schema]
