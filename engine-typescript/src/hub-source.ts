@@ -19,6 +19,9 @@ import { join } from 'node:path'
 import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
+/** Success markers a catalog may send beside `status: 0`. */
+const OK_TOKENS = new Set(['ok', 'success'])
+
 /** One catalog entry as the search endpoint returns it. */
 interface CatalogItem {
   readonly id?: string
@@ -179,7 +182,12 @@ export class SkillHubClient {
       const res = await fetch(url, { headers, signal: controller.signal })
       if (!res.ok) throw new Error(`catalog returned HTTP ${res.status}`)
       const envelope = (await res.json()) as { status?: number; error?: string; result?: unknown }
-      if (envelope.status !== 0) {
+      // Both fields, as the Raven client checks them: `status === 0` is the
+      // authoritative signal and the string is accepted leniently, `ok` per
+      // the original spec and `success` from other deployments. Checking
+      // only the status accepted a reply the Python engine rejects, so one
+      // catalog answered differently on different hosts.
+      if (envelope.status !== 0 || !OK_TOKENS.has(envelope.error ?? '')) {
         throw new Error(`catalog error ${envelope.error ?? 'unknown'} (status ${envelope.status})`)
       }
       return envelope.result ?? {}

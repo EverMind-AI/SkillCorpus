@@ -228,3 +228,44 @@ test('a timed-out model call is hung up on, not just abandoned', async () => {
   await assert.rejects(bounded(never, 10), /timed out after 10ms/)
   assert.equal(seen?.aborted, true)
 })
+
+test('the envelope is judged on both fields, as the Python client judges it', async () => {
+  // Found by driving a fake catalog through both engines: checking only
+  // `status` accepted a reply Python rejects, so one catalog answered
+  // differently depending on which host asked.
+  const { createServer } = await import('node:http')
+  const { SkillHubClient } = await import('../src/hub-source.ts')
+
+  const verdicts: Record<string, string> = {}
+  for (const envelope of [
+    { error: 'ok', status: 0, result: { items: [] } },
+    { error: 'success', status: 0, result: { items: [] } },
+    { error: '', status: 0, result: { items: [] } },
+    { error: 'boom', status: 0, result: { items: [] } },
+    { error: 'ok', status: 1, result: { items: [] } },
+  ]) {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify(envelope))
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    const key = `${envelope.error}/${envelope.status}`
+    try {
+      await new SkillHubClient(`http://127.0.0.1:${port}`).search('anything')
+      verdicts[key] = 'accepted'
+    } catch {
+      verdicts[key] = 'rejected'
+    }
+    await new Promise<void>((resolve) => { server.close(() => resolve()) })
+  }
+
+  assert.deepEqual(verdicts, {
+    'ok/0': 'accepted',
+    'success/0': 'accepted',
+    '/0': 'rejected',
+    'boom/0': 'rejected',
+    'ok/1': 'rejected',
+  })
+})
