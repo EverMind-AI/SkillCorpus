@@ -128,9 +128,9 @@ before being relied on.
 
 - **The gate's environment check needs `availableTools`.** Explained above;
   it is host-imposed, not a choice this plugin makes.
-- **The remote catalog's bundles are never downloaded.** A catalog skill
-  contributes its body only, so one whose procedure depends on its own
-  scripts will describe files that are not on disk.
+- **Bundles land in `bundleCacheDir`, outside every scanned directory.**
+  Default `~/.openclaw/skillsearch-bundles`. Inside a scanned directory, a
+  downloaded skill would reappear as a local one on the next scan.
 - **The local scan is cached for the process lifetime.** A `SKILL.md`
   written after the first retrieval is invisible until restart.
 - **One route serves both model calls,** though the rewriter's job is far

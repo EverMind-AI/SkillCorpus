@@ -20,6 +20,8 @@ export interface SkillSearchConfig {
   /** Remote catalog base URL. Empty disables the remote source. */
   readonly hubEndpoint: string
   readonly hubApiKey: string
+  /** Where extracted bundles live. Outside every scanned skills directory. */
+  readonly bundleCacheDir: string
   /** Route for the rewriter and the gate. Empty runs retrieval unfiltered. */
   readonly model: string
   readonly modelBaseUrl: string
@@ -44,6 +46,7 @@ export const DEFAULTS: SkillSearchConfig = {
   skillsDirs: ['~/.openclaw/skills'],
   hubEndpoint: '',
   hubApiKey: '',
+  bundleCacheDir: '',
   model: '',
   modelBaseUrl: 'https://api.openai.com/v1',
   modelApiKey: '',
@@ -59,6 +62,7 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   skillsDirs: 'SKILLSEARCH_SKILLS_DIRS',
   hubEndpoint: 'SKILLSEARCH_HUB_ENDPOINT',
   hubApiKey: 'SKILLSEARCH_HUB_API_KEY',
+  bundleCacheDir: 'SKILLSEARCH_BUNDLE_CACHE_DIR',
   model: 'SKILLSEARCH_MODEL',
   modelBaseUrl: 'SKILLSEARCH_MODEL_BASE_URL',
   modelApiKey: 'SKILLSEARCH_MODEL_API_KEY',
@@ -123,6 +127,7 @@ export function loadConfig(
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
     hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
+    bundleCacheDir: asText(pick('bundleCacheDir')) ?? DEFAULTS.bundleCacheDir,
     model: asText(pick('model')) ?? DEFAULTS.model,
     modelBaseUrl: asText(pick('modelBaseUrl')) ?? DEFAULTS.modelBaseUrl,
     modelApiKey: asText(pick('modelApiKey')) ?? DEFAULTS.modelApiKey,

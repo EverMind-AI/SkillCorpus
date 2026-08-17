@@ -43,4 +43,4 @@
 
 ## 已知缺口
 
-记录在[包 README](../README.md#known-limitations-and-deferred-work) 中：目录 bundle 从不下载、检索决策不是 session event、本地扫描在进程生命周期内缓存、以及一条路由服务两次模型调用。目前还没有经由真实可运行示例的无密钥快照——该插件尚未进入任何交付 bundle，为挂载它的部署补上快照是下一步。
+记录在[包 README](../README.md#known-limitations-and-deferred-work) 中：检索决策不是 session event、本地扫描在进程生命周期内缓存、以及一条路由服务两次模型调用。目前还没有经由真实可运行示例的无密钥快照——该插件尚未进入任何交付 bundle，为挂载它的部署补上快照是下一步。

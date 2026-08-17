@@ -44,4 +44,4 @@ This plugin and `dsh-tool-skill` are alternatives, not layers: running both publ
 
 ## Known gaps
 
-Named in [the package README](../README.md#known-limitations-and-deferred-work): catalog bundles are never downloaded, retrieval decisions are not session events, the local scan is cached for the process lifetime, and one route serves both model calls. There is no keyless snapshot through a real runnable example yet — the plugin is not in a shipped bundle, and adding one is the next step for a deployment that mounts it.
+Named in [the package README](../README.md#known-limitations-and-deferred-work): retrieval decisions are not session events, the local scan is cached for the process lifetime, and one route serves both model calls. There is no keyless snapshot through a real runnable example yet — the plugin is not in a shipped bundle, and adding one is the next step for a deployment that mounts it.

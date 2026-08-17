@@ -59,6 +59,22 @@ export interface EngineParts {
   readonly gate?: LLMGateFilter
   /** Loads a remote body once the gate has kept its hit. */
   readonly fetchBody?: (hit: RouterHit, signal?: AbortSignal) => Promise<string | undefined>
+  /**
+   * Put a selected remote skill's own files on disk and say where.
+   *
+   * A catalog skill's body says `run scripts/x.py`; until its bundle is
+   * extracted that path names nothing, so a skill arrives readable and not
+   * runnable. Given this, retrieval extracts after the gate — one download
+   * per skill that is actually going in, never per candidate — and resolves
+   * the body's references against the result.
+   *
+   * Absent, remote skills keep their unresolved bodies. So does a hit whose
+   * install fails: the agent loses the absolute paths, not the instructions.
+   */
+  readonly materialise?: (
+    hit: RouterHit,
+    signal?: AbortSignal,
+  ) => Promise<{ dir: string; body?: string } | undefined>
 }
 
 /** The retrieval pipeline: rewrite, fan out, fuse, hydrate, gate, render. */
@@ -67,6 +83,7 @@ export class SkillSearchEngine {
   private readonly rewriter: QueryRewriter | undefined
   private readonly gate: LLMGateFilter | undefined
   private readonly fetchBody: EngineParts['fetchBody'] | undefined
+  private readonly materialise: EngineParts['materialise'] | undefined
   private readonly topK: number
   private readonly gatePool: number
   private readonly overFetch: number
@@ -79,6 +96,7 @@ export class SkillSearchEngine {
     this.rewriter = parts.rewriter
     this.gate = parts.gate
     this.fetchBody = parts.fetchBody
+    this.materialise = parts.materialise
     this.topK = options.topK ?? 5
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
@@ -148,20 +166,43 @@ export class SkillSearchEngine {
     if (this.gate) {
       hits = await this.gate.filter(query, hits, options.availableTools, signal)
     }
-    // Only the survivors: resolution stats the disk per ref, so it waits
-    // until the gate has decided what is actually going in.
-    return this.resolveHitRefs(hits.slice(0, this.topK))
+    // Only the survivors: extracting a bundle is a download and resolution
+    // stats the disk per ref, so both wait until the gate has decided what
+    // is actually going in.
+    return this.resolveHitRefs(hits.slice(0, this.topK), signal)
   }
 
-  /** Rewrite each on-disk survivor's refs to absolute paths, when enabled. */
-  private resolveHitRefs(hits: RouterHit[]): RouterHit[] {
+  /**
+   * Give each survivor a directory, then rewrite its refs against it.
+   *
+   * A local hit already knows its directory. A remote one gets its bundle
+   * extracted first, when the host supplied a way to; a failure there is
+   * logged by the caller's own handler and leaves the body unresolved.
+   */
+  private async resolveHitRefs(hits: RouterHit[], signal?: AbortSignal): Promise<RouterHit[]> {
     if (!this.refs) return hits
-    return hits.map((hit) => {
-      const skillDir = hit.meta.skillDir
-      if (typeof skillDir !== 'string' || !skillDir || !hit.content) return hit
-      const { body } = resolveRefs(hit.content, skillDir)
-      return body === hit.content ? hit : { ...hit, content: body }
-    })
+    return Promise.all(hits.map(async (hit) => {
+      let current = hit
+      if (typeof current.meta.skillDir !== 'string' && this.materialise) {
+        try {
+          const installed = await this.materialise(current, signal)
+          if (installed) {
+            current = {
+              ...current,
+              content: installed.body || current.content,
+              meta: { ...current.meta, skillDir: installed.dir },
+            }
+          }
+        } catch {
+          // Unresolved paths, not a lost skill. The body still instructs.
+          return current
+        }
+      }
+      const skillDir = current.meta.skillDir
+      if (typeof skillDir !== 'string' || !skillDir || !current.content) return current
+      const { body } = resolveRefs(current.content, skillDir)
+      return body === current.content ? current : { ...current, content: body }
+    }))
   }
 
   /** Fill in bodies for hits a source returned as metadata only. */

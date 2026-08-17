@@ -51,6 +51,9 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
   if (config.hubEndpoint) {
     client = new SkillHubClient(config.hubEndpoint, {
       ...(config.hubApiKey ? { apiKey: config.hubApiKey } : {}),
+      // Outside every scanned directory: an extracted bundle inside one
+      // would be picked up as a local skill on the next scan.
+      cacheDir: config.bundleCacheDir || join(homedir(), '.openclaw', 'skillsearch-bundles'),
     })
     sources.push(new HubSkillSource(client))
   }
@@ -71,6 +74,10 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
           fetchBody: async (hit, signal) => {
             const record = await client.get(String(hit.meta.id), signal)
             return typeof record.skill_md === 'string' ? record.skill_md : undefined
+          },
+          materialise: async (hit, signal) => {
+            const installed = await client.install(String(hit.meta.id), undefined, signal)
+            return { dir: installed.dir, body: installed.skillMd }
           },
         }
         : {}),

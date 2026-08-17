@@ -14,6 +14,9 @@
  * @module
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
 /** One catalog entry as the search endpoint returns it. */
@@ -34,6 +37,18 @@ export interface HubClientOptions {
   readonly apiKey?: string
   readonly timeoutMs?: number
   /**
+   * Deadline for one bundle download. Separate from `timeoutMs` because
+   * that one is sized for a catalog query on the hot path and a bundle is
+   * megabytes.
+   */
+  readonly downloadTimeoutMs?: number
+  /**
+   * Where extracted bundles live. Keyed `<slug>@<version>`, so a repeat
+   * install is a stat. Without it, `install` refuses rather than guessing
+   * at a writable directory.
+   */
+  readonly cacheDir?: string
+  /**
    * Download-stats tag, not a free label: a catalog validates it against its
    * own fixed set and answers 422 for anything outside it. `cli` is the safe
    * default; change it only against a deployment whose set you know.
@@ -46,13 +61,74 @@ export class SkillHubClient {
   private readonly base: string
   private readonly apiKey: string | undefined
   private readonly timeoutMs: number
+  private readonly downloadTimeoutMs: number
+  private readonly cacheDir: string | undefined
   private readonly source: string
 
   constructor(endpoint: string, options: HubClientOptions = {}) {
     this.base = endpoint.replace(/\/+$/, '')
     this.apiKey = options.apiKey
     this.timeoutMs = options.timeoutMs ?? 2000
+    this.downloadTimeoutMs = options.downloadTimeoutMs ?? 30_000
+    this.cacheDir = options.cacheDir
     this.source = options.source ?? 'cli'
+  }
+
+  /**
+   * Download a skill's bundle and extract it, or reuse an extracted copy.
+   *
+   * @param id - the catalog's own id for the skill.
+   * @param meta - the skill's record, when the caller already fetched it;
+   *   `slug` and `version` from it form the cache key.
+   * @param signal - aborts the download when the turn is cancelled.
+   * @returns the directory the skill's own paths resolve against, and the
+   *   body the catalog stores, when the record carried one.
+   * @throws Error when no cache directory is configured, or the archive is
+   *   unusable. The caller keeps the unresolved body either way.
+   */
+  async install(
+    id: string,
+    meta?: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ dir: string; skillMd: string }> {
+    if (!this.cacheDir) throw new Error('no cache directory is configured for bundles')
+    const record = meta ?? (await this.get(id, signal))
+    const slug = String(record.slug ?? record.skill_id ?? id).replace(/\//g, '_')
+    const version = String(record.version ?? 'v0')
+    const destination = join(this.cacheDir, `${slug}@${version}`)
+
+    if (!existsSync(destination)) {
+      const archive = await this.download(id, signal)
+      await extractBundle(archive, destination)
+    }
+    return {
+      dir: await bundleRoot(destination),
+      skillMd: typeof record.skill_md === 'string' ? record.skill_md : '',
+    }
+  }
+
+  /**
+   * Fetch one bundle's bytes.
+   *
+   * @param id - the catalog's own id for the skill.
+   * @param signal - aborts the request when the turn is cancelled.
+   * @returns the archive.
+   */
+  async download(id: string, signal?: AbortSignal): Promise<Buffer> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => { controller.abort() }, this.downloadTimeoutMs)
+    const onAbort = () => { controller.abort() }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    try {
+      const headers: Record<string, string> = {}
+      if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`
+      const response = await fetch(this.downloadUrl(id), { headers, signal: controller.signal })
+      if (!response.ok) throw new Error(`catalog returned HTTP ${response.status} for a bundle`)
+      return Buffer.from(await response.arrayBuffer())
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+    }
   }
 
   /**

@@ -16,6 +16,8 @@
  * @module @deepseek-ai/dsh-skill-search
  */
 
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
@@ -52,6 +54,11 @@ export interface Config {
   hubEndpoint?: string
   /** Bearer token the catalog requires, if any. */
   hubApiKey?: string
+  /**
+   * Where extracted bundles live. Outside every scanned skills directory,
+   * or a downloaded skill reappears as a local one on the next scan.
+   */
+  bundleCacheDir?: string
   /** Per-request deadline for the catalog, search and body fetch alike. */
   hubTimeoutMs?: number
   /**
@@ -100,6 +107,7 @@ export const Config: z<Config> = z.object({
   skillsDirs: z.array(z.string()).default(['.dsh/skills']),
   hubEndpoint: z.string().default(''),
   hubApiKey: z.string().default(''),
+  bundleCacheDir: z.string().default(''),
   hubTimeoutMs: z.number().default(2000),
   hubMinSafety: z.number().default(0.7),
   weightLocal: z.number().default(1.0),
@@ -185,6 +193,9 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
     client = new SkillHubClient(cfg.hubEndpoint, {
       ...(cfg.hubApiKey ? { apiKey: cfg.hubApiKey } : {}),
       timeoutMs: cfg.hubTimeoutMs ?? 2000,
+      // Beside the scanned directories, never inside one: an extracted
+      // bundle under a skills directory would be rescanned as a local skill.
+      cacheDir: cfg.bundleCacheDir || join(homedir(), '.dsh', 'skillsearch-bundles'),
     })
     sources.push(
       new HubSkillSource(client, {
@@ -219,6 +230,10 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
           fetchBody: async (hit, signal) => {
             const record = await client.get(String(hit.meta.id), signal)
             return typeof record.skill_md === 'string' ? record.skill_md : undefined
+          },
+          materialise: async (hit, signal) => {
+            const installed = await client.install(String(hit.meta.id), undefined, signal)
+            return { dir: installed.dir, body: installed.skillMd }
           },
         }
         : {}),
