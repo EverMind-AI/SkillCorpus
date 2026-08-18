@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh.md)
 
-**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** The `skillsearch` engine inside watches what the user just asked, retrieves the matching `SKILL.md` skills from a local directory and an optional remote catalog, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
+**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** SkillCorpus Plugins watches what the user just asked, retrieves the matching `SKILL.md` skills from a local directory and an optional remote catalog, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
 
 A real turn, on WorkBuddy: ask *“帮我生成一个二维码，内容是 https://evermind.ai，存到桌面”*. No QR skill exists on the machine — but the catalog has one, so before the model answers, its context gains:
 
@@ -25,7 +25,8 @@ Works with a directory of your own skills, with [SkillHub](https://evermind.ai/s
 
 Every supported host *is* an agent, so the fastest install is to let it install itself. Paste this into WorkBuddy, OpenClaw, Hermes, or a DeepSeek Harness session:
 
-> Install the skillsearch plugin for the agent host you are running in.
+> Install SkillCorpus Plugins (plugin id: skillsearch) for the agent host
+> you are running in.
 > Clone https://gitlab.com/npc-work/aic/ai/skillsearch_plugins and follow
 > `INSTALL.agent.md` at its root: detect the host first, back up any config
 > file before editing and show me the diff before applying, and finish by
@@ -176,7 +177,7 @@ plugin-openclaw/     OpenClaw plugin  over engine-typescript
 INSTALL.agent.md     the install playbook your agent follows
 ```
 
-The two engines are independent ports of one design, not a shared core with bindings. What keeps them equal is pinned by tests, not prose: byte-identical prompts, identical BM25/fusion arithmetic, identical `{baseDir}` resolution — [`parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces, and CI runs both on every push.
+In code, the engine and the packages keep the name `skillsearch` — `import skillsearch`, plugin ids, config paths — while SkillCorpus Plugins names the product. The two engines are independent ports of one design, not a shared core with bindings. What keeps them equal is pinned by tests, not prose: byte-identical prompts, identical BM25/fusion arithmetic, identical `{baseDir}` resolution — [`parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces, and CI runs both on every push.
 
 ## Working on this repository
 
@@ -209,7 +210,7 @@ Only a real checkout closes the rest: every plugin here has been installed into 
 
 ## Part of the EverMind agent stack
 
-[Raven](https://github.com/EverMind-AI/Raven), the terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory substrate · [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus), the community skill corpus. skillsearch is the retrieval layer that connects hosts — these and hosts that are none of these — to the skills.
+[Raven](https://github.com/EverMind-AI/Raven), the terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory substrate · [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus), the community skill corpus. SkillCorpus Plugins is the retrieval layer that connects hosts — these and hosts that are none of these — to the skills.
 
 ## Citation
 

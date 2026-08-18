@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** 内置的 `skillsearch` 引擎盯着用户刚说的话，从本地目录和可选的远程技能库里检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
+**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** SkillCorpus Plugins 盯着用户刚说的话，从本地目录和可选的远程技能库里检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
 
 一个真实轮次，发生在 WorkBuddy 上：问 *"帮我生成一个二维码，内容是 https://evermind.ai，存到桌面"*。这台机器上没有任何二维码技能——但语料库里有，于是模型作答前，它的上下文多出：
 
@@ -25,7 +25,7 @@ this directory — use the absolute form for read_file / exec.
 
 每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / OpenClaw / Hermes / DeepSeek Harness 的会话：
 
-> 帮我安装 skillsearch 插件。克隆 https://gitlab.com/npc-work/aic/ai/skillsearch_plugins
+> 帮我安装 SkillCorpus Plugins（插件 id：skillsearch）。克隆 https://gitlab.com/npc-work/aic/ai/skillsearch_plugins
 > 并遵循仓库根目录的 `INSTALL.agent.md`：先判断你运行在哪个宿主里；
 > 改任何配置前先备份并给我看 diff；装完用一个测试问题验证出现
 > `# Skills` 块；最后汇报你改了什么和验证结果。
@@ -174,7 +174,7 @@ plugin-openclaw/     OpenClaw 插件  · 基于 engine-typescript
 INSTALL.agent.md     你的 agent 执行的安装剧本
 ```
 
-两个引擎是同一设计的独立移植，不是共享内核加绑定。让它们保持一致的是测试而不是文档：prompt 字节一致、BM25/融合数值一致、`{baseDir}` 解析规则一致——[`parity.test.ts`](engine-typescript/tests/parity.test.ts) 用 Python 套件产出的数值钉住 TS 侧，CI 每次推送双跑。
+代码层面，引擎和各软件包沿用 `skillsearch` 这个名字——`import skillsearch`、插件 id、配置路径都是它；SkillCorpus Plugins 是产品名。两个引擎是同一设计的独立移植，不是共享内核加绑定。让它们保持一致的是测试而不是文档：prompt 字节一致、BM25/融合数值一致、`{baseDir}` 解析规则一致——[`parity.test.ts`](engine-typescript/tests/parity.test.ts) 用 Python 套件产出的数值钉住 TS 侧，CI 每次推送双跑。
 
 ## 参与开发
 
@@ -206,7 +206,7 @@ npm --prefix plugin-openclaw run check:host
 
 ## EverMind agent 全家桶的一员
 
-[Raven](https://github.com/EverMind-AI/Raven)（终端原生 agent harness）· [EverOS](https://github.com/EverMind-AI/EverOS)（记忆基座）· [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)（社区技能语料库）。skillsearch 是把宿主——以上这些，以及和它们毫无关系的宿主——连到技能上的检索层。
+[Raven](https://github.com/EverMind-AI/Raven)（终端原生 agent harness）· [EverOS](https://github.com/EverMind-AI/EverOS)（记忆基座）· [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)（社区技能语料库）。SkillCorpus Plugins 是把宿主——以上这些，以及和它们毫无关系的宿主——连到技能上的检索层。
 
 ## 引用
 
