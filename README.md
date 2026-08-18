@@ -62,6 +62,32 @@ EOF
 
 Ask your (plugin-equipped) agent about extracting tables from a PDF — the block above appears in its context. Ask it about the weather — nothing is injected: queries that match no skill retrieve nothing.
 
+## What retrieval buys, on four hosts
+
+One case per host, from QwenClawBench: each host running its own agent, the
+same 68 tasks, the same catalog. The arms differ in one thing — whether the
+plugin put a skill in front of the model. Scores are the benchmark's own
+automated half, recomputed from the workspace each run left behind.
+
+| Host | Task | Without skills | With skills | Retrieved |
+| --- | --- | --- | --- | --- |
+| OpenClaw | morning news digest skill | 0.00 | **1.00** | `news-daily`, `news-express` |
+| Hermes | gateway process monitor check | 0.17 | **0.92** | `openclaw-cli` |
+| Raven | memos discovery and workspace bootstrap | 0.00 | **0.74** | `caihhub-preference` |
+| DeepSeek Harness | polygon arbitrage monitor check | 0.50 | **0.83** | `defi-wallet-monitor` |
+
+The Hermes case shows the mechanism plainly. `openclaw-cli` documents how to
+list cron jobs and read the gateway's logs, and five grading points went from
+zero to full with it: the brief followed, the cron gap explained, the security
+policy identified, the log analysis performed, the status summary complete.
+The agent did not lack reasoning — it lacked the commands.
+
+**Read this as what retrieval can do, not as an average.** Across every
+comparison the wins and the losses roughly balance: skills help when the
+corpus holds something the task actually needs, and cost context when it does
+not. That is the number to know before deploying, and the reason the gate
+exists.
+
 ## The five settings you'll actually touch
 
 Full per-host tables live in each plugin's README; these five decide behaviour everywhere (Python / TypeScript spellings):
