@@ -64,10 +64,8 @@ Ask your (plugin-equipped) agent about extracting tables from a PDF — the bloc
 
 ## What retrieval buys, on four hosts
 
-One case per host, from QwenClawBench: each host running its own agent, the
-same 68 tasks, the same catalog. The arms differ in one thing — whether the
-plugin put a skill in front of the model. Scores are the benchmark's own
-automated half, recomputed from the workspace each run left behind.
+One case per host, from QwenClawBench — each host running its own agent, with
+and without retrieval.
 
 | Host | Task | Without skills | With skills | Retrieved |
 | --- | --- | --- | --- | --- |
