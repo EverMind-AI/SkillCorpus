@@ -44,7 +44,6 @@ RRF_K: int = 60
 
 
 def rrf_merge_weighted(
-
     source_results: list[tuple[str, float, list[RouterHit]]],
     k: int,
     dedup_by: str = "name",
