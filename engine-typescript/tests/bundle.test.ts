@@ -115,3 +115,16 @@ test('an extracted bundle is what makes its body resolvable', async () => {
   assert.ok(resolved.includes(join(root, 'references/naming.md')))
   assert.ok(!resolved.includes('{baseDir}'))
 })
+
+test('an archive that understates a size is stopped while inflating', () => {
+  // The size check alone catches this, but only after the bytes are in
+  // memory — which is the cost the bomb exists to impose. `maxOutputLength`
+  // makes the inflate itself refuse, so the error comes from zlib rather
+  // than from the comparison below it.
+  const [only] = readZipEntries(archive('understated'))
+  assert.equal(only!.declaredSize, 32)
+  assert.throws(() => only!.read(), (error: Error) => {
+    assert.doesNotMatch(error.message, /inflated to/, 'the size check ran, so nothing was capped')
+    return true
+  })
+})

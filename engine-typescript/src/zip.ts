@@ -115,7 +115,13 @@ export function readZipEntries(buffer: Buffer): ZipEntry[] {
         if (end > buffer.length) throw new Error(`${name}: data runs past the archive`)
 
         const raw = buffer.subarray(start, end)
-        const out = method === STORED ? Buffer.from(raw) : inflateRawSync(raw)
+        // `maxOutputLength` stops the inflate at the declared size rather
+        // than after it: the check below catches an archive that understates
+        // a size, but only once the bytes are already in memory, which is
+        // the whole cost a zip bomb is trying to impose.
+        const out = method === STORED
+          ? Buffer.from(raw)
+          : inflateRawSync(raw, { maxOutputLength: declaredSize })
         // A directory that understates a size is how a zip bomb gets past a
         // budget check made before inflating.
         if (out.length !== declaredSize) {
