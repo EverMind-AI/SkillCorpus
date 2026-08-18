@@ -26,6 +26,7 @@ several pass, ask the user.
 
 | Host | It is this host if… |
 | --- | --- |
+| WorkBuddy | `~/.workbuddy-ai/settings.json` exists, or your own hook payloads carry `"client": "WorkBuddy"` |
 | Hermes | `$HERMES_HOME` is set, or `~/.hermes/` exists |
 | OpenClaw | `~/.openclaw/openclaw.json` exists, or an `openclaw` process/CLI is present |
 | DeepSeek Harness | the workspace you are in has a `cordis.yml` and a `packages/` tree |
@@ -33,6 +34,14 @@ several pass, ask the user.
 
 Also note where this repository is checked out (clone it if the user gave
 you only the URL): every path below is relative to the repository root.
+
+## WorkBuddy
+
+WorkBuddy installs are file-level marketplace surgery with their own
+playbook: follow [`plugin-workbuddy/INSTALL.agent.md`](plugin-workbuddy/INSTALL.agent.md)
+step by step — do not improvise a WorkBuddy install from this file. The
+same rules apply there, plus two stricter ones it states: report each step
+as you finish it, and never route around a failed step.
 
 ## Hermes
 

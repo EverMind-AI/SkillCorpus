@@ -4,22 +4,28 @@ You are an agent installing **skillsearch** into WorkBuddy — the host you are
 running in. A human asked for this and will read your report. Follow this
 file top to bottom.
 
-This section merges into the repository-root `INSTALL.agent.md` alongside the
-other hosts; until then it stands alone.
+The repository-root `INSTALL.agent.md` routes WorkBuddy installs here.
 
 ## Rules you must follow throughout
 
 1. **Show before you change.** Before writing or editing any config file,
    show the user the exact diff (or the full new file if it did not exist)
    and wait for their go-ahead unless they already told you to proceed.
-2. **Back up first.** Before editing an existing config file, copy it to
-   `<name>.bak-skillsearch` next to itself.
+2. **Back up first, with a timestamp.** Before editing an existing config
+   file, copy it to `<name>.bak-skillsearch.<ISO timestamp>` next to
+   itself — timestamped, so a second install never clobbers the first
+   backup.
 3. **Merge, never replace.** Add keys into existing JSON; do not rewrite
    whole files. If an existing config file fails to parse, **stop and tell
-   the user** — do not overwrite it.
+   the user** — do not overwrite it, do not "fix" it.
 4. **Stop on ambiguity.** If host detection is unclear, ask instead of
-   guessing.
-5. **Finish with the verification section.** An install without a passing
+   guessing. Values like the marketplace name and the version are **read
+   from files, never invented** — each step below says where.
+5. **Report each step, and never route around a failure.** After each
+   numbered step, tell the user in one line what happened. If a step
+   fails, stop and report it exactly — do not skip it, and do not invent
+   an alternative path.
+6. **Finish with the verification section.** An install without a passing
    verification is not done — report exactly which step failed.
 
 ## Step 0 — detect the host
@@ -54,19 +60,33 @@ npm install --prefix plugin-workbuddy
 npm run --prefix plugin-workbuddy build     # produces dist/hook.mjs
 ```
 
-Then, with the user's go-ahead, perform the file-level install. `<market>`
-is the marketplace name and `<version>` is `version` from
-`plugin-workbuddy/.codebuddy-plugin/plugin.json` — read both, never invent
-them.
+Before going further, confirm `plugin-workbuddy/dist/hook.mjs` and
+`plugin-workbuddy/hooks/hooks.json` both exist — missing either, stop and
+report.
+
+Then, with the user's go-ahead, perform the file-level install. `<version>`
+is `version` from `plugin-workbuddy/.codebuddy-plugin/plugin.json`.
+`<market>` is the marketplace name: when the source is a packaged
+marketplace (a git repo whose root carries
+`.codebuddy-plugin/marketplace.json`), read its `name` field; when
+installing straight from this repository checkout, ask the user what to
+call it. Read these values, never invent them.
+
+> Known limitation, state it to the user: whatever `<market>` is, the
+> plugin currently reads its config and writes its log under
+> `data/skillsearch-memmy-marketplace/` — the data directory is pinned in
+> `src/config.ts` until it derives from the install path. Use that pinned
+> path wherever the steps below say `data/skillsearch-<market>/`.
 
 1. **Back up** `~/.workbuddy-ai/settings.json`,
    `~/.workbuddy-ai/plugins/installed_plugins.json` and
    `~/.workbuddy-ai/plugins/known_marketplaces.json`.
 2. **Register the marketplace** in `known_marketplaces.json`: add a key
    `<market>` shaped like the existing `workbuddy-builtin` entry, with
-   `type` `"git"`, `source` naming the repository URL, and
-   `installLocation` naming the checkout. Update an existing key rather
-   than duplicating it.
+   `type` `"git"`, `source` shaped
+   `{"source": "git", "url": "<source url or path>", "path": "<same>"}`,
+   and `installLocation` naming the checkout's absolute path. Update an
+   existing key rather than duplicating it; touch no other key.
 3. **Copy into the cache**: the `plugin-workbuddy/` directory (at minimum
    `.codebuddy-plugin/`, `hooks/`, `dist/`) to
    `~/.workbuddy-ai/plugins/cache/<market>/skillsearch/<version>/`.

@@ -144,8 +144,11 @@ async function main(): Promise<void> {
   } catch {
     // Rule 1: an unexpected failure still owes the host a usable answer.
   }
-  process.stdout.write(JSON.stringify(result))
-  process.exit(0)
+  // Exit inside the write callback, never after the call: past 64 KiB a
+  // pipe write goes asynchronous, and `process.exit` right after it truncates
+  // the document — the host reads unusable JSON and blocks the whole turn.
+  // Reachable: two catalog bodies can exceed 64 KiB once JSON-escaped.
+  process.stdout.write(JSON.stringify(result), () => { process.exit(0) })
 }
 
 const invokedDirectly = process.argv[1] !== undefined
