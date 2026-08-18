@@ -166,14 +166,6 @@ portable, and an `import raven` anywhere outside `adapters/` is a bug.
 
 ## Known limitations
 
-- **The rewriter's `need_retrieval` verdict costs recall, measurably.**
-  Probed against a live model over six runs, one query — *"a test passed
-  last week and fails now, which change broke it"* — flipped between
-  `true` and `false` roughly half the time, and a `false` drops a skill
-  that ranking and the gate would both have selected. The prompt already
-  says "when in doubt, choose retrieval"; the model does not always agree.
-  A deployment that would rather pay for the fan-out than miss a skill
-  should set `rewrite=False` and let the gate narrow on its own.
 - **A remote bundle's own files land in the cache, not next to the skill.**
   `resolve_refs` rewrites `{baseDir}` to the extracted directory, so a
   skill that ships scripts works — but only after `install`, which happens

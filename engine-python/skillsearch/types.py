@@ -102,9 +102,9 @@ class SkillSource(Protocol):
         """Return at most ``k`` :class:`RouterHit` records ranked best-first.
 
         ``history`` is the session-level message list — sources free to
-        ignore it (Local does) or use it as context for a smarter
-        ranker (Everos can feed it into ``backend.recall`` if the
-        backend supports re-ranking by conversation context).
+        ignore it (Local does) or use it as context for a smarter ranker,
+        which is why it is passed to every source rather than only to the
+        ones that ship here.
 
         Empty list is a valid response — the router's
         ``_safe_search`` wrapper additionally turns exceptions into

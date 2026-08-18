@@ -16,7 +16,7 @@ A deployment with a large corpus wants the opposite direction — search the cor
 
 `@deepseek-ai/dsh-skill-search` is a function plugin on `agent/pre-step`. It calls `next()` first, returns a `reject` decision untouched, and otherwise appends one user message to `decision.messages`. Nothing else in the loop changes.
 
-Retrieval is: rewrite (one model call, which may answer `need_retrieval: false` and skip the rest), fan out across sources, fuse by weighted Reciprocal Rank Fusion at K = 60, hydrate bodies for candidates that arrived as catalog metadata, gate, render.
+Retrieval is: rewrite (one model call that cleans the query; it cannot skip retrieval — only the gate, which sees the candidates, may), fan out across sources, fuse by weighted Reciprocal Rank Fusion at K = 60, hydrate bodies for candidates that arrived as catalog metadata, gate, render.
 
 **Fusion ranks by position, not by score.** A local BM25 score and a catalog quality score are not comparable numbers, so the merge uses each hit's rank within its own source. This is what makes the gate mandatory rather than an optimization: every source's best hit reaches the shortlist however weakly it matched, so without the gate "what's the weather" injects whatever the local directory ranked first. The gate is also the only step that can see a skill is *unexecutable here* — a body that assumes a vendor API, a `{baseDir}` placeholder, or a slash-command dispatcher — which no ranking function can detect. It receives the agent's tool names from `ctx.get('tools').schemas(agent)` for exactly that check, and is instructed that selecting nothing beats selecting something irrelevant.
 

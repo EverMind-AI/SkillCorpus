@@ -1,9 +1,9 @@
 """The provider against a fake host driving the real Hermes contract.
 
 The host is not importable here, so the contract is pinned instead: the
-method names, signatures and return types Hermes calls, taken from the
-shipped EverOS provider in the same plugin family. A drift in either
-direction fails here rather than at a user's first turn.
+method names, signatures and return types Hermes calls, read off the
+providers it already ships. A drift in either direction fails here rather
+than at a user's first turn.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def test_register_claims_the_memory_slot() -> None:
 
 
 def test_the_provider_implements_every_method_the_host_calls() -> None:
-    """The contract, taken from the shipped EverOS provider in this family."""
+    """The contract, read off the memory providers Hermes already ships."""
     provider = plugin.SkillSearchProvider()
     for method in (
         "is_available",
