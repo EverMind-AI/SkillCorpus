@@ -54,6 +54,20 @@ Tell the user to run `hermes memory setup` and pick `skillsearch` — the
 provider occupies the memory slot, so mention that it replaces whatever
 memory provider currently holds that slot, and let them decide.
 
+A user who would rather not go through the interactive setup selects the
+provider by hand, in `$HERMES_HOME/config.yaml` — a different file from the
+`skillsearch.json` above, which carries only this plugin's own settings:
+
+```yaml
+memory:
+  provider: skillsearch
+```
+
+Get that filename wrong and nothing says so: the host loads no provider,
+`prefetch` is never called, and the agent answers normally with no skills
+and no error. Verify through the provider listing in the verification
+section rather than by whether the agent still works.
+
 ## OpenClaw
 
 ```bash
