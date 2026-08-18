@@ -47,6 +47,7 @@ def rrf_merge_weighted(
     source_results: list[tuple[str, float, list[RouterHit]]],
     k: int,
     dedup_by: str = "name",
+    rrf_k: int = RRF_K,
 ) -> list[RouterHit]:
     """Fuse per-source ranked lists into one top-K.
 
@@ -77,7 +78,7 @@ def rrf_merge_weighted(
     for source_name, weight, hits in source_results:
         for rank, hit in enumerate(hits, start=1):
             key = getattr(hit, dedup_by)
-            claim = weight / (RRF_K + rank)
+            claim = weight / (rrf_k + rank)
             rrf_scores[key] += claim
             contributing[key].append(source_name)
             # Pick the representative by the same currency the fusion

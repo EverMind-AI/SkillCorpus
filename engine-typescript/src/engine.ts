@@ -27,6 +27,8 @@ export interface EngineOptions {
   readonly gatePool?: number
   /** Multiplier on what each source is asked for before fusion narrows. */
   readonly overFetch?: number
+  /** Rank-damping offset for fusion. Defaults to the paper's 60. */
+  readonly rrfK?: number
   /** Collapse key across sources. */
   readonly dedupBy?: 'name' | 'qualifiedId'
   /** Heading of the rendered block. */
@@ -85,6 +87,7 @@ export class SkillSearchEngine {
   private readonly fetchBody: EngineParts['fetchBody'] | undefined
   private readonly materialise: EngineParts['materialise'] | undefined
   private readonly topK: number
+  private readonly rrfK: number | undefined
   private readonly gatePool: number
   private readonly overFetch: number
   private readonly dedupBy: 'name' | 'qualifiedId'
@@ -98,6 +101,7 @@ export class SkillSearchEngine {
     this.fetchBody = parts.fetchBody
     this.materialise = parts.materialise
     this.topK = options.topK ?? 5
+    this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
     this.dedupBy = options.dedupBy ?? 'name'
@@ -161,7 +165,9 @@ export class SkillSearchEngine {
       }),
     )
 
-    let hits = rrfMergeWeighted(results, poolSize, this.dedupBy)
+    let hits = this.rrfK === undefined
+      ? rrfMergeWeighted(results, poolSize, this.dedupBy)
+      : rrfMergeWeighted(results, poolSize, this.dedupBy, this.rrfK)
     if (hits.length === 0) return []
 
     hits = await this.hydrateBodies(hits, signal)
