@@ -76,17 +76,30 @@ automated half, recomputed from the workspace each run left behind.
 | Raven | memos discovery and workspace bootstrap | 0.00 | **0.74** | `caihhub-preference` |
 | DeepSeek Harness | polygon arbitrage monitor check | 0.50 | **0.83** | `defi-wallet-monitor` |
 
-The Hermes case shows the mechanism plainly. `openclaw-cli` documents how to
-list cron jobs and read the gateway's logs, and five grading points went from
-zero to full with it: the brief followed, the cron gap explained, the security
-policy identified, the log analysis performed, the status summary complete.
-The agent did not lack reasoning — it lacked the commands.
+**OpenClaw — 0.00 to 1.00.** The task asks for a morning news digest skill and
+for the digest to be delivered. Without retrieval nothing was produced: no
+skill file, no frontmatter, no message. `news-daily` and `news-express` supply
+both halves — the shape of a digest skill, and the call that sends it — and all
+four grading points came in.
 
-**Read this as what retrieval can do, not as an average.** Across every
-comparison the wins and the losses roughly balance: skills help when the
-corpus holds something the task actually needs, and cost context when it does
-not. That is the number to know before deploying, and the reason the gate
-exists.
+**Hermes — 0.17 to 0.92.** `openclaw-cli` documents how to list cron jobs and
+read the gateway's logs. The five points that went from zero to full are
+exactly the ones needing those commands: the brief followed, the cron gap
+explained, the security policy identified, the log analysis performed, the
+status summary complete. The agent did not lack reasoning — it lacked the
+commands.
+
+**Raven — 0.00 to 0.74.** A workspace bootstrap, where the score is what
+exists on disk afterwards. `caihhub-preference` describes the layout this
+product expects, and with it the run initialised git, wrote the identity
+files, tracked workspace state, and filled the documentation with real
+content instead of placeholders. The one point still missing is the memos
+investigation, which the skill says nothing about.
+
+**DeepSeek Harness — 0.50 to 0.83.** The arbitrage monitor already ran either
+way; what the skill changed is where its output went. `defi-wallet-monitor`
+names the data directory and log convention, so the run wrote its outputs
+where the check looks for them rather than beside the script.
 
 ## The five settings you'll actually touch
 
