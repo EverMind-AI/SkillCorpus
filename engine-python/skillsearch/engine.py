@@ -27,8 +27,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from dataclasses import replace
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 from skillsearch.config import SearchConfig

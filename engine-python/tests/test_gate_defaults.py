@@ -26,14 +26,29 @@ def local_only(tmp_path: Path, **over: object) -> SearchConfig:
     (skills / "pdf-forms" / "SKILL.md").write_text(
         "---\nname: pdf-forms\ndescription: Fill PDF acroforms\n---\n\nRun pdftk.\n"
     )
-    return SearchConfig.from_mapping(
-        {"skills_dir": str(skills), "workspace": str(tmp_path), **over}
-    )
+    return SearchConfig.from_mapping({"skills_dir": str(skills), "workspace": str(tmp_path), **over})
 
 
 class Model:
     async def complete(self, *args: object, **kwargs: object) -> str:
         raise AssertionError("no model call was expected")
+
+
+class Catalog:
+    """A catalog client the host already built, per `hub_client=`.
+
+    Passed rather than configuring `hub_endpoint` alone, which would have
+    the engine build a real `SkillHubClient` and import `httpx` — an
+    optional extra. The `python-no-extras` CI job exists to prove the local
+    pipeline runs without it, and a test that quietly needs it is exactly
+    what that job is for.
+    """
+
+    async def search(self, query: str, history: list[object], k: int) -> list[object]:
+        return []
+
+    async def aclose(self) -> None:
+        return None
 
 
 # ── the three-row default matrix ─────────────────────────────────────
@@ -54,7 +69,9 @@ def test_local_only_leaves_the_gate_off(tmp_path: Path) -> None:
 def test_a_catalog_turns_the_gate_on(tmp_path: Path) -> None:
     """Unvetted skills need the environment check."""
     search = SkillSearch(
-        local_only(tmp_path, model="m", hub_endpoint="http://catalog.invalid"), model=Model()
+        local_only(tmp_path, model="m", hub_endpoint="http://catalog.invalid"),
+        model=Model(),
+        hub_client=Catalog(),
     )
     assert search._gate is not None
 
@@ -63,8 +80,8 @@ def test_a_catalog_turns_the_gate_on(tmp_path: Path) -> None:
 
 
 def test_the_rewriter_is_on_wherever_a_model_is(tmp_path: Path) -> None:
-    for over in ({}, {"hub_endpoint": "http://catalog.invalid"}):
-        search = SkillSearch(local_only(tmp_path, model="m", **over), model=Model())
+    for over, client in (({}, None), ({"hub_endpoint": "http://catalog.invalid"}, Catalog())):
+        search = SkillSearch(local_only(tmp_path, model="m", **over), model=Model(), hub_client=client)
         assert search._rewriter is not None
 
 
@@ -82,6 +99,7 @@ def test_an_explicit_no_wins_over_the_catalog_default(tmp_path: Path, value: obj
     search = SkillSearch(
         local_only(tmp_path, model="m", hub_endpoint="http://catalog.invalid", gate=value),
         model=Model(),
+        hub_client=Catalog(),
     )
     assert search._gate is None
 

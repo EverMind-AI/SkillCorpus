@@ -66,7 +66,7 @@ async def test_an_unrelated_query_gets_nothing_from_the_local_source(tmp_path) -
     from skillsearch import SearchConfig, SkillSearch
 
     skills = tmp_path / "skills"
-    for i, (name, description) in enumerate([
+    for name, description in [
         ("pdf-forms", "Use this skill to fill PDF acroforms"),
         ("pdf-tables", "Use this skill to extract tables from a PDF"),
         ("csv-audit", "Use this skill to audit a CSV for malformed rows"),
@@ -79,15 +79,11 @@ async def test_an_unrelated_query_gets_nothing_from_the_local_source(tmp_path) -
         ("ini-parse", "Use this skill to parse an INI section"),
         ("log-tail", "Use this skill to tail a log file"),
         ("log-grep", "Use this skill to grep a log file"),
-    ]):
+    ]:
         (skills / name).mkdir(parents=True)
-        (skills / name / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: {description}\n---\n\nSteps.\n"
-        )
+        (skills / name / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {description}\n---\n\nSteps.\n")
 
-    search = SkillSearch(
-        SearchConfig.from_mapping({"skills_dir": str(skills), "workspace": str(tmp_path)})
-    )
+    search = SkillSearch(SearchConfig.from_mapping({"skills_dir": str(skills), "workspace": str(tmp_path)}))
     assert await search.retrieve("use this skill to tell me the weather") == ""
     # The corpus still answers what it does hold.
     assert "pdf-forms" in await search.retrieve("fill an acroform")

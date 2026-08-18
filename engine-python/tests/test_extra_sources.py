@@ -17,8 +17,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from skillsearch.config import SearchConfig
 from skillsearch.engine import SkillSearch
 from skillsearch.types import RouterHit, SkillSource
@@ -104,9 +102,7 @@ async def test_a_broken_outside_source_costs_the_turn_its_skills_not_the_turn(tm
 
     skills = tmp_path / "skills"
     write_skill(skills, "pdf-forms", "Fill PDF acroforms", "Run pdftk with an FDF.")
-    search = SkillSearch(
-        config(skills_dir=str(skills), workspace=str(tmp_path)), extra_sources=[Broken()]
-    )
+    search = SkillSearch(config(skills_dir=str(skills), workspace=str(tmp_path)), extra_sources=[Broken()])
 
     # The router swallows a failing source; the local one still answers.
     assert "pdf-forms" in await search.retrieve("fill in the acroform")

@@ -59,8 +59,12 @@ def test_the_index_text_is_name_twice_and_description(tmp_path) -> None:
     from skillsearch.types import SkillMeta
 
     meta = SkillMeta(
-        name="pdf-tables", description="Extract tables.", content="x" * 5000,
-        source="local", path="", always=False,
+        name="pdf-tables",
+        description="Extract tables.",
+        content="x" * 5000,
+        source="local",
+        path="",
+        always=False,
     )
     assert _format_skill_text(meta) == "pdf-tables pdf-tables Extract tables."
 
@@ -70,12 +74,14 @@ def test_index_body_restores_the_capped_body(tmp_path) -> None:
     from skillsearch.types import SkillMeta
 
     meta = SkillMeta(
-        name="pdf-tables", description="Extract tables.", content="x" * 5000,
-        source="local", path="", always=False,
+        name="pdf-tables",
+        description="Extract tables.",
+        content="x" * 5000,
+        source="local",
+        path="",
+        always=False,
     )
-    assert _format_skill_text(meta, index_body=True) == (
-        "pdf-tables pdf-tables Extract tables. " + "x" * 4000
-    )
+    assert _format_skill_text(meta, index_body=True) == ("pdf-tables pdf-tables Extract tables. " + "x" * 4000)
 
 
 async def test_a_term_only_in_a_body_is_findable_once_index_body_is_on(tmp_path) -> None:
@@ -90,10 +96,13 @@ async def test_a_term_only_in_a_body_is_findable_once_index_body_is_on(tmp_path)
 
     def search_for(index_body: bool) -> SkillSearch:
         return SkillSearch(
-            SearchConfig.from_mapping({
-                "skills_dir": str(skills), "workspace": str(tmp_path),
-                "index_body": index_body,
-            })
+            SearchConfig.from_mapping(
+                {
+                    "skills_dir": str(skills),
+                    "workspace": str(tmp_path),
+                    "index_body": index_body,
+                }
+            )
         )
 
     assert "invoicing" not in await search_for(False).retrieve("qhjklz")

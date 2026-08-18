@@ -276,8 +276,7 @@ async def test_a_model_saying_no_retrieval_no_longer_stops_the_fan_out(tmp_path)
 
     search = SkillSearch(
         SearchConfig.from_mapping(
-            {"skills_dir": str(tmp_path / "skills"), "workspace": str(tmp_path), "model": "m",
-             "gate": True}
+            {"skills_dir": str(tmp_path / "skills"), "workspace": str(tmp_path), "model": "m", "gate": True}
         ),
         model=Refuses(),
     )
@@ -310,8 +309,13 @@ async def test_the_gate_sees_a_local_skill_s_paths_already_resolved(tmp_path) ->
 
     search = SkillSearch(
         SearchConfig.from_mapping(
-            {"skills_dir": str(tmp_path / "skills"), "workspace": str(tmp_path),
-             "model": "m", "rewrite": False, "gate": True}
+            {
+                "skills_dir": str(tmp_path / "skills"),
+                "workspace": str(tmp_path),
+                "model": "m",
+                "rewrite": False,
+                "gate": True,
+            }
         ),
         model=Gate(),
     )

@@ -101,9 +101,7 @@ class LocalPool:
                 self._metas = []
                 self._bm25 = None
             return
-        tokenized_corpus = [
-            _tokenize(_format_skill_text(m, index_body=self._index_body)) for m in metas
-        ]
+        tokenized_corpus = [_tokenize(_format_skill_text(m, index_body=self._index_body)) for m in metas]
         bm25 = _BM25Okapi(tokenized_corpus)
         # Defensive copy: registry's ``list_all`` hands out its cached
         # list by reference, and a future rebuild replaces (not mutates)
