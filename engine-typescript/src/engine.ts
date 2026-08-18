@@ -60,7 +60,17 @@ export interface EngineParts {
   readonly rewriter?: QueryRewriter
   readonly gate?: LLMGateFilter
   /** Loads a remote body once the gate has kept its hit. */
-  readonly fetchBody?: (hit: RouterHit, signal?: AbortSignal) => Promise<string | undefined>
+  /**
+   * Load a remote body before the gate judges it.
+   *
+   * Returning the catalog record alongside the body lets `materialise` reuse
+   * it: the install would otherwise fetch the same detail a second time, one
+   * request per selected skill. Returning a bare string still works.
+   */
+  readonly fetchBody?: (
+    hit: RouterHit,
+    signal?: AbortSignal,
+  ) => Promise<string | { body?: string; record?: Record<string, unknown> } | undefined>
   /**
    * Put a selected remote skill's own files on disk and say where.
    *
@@ -239,8 +249,16 @@ export class SkillSearchEngine {
       hits.map(async (hit) => {
         if (hit.content) return hit
         try {
-          const body = await fetchBody(hit, signal)
-          return body ? { ...hit, content: body } : hit
+          const out = await fetchBody(hit, signal)
+          if (!out) return hit
+          if (typeof out === 'string') return { ...hit, content: out }
+          // The record rides in meta so `materialise` can hand it to the
+          // install instead of fetching the same detail again. Mirrors the
+          // Python engine's `meta["_fetched"]`.
+          const next = { ...hit }
+          if (out.body) next.content = out.body
+          if (out.record) next.meta = { ...hit.meta, _fetched: out.record }
+          return next
         } catch {
           return hit
         }

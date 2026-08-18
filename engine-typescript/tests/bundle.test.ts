@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url'
 import { bundleRoot, extractBundle } from '../src/bundle.ts'
 import { resolveRefs } from '../src/refs.ts'
 import { readZipEntries } from '../src/zip.ts'
+import { SkillSearchEngine } from '../src/engine.ts'
+import type { RouterHit } from '../src/types.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES: Record<string, string> = JSON.parse(
@@ -127,4 +129,49 @@ test('an archive that understates a size is stopped while inflating', () => {
     assert.doesNotMatch(error.message, /inflated to/, 'the size check ran, so nothing was capped')
     return true
   })
+})
+
+test('a selected catalog skill is not fetched a second time to install it', async () => {
+  // `hydrateBodies` already fetched the detail before the gate. Passing that
+  // record through to the install is what keeps the second GET from
+  // happening — the Python engine has done this via `meta["_fetched"]` for
+  // as long as it has had a catalog.
+  const fetched: string[] = []
+  const installedWith: (Record<string, unknown> | undefined)[] = []
+
+  const hit: RouterHit = {
+    qualifiedId: 'hub/abc',
+    name: 'pdf-forms',
+    content: '',
+    score: 1,
+    meta: { source: 'hub', id: 'abc' },
+  }
+
+  const engine = new SkillSearchEngine(
+    {
+      sources: [{
+        name: 'hub',
+        weight: 0.85,
+        search: async () => [hit],
+      }],
+      fetchBody: async (h) => {
+        fetched.push(String(h.meta.id))
+        return { body: 'catalog body', record: { slug: 'pdf-forms', version: 'v3' } }
+      },
+      materialise: async (h) => {
+        installedWith.push(h.meta._fetched as Record<string, unknown> | undefined)
+        return { dir: '/cache/pdf-forms', body: 'catalog body' }
+      },
+    },
+    { topK: 1 },
+  )
+
+  await engine.retrieve('fill an acroform')
+
+  assert.deepEqual(fetched, ['abc'], 'the detail is fetched once, before the gate')
+  assert.deepEqual(
+    installedWith,
+    [{ slug: 'pdf-forms', version: 'v3' }],
+    'and handed to the install rather than fetched again',
+  )
 })

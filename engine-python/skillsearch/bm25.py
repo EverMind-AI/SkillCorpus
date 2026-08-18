@@ -4,8 +4,15 @@ A self-contained Okapi BM25 (no ``rank_bm25`` / ``jieba`` / ``nltk``) plus a
 CJK-aware tokenizer, shared by anything that needs cheap keyword ranking over
 a few hundred short documents — file-based skills, tool catalogs, etc.
 
-Tokenization splits on word boundaries and treats each Chinese ideograph as a
-single token, so Chinese queries match instead of collapsing to empty.
+Latin runs tokenize on word boundaries. A CJK run is cut into overlapping
+two-character tokens rather than single ideographs, because single
+ideographs do not carry enough meaning to rank on: measured over 46 skills,
+"做个 PPT 讲下季度进展" ranked a stock-research skill first, since 季 and 度
+each matched separately in any long document that happened to contain
+either. Bigrams put the slide-deck skill first, which is the answer.
+
+A one-character run has no bigram, so it falls back to itself. That is the
+only place a single ideograph is still a token.
 """
 
 from __future__ import annotations
@@ -13,9 +20,11 @@ from __future__ import annotations
 import math
 import re
 
-# Match length-≥2 alphanumeric runs OR a single CJK ideograph.
+# Latin runs of two or more, or a maximal run of CJK ideographs — the run,
+# not one character, because the run is what gets cut into bigrams below.
 # ``re`` precompile is module-level to dodge per-call regex setup.
-_TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[一-鿿]")
+_TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[一-鿿]+")
+_CJK_RE = re.compile(r"[一-鿿]")
 
 # A term in more than this share of documents is treated as a stop word.
 STOPWORD_DF_RATIO = 0.5
@@ -24,7 +33,25 @@ STOPWORD_MIN_CORPUS = 10
 
 
 def tokenize(text: str) -> list[str]:
-    return _TOKEN_RE.findall(text.lower())
+    """Split into scorable tokens: Latin words, and CJK bigrams.
+
+    The TypeScript implementation must produce the same list for the same
+    input — the two promise the same ranking over the same corpus, and a
+    tokenizer that differs is the one divergence no later step can correct.
+    """
+    out: list[str] = []
+    for run in _TOKEN_RE.findall(text.lower()):
+        if not _CJK_RE.match(run):
+            out.append(run)
+            continue
+        # Overlapping bigrams, so "季度进展" contributes 季度, 度进, 进展 and
+        # a query naming any of those pairs matches on the pair rather than
+        # on either character alone.
+        if len(run) == 1:
+            out.append(run)
+        else:
+            out.extend(run[i : i + 2] for i in range(len(run) - 1))
+    return out
 
 
 class BM25Okapi:

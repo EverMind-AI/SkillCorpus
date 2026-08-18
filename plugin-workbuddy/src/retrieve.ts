@@ -81,11 +81,17 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
           fetchBody: async (hit, signal) => {
             if (hit.meta.source !== 'hub') return undefined
             const record = await client.get(String(hit.meta.id), signal)
-            return typeof record.skill_md === 'string' ? record.skill_md : undefined
+            // The record rides along so `materialise` can skip re-fetching
+            // the same detail — one request per selected skill otherwise.
+            return {
+              ...(typeof record.skill_md === 'string' ? { body: record.skill_md } : {}),
+              record,
+            }
           },
           materialise: async (hit, signal) => {
             if (hit.meta.source !== 'hub') return undefined
-            const installed = await client.install(String(hit.meta.id), undefined, signal)
+            const fetched = hit.meta._fetched as Record<string, unknown> | undefined
+            const installed = await client.install(String(hit.meta.id), fetched, signal)
             return { dir: installed.dir, body: installed.skillMd }
           },
         }

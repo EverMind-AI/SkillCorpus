@@ -13,15 +13,37 @@
  * Runs of two or more alphanumerics, or a single CJK ideograph. Compiled once:
  * this runs per document on every turn.
  */
-const TOKEN_RE = /[a-z0-9]{2,}|[一-鿿]/g
+// Latin runs of two or more, or a maximal run of CJK ideographs — the run,
+// not one character, because the run is what gets cut into bigrams below.
+const TOKEN_RE = /[a-z0-9]{2,}|[一-鿿]+/g
+const CJK_RE = /^[一-鿿]/
 
 /**
- * Lowercase and split into scorable tokens.
+ * Lowercase and split into scorable tokens: Latin words, and CJK bigrams.
+ *
+ * Byte-for-byte the same list as the Python `tokenize` for the same input.
+ * Single ideographs did not carry enough meaning to rank on: measured over
+ * 46 skills, "做个 PPT 讲下季度进展" ranked a stock-research skill first,
+ * because 季 and 度 each matched separately in any long document holding
+ * either. Bigrams put the slide-deck skill first.
+ *
  * @param text - raw text from a query or a document.
  * @returns the tokens, in order, with everything unscorable dropped.
  */
 export function tokenize(text: string): string[] {
-  return text.toLowerCase().match(TOKEN_RE) ?? []
+  const out: string[] = []
+  for (const run of text.toLowerCase().match(TOKEN_RE) ?? []) {
+    if (!CJK_RE.test(run)) {
+      out.push(run)
+      continue
+    }
+    // Overlapping bigrams, so 季度进展 contributes 季度, 度进, 进展 and a query
+    // naming any of those pairs matches on the pair rather than on either
+    // character alone. A single ideograph has no bigram and stands alone.
+    if (run.length === 1) out.push(run)
+    else for (let i = 0; i < run.length - 1; i += 1) out.push(run.slice(i, i + 2))
+  }
+  return out
 }
 
 /**

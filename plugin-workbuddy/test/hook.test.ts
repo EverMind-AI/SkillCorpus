@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { DEFAULTS, type SkillSearchConfig } from '../src/config.ts'
-import { queryOf, resultFor, runTurn } from '../src/hook.ts'
+import { queryOf, resultFor, runTurn, selectedSkills } from '../src/hook.ts'
 
 /** A payload as observed on stdin, fields and all. */
 const REAL_PAYLOAD = {
@@ -116,4 +116,11 @@ test('the log names the skills, because the transcript will not', async () => {
 
   const entry = JSON.parse(readFileSync(resolved.logPath, 'utf8').trim()) as Record<string, unknown>
   assert.deepEqual(entry.skills, ['alpha[local]', 'beta[local]'])
+})
+
+test('a skill name containing a space is logged whole', () => {
+  // `\\S+` stopped at the first space, so a catalog skill called
+  // "PDF Tables" was logged as "PDF".
+  const block = '### Skill: PDF Tables  [hub/abc-123/x]\n\nbody\n'
+  assert.deepEqual(selectedSkills(block), ['PDF Tables[hub]'])
 })

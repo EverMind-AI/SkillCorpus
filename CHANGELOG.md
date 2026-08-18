@@ -51,6 +51,40 @@
 
 ### Fixed
 
+- **A CJK query is tokenized into bigrams, not single ideographs.** `季度`
+  used to match any document containing 季 or 度 anywhere: measured over 46
+  WorkBuddy skills, "做个 PPT 讲下季度进展" ranked a stock-research skill above
+  the slide-deck skill that should have won. Both engines cut a CJK run into
+  overlapping two-character tokens; a one-character run has no bigram and
+  stands alone, so a single-ideograph query still matches. **Behaviour
+  change** for every CJK corpus, and the BM25 parity values are regenerated.
+
+- **`rrf_k` reaches fusion on the Python side.** Both engines gained the
+  parameter, but only TypeScript wired it through to configuration — the
+  Python `SearchConfig` had no field and the router never passed one, so no
+  Hermes, Raven or HTTP deployment could set it.
+
+- **A selected catalog skill is fetched once, not twice.** The detail is
+  already loaded before the gate; the install then fetched the same record
+  again, one request per selected skill. It now rides through `meta._fetched`,
+  as the Python engine has always done. Fixed at all three TypeScript
+  assembly points.
+
+- **The WorkBuddy data directory follows the marketplace it was installed
+  from.** The host allots `skillsearch-<market>` and hands a hook no name,
+  so the path was pinned to one marketplace: a copy installed from any other
+  read no `config.json` at all — silently — and wrote its log and index cache
+  where the host had not allotted it. The name now comes from the hook's own
+  path, falling back to the previous value off a marketplace install.
+
+- **A WorkBuddy skill name containing a space is logged whole**; `\S+`
+  stopped at the first space, so "PDF Tables" was logged as "PDF".
+
+- **`timeoutMs` is clamped below the host's own hook timeout.** Set above the
+  `timeout: 10` seconds in `hooks.json`, the host killed the process first —
+  and a killed hook fails the user's turn rather than costing it its skills,
+  which is the one outcome that plugin is built to avoid.
+
 - **The WorkBuddy hook could truncate its own answer and block the turn.**
   `process.exit(0)` immediately after `process.stdout.write` cuts the
   document at the 64 KiB pipe buffer once the write goes asynchronous —

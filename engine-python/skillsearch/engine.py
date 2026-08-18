@@ -182,6 +182,7 @@ class SkillSearch:
             sources=sources,
             over_fetch_factor=cfg.over_fetch,
             dedup_by=cfg.dedup_by,
+            rrf_k=cfg.rrf_k,
         )
 
     def _build_local_source(self, store: SkillStore | None):

@@ -72,12 +72,6 @@ marketplace (a git repo whose root carries
 installing straight from this repository checkout, ask the user what to
 call it. Read these values, never invent them.
 
-> Known limitation, state it to the user: whatever `<market>` is, the
-> plugin currently reads its config and writes its log under
-> `data/skillsearch-memmy-marketplace/` — the data directory is pinned in
-> `src/config.ts` until it derives from the install path. Use that pinned
-> path wherever the steps below say `data/skillsearch-<market>/`.
-
 1. **Back up** `~/.workbuddy-ai/settings.json`,
    `~/.workbuddy-ai/plugins/installed_plugins.json` and
    `~/.workbuddy-ai/plugins/known_marketplaces.json`.

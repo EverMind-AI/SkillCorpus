@@ -22,7 +22,7 @@ import asyncio
 import logging
 from typing import Any
 
-from skillsearch.fusion import rrf_merge_weighted
+from skillsearch.fusion import RRF_K, rrf_merge_weighted
 from skillsearch.types import RouterHit, SkillSource
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ class SkillForgeRouter:
         *,
         over_fetch_factor: int = 2,
         dedup_by: str = "name",
+        rrf_k: int = RRF_K,
     ) -> None:
         # The list is captured by reference; callers should pass an
         # already-frozen tuple if they want to forbid mutation. We
@@ -46,6 +47,7 @@ class SkillForgeRouter:
         self._sources = sources
         self._over_fetch_factor = max(1, over_fetch_factor)
         self._dedup_by = dedup_by
+        self._rrf_k = rrf_k
 
     async def select(
         self,
@@ -60,6 +62,7 @@ class SkillForgeRouter:
             [(s.name, s.weight, hits) for s, hits in zip(self._sources, per_source, strict=True)],
             k=k,
             dedup_by=self._dedup_by,
+            rrf_k=self._rrf_k,
         )
 
     async def _safe_search(

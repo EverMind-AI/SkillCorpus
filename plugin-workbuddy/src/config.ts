@@ -56,10 +56,37 @@ export interface SkillSearchConfig {
   readonly logPath: string
 }
 
+/** Where a marketplace-installed hook lives, which is where its name is. */
+const CACHE_PATH_RE = /[/\\]plugins[/\\]cache[/\\]([^/\\]+)[/\\]/
+
+/**
+ * The marketplace this copy was installed from.
+ *
+ * The host allots one data directory per marketplace, `skillsearch-<market>`,
+ * and nothing hands the name to a hook — but the hook's own path carries it:
+ * `…/plugins/cache/<market>/skillsearch/<version>/dist/hook.mjs`. Reading it
+ * from there is what lets a copy installed from any marketplace find the
+ * `config.json` a user wrote where the host said to.
+ *
+ * @param argv1 - the running script's path; defaults to this process's.
+ * @returns the marketplace name, or the historical default when the path is
+ *   not a marketplace install (a dev checkout run directly, say).
+ */
+export function marketplaceName(argv1: string = process.argv[1] ?? ''): string {
+  return CACHE_PATH_RE.exec(argv1)?.[1] ?? 'memmy-marketplace'
+}
+
 /** The directory WorkBuddy gives this plugin for its own state. */
 export const DATA_DIR = join(
-  homedir(), '.workbuddy-ai', 'plugins', 'data', 'skillsearch-memmy-marketplace',
+  homedir(), '.workbuddy-ai', 'plugins', 'data', `skillsearch-${marketplaceName()}`,
 )
+
+/**
+ * Ceiling on `timeoutMs`, below the `timeout: 10` seconds `hooks.json` gives
+ * the hook. The host kills an overrunning process, and a killed hook blocks
+ * the user's turn.
+ */
+export const MAX_TIMEOUT_MS = 8000
 
 export const DEFAULTS: SkillSearchConfig = {
   // Both roots WorkBuddy actually keeps skills in: what the user installed,
@@ -205,7 +232,11 @@ export function loadConfig(
     indexBody: asBoolean(pick('indexBody')) ?? DEFAULTS.indexBody,
     rewrite: asBoolean(pick('rewrite')) ?? DEFAULTS.rewrite,
     gate: asBoolean(pick('gate')),
-    timeoutMs: asNumber(pick('timeoutMs')) ?? DEFAULTS.timeoutMs,
+    // Clamped below the host's own hook timeout in `hooks.json` (10s). Past
+    // it the host kills the process first, and a killed hook fails the turn
+    // rather than costing it its skills — the one outcome this plugin exists
+    // to avoid. Two settings that must stay ordered, so the code orders them.
+    timeoutMs: Math.min(asNumber(pick('timeoutMs')) ?? DEFAULTS.timeoutMs, MAX_TIMEOUT_MS),
     availableTools: asList(pick('availableTools')) ?? DEFAULTS.availableTools,
     localWeight: asNumber(pick('localWeight')) ?? DEFAULTS.localWeight,
     hubWeight: asNumber(pick('hubWeight')) ?? DEFAULTS.hubWeight,

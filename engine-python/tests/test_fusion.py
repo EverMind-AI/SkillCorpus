@@ -114,3 +114,45 @@ def test_k_bounds_the_result() -> None:
 def test_no_sources_fuse_to_nothing() -> None:
     assert rrf_merge_weighted([], k=5) == []
     assert rrf_merge_weighted([("local", 1.0, [])], k=5) == []
+
+
+def test_the_rrf_offset_reaches_fusion_from_config() -> None:
+    """`rrf_k` was added to both fusion functions but wired only on the
+    TypeScript side, so no Python host had a way to set it.
+
+    Checked by behaviour rather than by attribute: a smaller offset widens
+    the gap between adjacent ranks, which is the whole reason a host fusing
+    a short head wants one.
+    """
+    import asyncio
+
+    from skillsearch.router import SkillForgeRouter
+    from skillsearch.types import RouterHit
+
+    class Source:
+        def __init__(self, name: str, weight: float, names: list[str]) -> None:
+            self.name, self.weight, self._names = name, weight, names
+
+        async def search(self, query: str, history: list, k: int) -> list[RouterHit]:
+            return [
+                RouterHit(qualified_id=f"{self.name}/{n}", name=n, content=n, score=1.0, meta={"source": self.name})
+                for n in self._names[:k]
+            ]
+
+    sources = [Source("local", 1.0, ["a", "b"]), Source("hub", 0.85, ["c", "d"])]
+
+    def fuse(rrf_k: int) -> list[float]:
+        # `score` is the per-source score the hit arrived with; the fused
+        # value is annotated onto meta, which is what the offset moves.
+        router = SkillForgeRouter(sources, rrf_k=rrf_k)
+        return [h.meta["rrf_score"] for h in asyncio.run(router.select("q", [], k=4))]
+
+    wide, narrow = fuse(10), fuse(60)
+    assert wide[0] - wide[1] > narrow[0] - narrow[1]
+
+
+def test_the_default_offset_is_still_the_paper_s() -> None:
+    from skillsearch.config import SearchConfig
+    from skillsearch.fusion import RRF_K
+
+    assert SearchConfig().rrf_k == RRF_K == 60

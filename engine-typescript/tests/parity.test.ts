@@ -44,9 +44,10 @@ function capturing(reply: string): {
   return box
 }
 
-test('the tokenizer splits CJK per character and keeps latin words whole', () => {
-  assert.deepEqual(tokenize('git 分支 rebase'), ['git', '分', '支', 'rebase'])
-  // Single latin characters are not tokens; a lone ideograph is.
+test('the tokenizer cuts CJK into bigrams and keeps latin words whole', () => {
+  assert.deepEqual(tokenize('git 分支 rebase'), ['git', '分支', 'rebase'])
+  // Single latin characters are not tokens; a lone ideograph is, because a
+  // one-character run has no bigram to stand in for it.
   assert.deepEqual(tokenize('a pdf 表'), ['pdf', '表'])
 })
 
@@ -59,7 +60,8 @@ test('BM25 returns the scores the Python implementation returns', () => {
   const scores = new BM25Okapi(corpus).getScores(tokenize('pdftk acroform'))
 
   assert.equal(scores.length, 2)
-  assert.equal(scores[0]!.toFixed(6), '1.546938')
+  // Regenerated with the bigram tokenizer; 1.546938 was the unigram value.
+  assert.equal(scores[0]!.toFixed(6), '1.498697')
   assert.equal(scores[1]!.toFixed(6), '0.000000')
 })
 
@@ -313,4 +315,28 @@ test('a distinguishing term still ranks after pruning', () => {
   docs.push(tokenize('skill for parsing pdf acroforms'))
   const scores = new BM25Okapi(docs).getScores(tokenize('acroforms'))
   assert.equal(scores.indexOf(Math.max(...scores)), docs.length - 1)
+})
+
+test('a CJK run tokenizes to the same bigrams Python produces', () => {
+  // Single ideographs did not carry enough meaning to rank on: 季度 matched
+  // any document containing 季 or 度 anywhere, which is how a stock-research
+  // skill outranked a slide-deck skill for "做个 PPT 讲下季度进展" over a
+  // 46-skill corpus. The tokenizer is the one divergence no later step can
+  // correct, so the lists are pinned side by side rather than described.
+  assert.deepEqual(tokenize('季度进展'), ['季度', '度进', '进展'])
+  assert.deepEqual(tokenize('做个 PPT 讲下季度进展'), [
+    '做个', 'ppt', '讲下', '下季', '季度', '度进', '进展',
+  ])
+})
+
+test('a lone ideograph stands alone, as in Python', () => {
+  // A one-character run has no bigram, and dropping it would lose the only
+  // token a one-character query has.
+  assert.deepEqual(tokenize('图'), ['图'])
+  assert.deepEqual(tokenize('看图 说话'), ['看图', '说话'])
+})
+
+test('a Latin run under two characters is still dropped', () => {
+  assert.deepEqual(tokenize('a'), [])
+  assert.deepEqual(tokenize('ab'), ['ab'])
 })

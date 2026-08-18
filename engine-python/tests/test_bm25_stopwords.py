@@ -87,3 +87,40 @@ async def test_an_unrelated_query_gets_nothing_from_the_local_source(tmp_path) -
     assert await search.retrieve("use this skill to tell me the weather") == ""
     # The corpus still answers what it does hold.
     assert "pdf-forms" in await search.retrieve("fill an acroform")
+
+
+# ── CJK tokenization ─────────────────────────────────────────────────
+
+
+def test_a_cjk_run_becomes_overlapping_bigrams() -> None:
+    """Single ideographs do not carry enough meaning to rank on.
+
+    `季度` used to match any document containing 季 or 度 anywhere, which is
+    how a stock-research skill outranked a slide-deck skill for "做个 PPT
+    讲下季度进展" over a 46-skill corpus. A bigram matches the pair.
+    """
+    assert tokenize("季度进展") == ["季度", "度进", "进展"]
+
+
+def test_latin_and_cjk_split_independently() -> None:
+    assert tokenize("做个 PPT 讲下季度进展") == [
+        "做个",
+        "ppt",
+        "讲下",
+        "下季",
+        "季度",
+        "度进",
+        "进展",
+    ]
+
+
+def test_a_lone_ideograph_stands_alone() -> None:
+    """A one-character run has no bigram, and dropping it would lose the
+    only token a one-character query has."""
+    assert tokenize("图") == ["图"]
+    assert tokenize("看图 说话") == ["看图", "说话"]
+
+
+def test_a_latin_run_under_two_characters_is_dropped_as_before() -> None:
+    assert tokenize("a") == []
+    assert tokenize("ab") == ["ab"]

@@ -53,7 +53,10 @@ export function queryOf(payload: UserPromptSubmitPayload): string {
 export function selectedSkills(block: string): string[] {
   // `name[source]`, so a turn where the catalog silently failed is visible in
   // the log as an all-local line rather than as nothing at all.
-  return [...block.matchAll(/^### Skill: (\S+)\s+\[(\S+?)\//gm)]
+  //
+  // The name runs to the bracket rather than to the first space: a catalog
+  // skill may well be called "PDF Tables", and `\S+` logged it as "PDF".
+  return [...block.matchAll(/^### Skill: (.+?)\s+\[([^/\]]+)\//gm)]
     .map(match => `${match[1]}[${match[2]}]`)
 }
 

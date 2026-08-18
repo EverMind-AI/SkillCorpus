@@ -104,6 +104,14 @@ class SearchConfig:
     # ── Fusion ───────────────────────────────────────────────────────
     weight_local: float = 1.0
     weight_hub: float = 0.85
+
+    rrf_k: int = 60
+    """Rank-damping offset in the fusion. The paper's 60 by default.
+
+    A host fusing a short head — a ``top_k`` of 3, say — may want it
+    smaller: at 60 the weight gap between two sources exceeds every rank
+    gap inside either, so fusion degrades into a seating order by source
+    rather than by rank."""
     """Rank weights. Local ranks highest as hand-curated, remote lowest as
     unvetted. A source passed through ``extra_sources`` carries its own."""
 
