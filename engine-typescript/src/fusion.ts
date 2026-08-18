@@ -45,12 +45,16 @@ export interface SourceResult {
  * @param sourceResults - each source's ranking, its name and its weight.
  * @param k - upper bound on the fused list.
  * @param dedupBy - the field two hits must share to collapse into one.
+ * @param rrfK - the rank-damping offset. The default keeps the paper's 60;
+ *   a host fusing a short head (topK of 3) may pass a smaller value, since at
+ *   60 any weight gap between sources outweighs every rank gap within one.
  * @returns the fused hits, best first, at most `k` long.
  */
 export function rrfMergeWeighted(
   sourceResults: readonly SourceResult[],
   k: number,
   dedupBy: 'name' | 'qualifiedId' = 'name',
+  rrfK: number = RRF_K,
 ): RouterHit[] {
   /**
    * One accumulator per dedup key: the fused score, the representative,
@@ -66,7 +70,7 @@ export function rrfMergeWeighted(
     for (const [i, hit] of hits.entries()) {
       const rank = i + 1
       const key = hit[dedupBy]
-      const contribution = weight / (RRF_K + rank)
+      const contribution = weight / (rrfK + rank)
       const seen = merged.get(key)
       if (seen === undefined) {
         merged.set(key, {
