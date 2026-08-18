@@ -37,6 +37,18 @@ be active.
 | `max_select` | `2` | Upper bound on what the gate keeps |
 | `timeout_s` | `8.0` | Deadline for one retrieval |
 
+The default is the directory the host already conventions, so a deployment
+that keeps its skills there configures nothing. A directory that does not
+exist is not an error: the local source simply is not there, and retrieval
+runs on whatever else is configured — or, with nothing else, stays off.
+
+`gate` is unset by default, which means *on when a catalog is configured*.
+The gate is told to reject when unsure: a directory you curate is better
+served by ranking and `top_k`, especially now that an unrelated query
+returns nothing from it at all, while a catalog of unvetted skills needs
+the check for whether this agent even has the tools a skill calls for. Set
+it explicitly either way and that wins.
+
 **Configure a `model`.** Fusion ranks by position, so every source's best hit
 reaches the shortlist however weakly it matched, and the gate is the only
 step that removes those. Without one, an unrelated turn still gets a skill.

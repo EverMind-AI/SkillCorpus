@@ -1,5 +1,6 @@
 """What the engine promises, independent of any host."""
 
+import json
 from pathlib import Path
 
 from skillsearch import SearchConfig, SkillSearch
@@ -157,7 +158,7 @@ class TestGate:
 
         model = _ScriptedModel(keep="pdf")
         gated = await SkillSearch(
-            SearchConfig(**base, model="scripted", max_select=2),
+            SearchConfig(**base, model="scripted", max_select=2, gate=True),
             model=model,
         ).retrieve("extract data from documents")
         assert _names(gated) == ["local/pdf-tables"]
@@ -168,7 +169,7 @@ class TestGate:
         _three_overlapping_skills(tmp_path)
         model = _ScriptedModel(keep="pdf")
         await SkillSearch(
-            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted"),
+            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted", gate=True),
             model=model,
             get_tools=lambda: [{"function": {"name": "exec"}}, "read_file"],
         ).retrieve("extract data from documents")
@@ -178,7 +179,7 @@ class TestGate:
     async def test_gate_failure_keeps_the_top_hits(self, tmp_path: Path) -> None:
         _three_overlapping_skills(tmp_path)
         out = await SkillSearch(
-            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted", max_select=2),
+            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted", max_select=2, gate=True),
             model=_ScriptedModel(gate_raises=True),
         ).retrieve("extract data from documents")
         assert len(_names(out)) == 2  # degraded, not empty
@@ -193,6 +194,7 @@ class TestGate:
                 workspace=str(tmp_path),
                 model="scripted",
                 max_select=1,
+                gate=True,
                 gate_timeout_s=0.05,
             ),
             model=_ScriptedModel(keep="pdf", gate_delay=1.0),
@@ -203,7 +205,7 @@ class TestGate:
         _three_overlapping_skills(tmp_path)
         model = _ScriptedModel(keep="pdf")
         await SkillSearch(
-            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted"),
+            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted", gate=True),
             model=model,
         ).retrieve("extract data from documents")
         assert len(model.prompts) == 2
@@ -216,7 +218,7 @@ class TestGate:
         _three_overlapping_skills(tmp_path)
         model = _ScriptedModel(keep="pdf")
         await SkillSearch(
-            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted"),
+            SearchConfig(skills_dir="skills", workspace=str(tmp_path), model="scripted", gate=True),
             model=model,
         ).retrieve("extract data")
         assert model.prompts, "the engine never called ChatModel.complete()"
@@ -252,3 +254,70 @@ class TestCacheLocation:
 
         store = DirectorySkillStore([(skills, "local")])
         assert {s.name for s in store.list_all()} == {"mine"}
+
+
+async def test_a_model_saying_no_retrieval_no_longer_stops_the_fan_out(tmp_path) -> None:
+    """The veto is gone, and an old model still emitting it must not bite.
+
+    A deployed prompt does not change the day the code does: models keep
+    answering with the field for as long as anything caches the old one.
+    Honouring it was the bug — the verdict was measured unstable on this
+    repo (one query, six runs, three each way) and made without sight of a
+    single candidate.
+    """
+    _skill(tmp_path, "pdf-forms", "Fill PDF acroforms", "Run pdftk with an FDF.")
+
+    class Refuses:
+        async def complete(self, messages, **kwargs) -> str:
+            if "Rewrite the following user query" in messages[0]["content"]:
+                return json.dumps({"need_retrieval": False, "rewritten_query": None})
+            # The gate, which does have standing, keeps the hit.
+            return json.dumps({"selected": [1]})
+
+    search = SkillSearch(
+        SearchConfig.from_mapping(
+            {"skills_dir": str(tmp_path / "skills"), "workspace": str(tmp_path), "model": "m",
+             "gate": True}
+        ),
+        model=Refuses(),
+    )
+    assert "pdf-forms" in await search.retrieve("fill in the acroform")
+
+
+async def test_the_gate_sees_a_local_skill_s_paths_already_resolved(tmp_path) -> None:
+    """The bug: a local skill was rejected for shipping its own files.
+
+    The gate prompt tells the model to reject a skill whose referenced
+    files it cannot see, naming `{baseDir}` as the sign of one. Resolution
+    used to run after the gate, so every local skill that referenced its
+    own scripts reached the gate looking exactly like the thing it was
+    told to reject.
+    """
+    skill = tmp_path / "skills" / "pdf-forms"
+    (skill / "scripts").mkdir(parents=True)
+    (skill / "scripts" / "fill.sh").write_text("#!/bin/sh\n")
+    (skill / "SKILL.md").write_text(
+        "---\nname: pdf-forms\ndescription: Fill PDF acroforms\n---\n\n"
+        "Run {baseDir}/scripts/fill.sh to fill the form.\n"
+    )
+
+    seen: list[str] = []
+
+    class Gate:
+        async def complete(self, messages, **kwargs) -> str:
+            seen.append(messages[0]["content"])
+            return json.dumps({"selected": [1]})
+
+    search = SkillSearch(
+        SearchConfig.from_mapping(
+            {"skills_dir": str(tmp_path / "skills"), "workspace": str(tmp_path),
+             "model": "m", "rewrite": False, "gate": True}
+        ),
+        model=Gate(),
+    )
+    block = await search.retrieve("fill in the acroform")
+
+    assert seen, "the gate was never called"
+    assert "{baseDir}" not in seen[0], "the gate still sees an unresolved reference"
+    assert str(skill / "scripts" / "fill.sh") in seen[0]
+    assert str(skill / "scripts" / "fill.sh") in block

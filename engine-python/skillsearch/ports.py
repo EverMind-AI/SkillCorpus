@@ -60,35 +60,4 @@ class SkillStore(Protocol):
         ...
 
 
-@runtime_checkable
-class MemoryRecall(Protocol):
-    """Recall over an agent's own accumulated skills.
-
-    Hosts without such a backend simply do not configure this source.
-    """
-
-    async def recall(self, query: str, *, agent_id: str, top_k: int) -> list[Any]:
-        """Skills this agent has accumulated, most relevant first.
-
-        Args:
-            query: what to recall against. Positional, and the only
-                positional parameter.
-            agent_id: whose skills to search.
-            top_k: upper bound on returned records.
-
-        Returns:
-            Records exposing ``text`` and an optional ``metadata`` mapping;
-            ``metadata['id']`` and ``metadata['name']`` are used when
-            present and derived from the text when not. An optional
-            ``score`` is carried through if present — fusion ranks by
-            position, so omitting it changes no ordering.
-
-        The source calls this exactly as written. A backend whose
-        signature differs raises ``TypeError``, which the router treats
-        as "this source returned nothing" — so a mismatch shows up as
-        silently missing results rather than as an error.
-        """
-        ...
-
-
-__all__ = ["ChatModel", "MemoryRecall", "SkillStore"]
+__all__ = ["ChatModel", "SkillStore"]

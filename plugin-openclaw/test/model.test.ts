@@ -130,7 +130,7 @@ test('an HTTP error surfaces as a rejection for the caller to fall back on', asy
 
 test('the gate narrows the block, over real HTTP end to end', async () => {
   const server = await provider([
-    '{"need_retrieval": true, "rewritten_query": "fill a pdf acroform"}',
+    '{"rewritten_query": "fill a pdf acroform"}',
     '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
   ])
   const { api, hooks } = fakeApi({
@@ -139,6 +139,9 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
     modelBaseUrl: server.baseUrl,
     modelApiKey: 'sk-test',
     availableTools: ['exec', 'read_file'],
+    // Explicit: with only a local directory configured the gate is off by
+    // default, and this test is about the gate.
+    gate: true,
   })
   register(api)
 
@@ -187,4 +190,27 @@ test('an unreachable provider degrades to unfiltered retrieval, not to a failed 
   )) as BeforePromptBuildResult
 
   assert.match(result?.prependContext ?? '', /pdf-forms/)
+})
+
+test('the gate stays off for a local directory and on for a catalog', async () => {
+  // The default is neither on nor off. The gate rejects when unsure, which
+  // a curated directory does not need; a catalog of unvetted skills needs
+  // its environment check.
+  const server = await provider([
+    '{"rewritten_query": "fill a pdf acroform"}',
+    '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
+  ])
+  const { api, hooks } = fakeApi({
+    skillsDirs: [await skillsDir()],
+    model: 'gate-model',
+    modelBaseUrl: server.baseUrl,
+    modelApiKey: 'sk-test',
+  })
+  register(api)
+
+  await hooks.get('before_prompt_build')!(
+    { prompt: 'can you fill in /tmp/a7f2.pdf for me', messages: [] },
+    {},
+  )
+  assert.equal(server.seen.length, 1, 'only the rewriter ran')
 })

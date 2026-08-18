@@ -2,25 +2,27 @@
 
 **Per-turn skill retrieval for agent hosts: given what the user just said, decide which skills the model should see — and put them in front of it.**
 
-Agent skills (`SKILL.md` files packaging reusable procedural knowledge) only help if the right ones reach the prompt at the right moment. Publishing a full catalog to the model wastes context and asks it to know names in advance; injecting everything is worse. skillsearch retrieves instead: every turn it searches the skills you have — a local directory and a remote catalog, plus an agent's own accumulated skills where the host offers them — fuses the rankings, asks a model to keep only what this agent can actually run here, and injects the survivors.
+Agent skills (`SKILL.md` files packaging reusable procedural knowledge) only help if the right ones reach the prompt at the right moment. Publishing a full catalog to the model wastes context and asks it to know names in advance; injecting everything is worse. skillsearch retrieves instead: every turn it searches two sources — a local directory the host already conventions, and a remote catalog — fuses the rankings, and injects what survives.
 
 Pairs naturally with [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus), the open corpus of 96,401 vetted, permissively-licensed skills, whose hosted [SkillHub](https://evermind.ai/skillhub) endpoint is a ready-made remote catalog for the `hub` source below — no server of your own required. Local-only setups need neither.
 
 ```
 query
-  ├─ rewrite          turn the message into a retrieval query   (optional)
-  ├─ fan out          local BM25 · remote catalog · agent recall¹
+  ├─ rewrite          clean the message into a retrieval query   (optional)
+  ├─ fan out          local BM25 · remote catalog · host sources¹
   ├─ fuse             weighted RRF (K = 60), deduplicated
   ├─ hydrate          fetch bodies for metadata-only hits
-  ├─ gate             drop what this agent cannot run here      (optional)
-  └─ render           resolve {baseDir} and links to real paths
+  ├─ resolve (local)  {baseDir} and links, before the gate judges them
+  ├─ gate             drop what this agent cannot run here       (optional)
+  └─ render           extract remote bundles, resolve their paths
 → text to inject
 ```
 
-¹ Agent recall is a Python-only source, and only where the host supplies a
-memory backend. Both implementations ship the local and catalog sources,
-and `SkillSource` is open — a host adds its own by implementing three
-members.
+¹ Two sources ship. A host with one of its own — recall over self-evolved
+skills, a private library, a second catalog — writes it against the
+`SkillSource` protocol (a name, a weight, one `search`) and passes it in:
+`SkillSearch(extra_sources=[...])` in Python, `EngineParts.sources` in
+TypeScript. Neither engine learns what it is.
 
 ## Two implementations
 
@@ -30,7 +32,7 @@ members.
 | Install | `pip install -e engine-python` | copy into `packages/skill/skill-search/` |
 | Ships a host plugin | [`plugin-hermes/`](plugin-hermes) · [`plugin-raven/`](plugin-raven) | [`plugin-openclaw/`](plugin-openclaw) |
 | Also drives | any host over HTTP, via `adapters/http_server.py` | DeepSeek Harness, via `src/index.ts` |
-| Extra sources | agent recall, over a host memory backend | — |
+| Host-supplied sources | `SkillSearch(extra_sources=...)` | `EngineParts.sources` |
 
 The two are ports of one design, not a shared core with bindings: each is idiomatic in its own runtime and neither imports the other. What keeps them equal is pinned by tests, not prose — the prompts are byte-identical, the tokenizer, BM25 index text and fusion arithmetic produce the same numbers, and `{baseDir}` resolution follows the same rules. [`engine-typescript/tests/parity.test.ts`](engine-typescript/tests/parity.test.ts) holds the TypeScript side to values the Python suite produces; CI runs both on every push.
 
@@ -67,7 +69,7 @@ pipeline is the same either way, and only the seam differs.
 | Plugin | Host | Seam | How the host finds it | Host change |
 | --- | --- | --- | --- | --- |
 | [`plugin-hermes/`](plugin-hermes#install) | Hermes | the memory provider's `prefetch` | a directory in `$HERMES_HOME/plugins/` | none |
-| [`plugin-raven/`](plugin-raven#install) | Raven | a context segment claiming the `skills` stage | a `raven.plugins` entry point, or a directory in `~/.raven/plugins/` | **yes** — [`host-patches/`](plugin-raven/host-patches) |
+| [`plugin-raven/`](plugin-raven#install) | Raven | a context segment claiming the `skills` stage | a `raven.plugins` entry point, or a directory in `~/.raven/plugins/` | **yes** — a `context_segments` slot, upstream |
 | [`plugin-openclaw/`](plugin-openclaw#install) | OpenClaw | the `before_prompt_build` hook | `plugins.load.paths` naming the plugin root | none |
 | [`engine-typescript/`](engine-typescript#where-this-goes) | DeepSeek Harness | the `agent/pre-step` waterfall | a `cordis.yml` row naming the package | none |
 
@@ -76,10 +78,16 @@ which is what lets one pipeline serve four hosts that agree on nothing else.
 A host offering only session-level hooks could not carry this.
 
 Only Raven needs a change: the others already expose a per-turn extension
-point, while Raven has no contribution kind for a prompt stage until the
-patch adds one. Every install command is in the linked section, and every
-one of the four is loaded through its host's own mechanism and driven end
-to end — see [Working on this repository](#working-on-this-repository).
+point, while Raven has no contribution kind for a prompt stage. That slot
+is going upstream rather than being carried here as a patch — a fork of the
+host is a fork to maintain, and the one this repository used to ship had
+already drifted from `main` and wired one of the three `AgentLoop`
+construction sites. Until it lands the plugin installs cleanly and simply
+never gets a stage to claim. Raven's own built-in retrieval is unaffected.
+
+Every install command is in the linked section, and every one of the four
+is loaded through its host's own mechanism and driven end to end — see
+[Working on this repository](#working-on-this-repository).
 
 ## Quick start
 

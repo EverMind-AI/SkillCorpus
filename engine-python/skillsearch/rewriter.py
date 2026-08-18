@@ -1,14 +1,17 @@
-"""Query rewriter — judges whether skill retrieval is needed and rewrites
-verbose queries into concise skill-routing queries.
+"""Query rewriter — turns a verbose message into a concise routing query.
 
-One LLM call does two things: (1) decide whether the user query needs external skill retrieval
-at all (chat / greetings / general knowledge → skip the router fan-out
-entirely); (2) when retrieval IS needed, strip noise (paths, IDs,
-timestamps) and keep task type + domain so BM25 / dense fan-outs hit the
-relevant skills.
+One LLM call, strictly a cleaning step: strip noise (paths, IDs,
+timestamps) and keep task type, domain and key technical details, so the
+BM25 fan-out matches on what the turn is about rather than on its
+incidentals.
 
-Failures default to ``need_retrieval=True`` (safe fallback: keep doing
-retrieval) so a flaky provider never silently turns off the skill lane.
+It used to also decide whether retrieval should happen at all, and that
+veto is gone. Two reasons, both measured here: the verdict was unstable
+(one query, six runs, true and false three each), and it was made without
+seeing a single candidate. The gate sees the shortlist *and* the agent's
+tool list, so it is the only step with the standing to decide that nothing
+should be injected. A rewrite that fails now costs the turn a cleaner
+query, never its skills.
 """
 
 from __future__ import annotations
@@ -25,18 +28,12 @@ from skillsearch.replies import extract_json_object
 log = logging.getLogger(__name__)
 
 _REWRITE_PROMPT = """\
-Given a user query, first decide if it needs external skill/tool retrieval. \
-Casual chat, greetings, simple follow-ups, and general knowledge tasks do not. \
-Specialized tools, domain-specific workflows, or specific frameworks/APIs do.
-
-If retrieval is needed, rewrite the query for skill retrieval. \
+Rewrite the following user query for skill retrieval. \
 Remove noise (paths, IDs, timestamps, boilerplate). \
 Keep task type, domain, required capabilities, and key technical details. \
 Do NOT answer or solve the query — only rewrite it.
 
-When in doubt, choose retrieval.
-
-Return JSON: {{"need_retrieval": true/false, "rewritten_query": "..." or null}}
+Return JSON: {{"rewritten_query": "..." or null}}
 
 {query}"""
 
@@ -45,12 +42,17 @@ _QUERY_MAX_LENGTH = 2000
 
 @dataclass(frozen=True)
 class RewriteResult:
-    need_retrieval: bool
+    """What the rewriter produces: a cleaner query, or nothing usable.
+
+    ``rewritten_query`` of ``None`` means "search the raw query" — every
+    failure path lands here, and none of them stops retrieval.
+    """
+
     rewritten_query: str | None = None
 
 
 class QueryRewriter:
-    """Judges whether a turn wants skills, and rewrites its query.
+    """Rewrites a turn's message into a retrieval query.
 
     Goes through the host-supplied :class:`~skillsearch.ports.ChatModel`,
     so retry policy and provider extras are whatever the host already
@@ -88,7 +90,7 @@ class QueryRewriter:
     async def analyze(self, query: str) -> RewriteResult:
         truncated = (query or "").strip()[:_QUERY_MAX_LENGTH]
         if not truncated:
-            return RewriteResult(need_retrieval=False)
+            return RewriteResult()
 
         prompt = _REWRITE_PROMPT.format(query=truncated)
         try:
@@ -107,24 +109,20 @@ class QueryRewriter:
                 # the handler below is where both become the fallback.
                 raise RuntimeError(content or "provider error")  # noqa: TRY301
         except Exception as e:
-            log.warning("query rewrite failed (%s); defaulting to retrieval", e)
-            return RewriteResult(need_retrieval=True)
+            log.warning("query rewrite failed (%s); searching the raw query", e)
+            return RewriteResult()
         return self._parse(content)
 
     @staticmethod
     def _parse(content: str) -> RewriteResult:
         data = extract_json_object(content)
         if data is None:
-            log.warning("rewrite response carried no JSON object; defaulting to retrieval")
-            return RewriteResult(need_retrieval=True)
-
-        need = bool(data.get("need_retrieval", True))
-        if not need:
-            return RewriteResult(need_retrieval=False)
+            log.warning("rewrite response carried no JSON object; searching the raw query")
+            return RewriteResult()
 
         raw = data.get("rewritten_query")
         rewritten = raw.strip() or None if isinstance(raw, str) else None
-        return RewriteResult(need_retrieval=True, rewritten_query=rewritten)
+        return RewriteResult(rewritten_query=rewritten)
 
 
 __all__ = ["QueryRewriter", "RewriteResult"]

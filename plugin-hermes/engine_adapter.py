@@ -64,6 +64,7 @@ class SkillSearchEngine:
                 model=_wrap_model(model) if model is not None else None,
                 get_tools=getattr(ctx, "get_tool_names", None),
             ),
+            timeout_s=load_prefetch_timeout(home),
         )
 
     def is_available(self) -> bool:
@@ -136,9 +137,9 @@ class SkillSearchEngine:
 def load_config(hermes_home: str) -> SearchConfig:
     """Read ``$HERMES_HOME/skillsearch.json``.
 
-    Same placement and format as the EverOS provider's ``everos.json``, so
-    ``hermes memory setup``-style tooling and hand-editing both work the
-    way a Hermes user already expects.
+    Same placement and format as every other Hermes memory provider's
+    config file, so ``hermes memory setup``-style tooling and hand-editing
+    both work the way a Hermes user already expects.
     """
     path = Path(hermes_home) / CONFIG_FILENAME
     raw: dict[str, Any] = {}
@@ -150,6 +151,31 @@ def load_config(hermes_home: str) -> SearchConfig:
     raw.setdefault("workspace", hermes_home)
     raw.setdefault("skills_dir", str(Path(hermes_home) / "skills"))
     return SearchConfig.from_mapping(raw)
+
+
+DEFAULT_PREFETCH_TIMEOUT_S = 8.0
+
+
+def load_prefetch_timeout(hermes_home: str) -> float:
+    """Read ``timeout_s`` from ``$HERMES_HOME/skillsearch.json``.
+
+    Read from the raw file rather than through :func:`load_config`, because
+    this bounds the adapter's own wait and so is not a
+    :class:`SearchConfig` field — routing it through one would silently
+    drop it, which is what used to happen: the Hermes plugin offers
+    ``timeout_s`` in its setup and writes it to the same file, and every
+    value a user chose was discarded in favour of the default.
+    """
+    path = Path(hermes_home) / CONFIG_FILENAME
+    if not path.is_file():
+        return DEFAULT_PREFETCH_TIMEOUT_S
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        value = float(raw.get("timeout_s", DEFAULT_PREFETCH_TIMEOUT_S))
+    except Exception as e:
+        log.warning("skillsearch: cannot read timeout_s from %s (%s)", path, e)
+        return DEFAULT_PREFETCH_TIMEOUT_S
+    return value if value > 0 else DEFAULT_PREFETCH_TIMEOUT_S
 
 
 def _wrap_model(client: Any) -> Any:

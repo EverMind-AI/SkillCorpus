@@ -37,15 +37,21 @@ def test_reports_nothing(label: str, reply: str) -> None:
     assert extract_json_object(reply) is None
 
 
-async def test_the_rewriter_honours_a_verdict_it_used_to_discard() -> None:
+async def test_the_rewriter_reads_a_fenced_block_followed_by_prose() -> None:
+    """The divergence this module exists to close.
+
+    A live model answered with a fenced block and then explained itself.
+    The gate's parser coped and the rewriter's did not, so the same reply
+    meant different things to the two callers.
+    """
     from skillsearch.rewriter import QueryRewriter
 
     class Model:
         async def complete(self, *args, **kwargs) -> str:
             return (
-                '```json\n{"need_retrieval": false, "rewritten_query": null}\n```\n\n'
+                '```json\n{"rewritten_query": "nginx basic auth htpasswd"}\n```\n\n'
                 "This is a general troubleshooting request."
             )
 
     result = await QueryRewriter(Model()).analyze("why did this break")
-    assert result.need_retrieval is False
+    assert result.rewritten_query == "nginx basic auth htpasswd"

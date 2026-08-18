@@ -33,24 +33,27 @@ catalog is configured.
 
 ```
 query
-  ├─ rewrite          turn the message into a retrieval query   (optional)
-  ├─ fan out          local BM25 · remote catalog · agent recall
+  ├─ rewrite          clean the message into a retrieval query   (optional)
+  ├─ fan out          local BM25 · remote catalog · extra_sources
   ├─ fuse             weighted RRF, deduplicated
   ├─ hydrate          fetch bodies for metadata-only hits
-  ├─ gate             drop what this agent cannot run here      (optional)
-  └─ render           resolve {baseDir} and links to real paths
+  ├─ resolve (local)  {baseDir} and links, before the gate judges them
+  ├─ gate             drop what this agent cannot run here       (optional)
+  └─ render           extract remote bundles, resolve their paths
 → text to inject
 ```
 
 The optional steps degrade to no-ops. Configure nothing but a skills
 directory and you still get local retrieval and a rendered block.
 
-**Configure a `model` if you can.** Fusion ranks by position, not by
-score — that is what lets sources with different scoring scales be
+**Configure a `model` when a catalog is.** Fusion ranks by position, not
+by score — that is what lets sources with different scoring scales be
 compared — so a source's best hit enters the shortlist even when it is a
-weak match. Filtering those out is the gate's job, and without a model
-there is no gate: ask about the weather with a PDF skill installed and the
-PDF skill still shows up.
+weak match. For a local directory that is now handled before fusion: an
+unrelated query returns nothing at all, because a term appearing in over
+half the corpus is pruned from the query rather than allowed to carry it.
+For a catalog of unvetted skills it is not, which is why `gate` defaults to
+on exactly there.
 
 **`retrieve` never raises.** It sits on the turn's hot path in every host,
 so a retrieval failure returns `""` — the turn loses its skills, not its
@@ -59,15 +62,18 @@ response.
 ## Configuring
 
 Every field of `SearchConfig` has a default that does something sensible,
-and capability is expressed by presence rather than by flags: no
-`hub_endpoint` means no remote source, no `model` means no gate. A config
-can never say two contradictory things.
+and capability is mostly expressed by presence rather than by flags: no
+`hub_endpoint` means no remote source, no `model` means neither rewrite nor
+gate. `gate` itself is the one tri-state — unset means "on when a catalog
+is configured", and an explicit `True`/`False` always wins.
 
 ```python
 SearchConfig(
     skills_dir="~/.agent/skills",
     hub_endpoint="https://skillhub.evermind.ai",   # omit → local only, see below
     model="gpt-4o-mini",                           # omit → no rewrite, no gate
+    # gate=None (default)                          # on iff hub_endpoint is set
+    # index_body=False (default)                   # index name + description only
     top_k=5,
     max_select=2,
 )

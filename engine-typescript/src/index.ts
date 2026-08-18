@@ -60,6 +60,31 @@ export interface Config {
    */
   bundleCacheDir?: string
   /** Per-request deadline for the catalog, search and body fetch alike. */
+  /**
+   * Index skill bodies alongside name and description. Off by default:
+   * the description is what the format asks authors to write the trigger
+   * conditions into, and it is what the gate reads.
+   */
+  indexBody?: boolean
+
+  /**
+   * Clean the query before searching. On by default: since it lost the
+   * power to veto retrieval it can only sharpen a match, never remove one.
+   * Requires `provider` and `model`.
+   */
+  rewrite?: boolean
+
+  /**
+   * Let a model drop candidates before they reach the prompt.
+   *
+   * Unset means "on when `hubEndpoint` is configured". The gate is told to
+   * reject when unsure: a curated local directory is better served by
+   * ranking alone, while a catalog of unvetted skills needs the check for
+   * whether this agent even has the tools a skill calls for. An explicit
+   * value is always honoured. Requires `provider` and `model`.
+   */
+  gate?: boolean
+
   hubTimeoutMs?: number
   /**
    * Drop catalog entries whose safety score falls below this. Only bites on
@@ -108,6 +133,9 @@ export const Config: z<Config> = z.object({
   hubEndpoint: z.string().default(''),
   hubApiKey: z.string().default(''),
   bundleCacheDir: z.string().default(''),
+  indexBody: z.boolean().default(false),
+  rewrite: z.boolean().default(true),
+  gate: z.boolean(),
   hubTimeoutMs: z.number().default(2000),
   hubMinSafety: z.number().default(0.7),
   weightLocal: z.number().default(1.0),
@@ -183,7 +211,10 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
 
   const dirs = cfg.skillsDirs ?? []
   if (dirs.length > 0) {
-    const local = new LocalSkillSource(dirs.map(path => ({ path, name: 'local' })))
+    const local = new LocalSkillSource(
+      dirs.map(path => ({ path, name: 'local' })),
+      { indexBody: cfg.indexBody ?? false },
+    )
     local.weight = cfg.weightLocal ?? 1.0
     sources.push(local)
   }
@@ -207,17 +238,25 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
 
   const route = resolveRoute(cfg)
   const model = route ? modelBridge(ctx, route) : undefined
+  // Two independent switches over one model, matching the Python config.
+  // Configuring a model used to turn both on together, which left no way
+  // to keep the query cleaning and drop the gate.
+  const wantsRewrite = cfg.rewrite ?? true
+  // `undefined` means "on when a catalog is configured": the gate rejects
+  // when unsure, which a curated local directory does not need and an
+  // unvetted catalog does.
+  const wantsGate = cfg.gate ?? Boolean(cfg.hubEndpoint)
   return new SkillSearchEngine(
     {
       sources,
-      ...(model
+      ...(model && wantsRewrite
         ? {
           rewriter: new QueryRewriter(model, {
             ...(cfg.rewriteTimeoutMs === undefined ? {} : { timeoutMs: cfg.rewriteTimeoutMs }),
           }),
         }
         : {}),
-      ...(model
+      ...(model && wantsGate
         ? {
           gate: new LLMGateFilter(model, {
             maxSelect: cfg.maxSelect ?? 2,
@@ -227,11 +266,18 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
         : {}),
       ...(client
         ? {
+          // The engine calls both for any hit without a skill directory,
+          // which is every hit a third-party source contributes too. Without
+          // this guard those arrive here with `hit.meta.id` undefined and
+          // fetch `/skills/undefined` from the catalog, so an extra source
+          // costs a 404 per hit.
           fetchBody: async (hit, signal) => {
+            if (hit.meta.source !== 'hub') return undefined
             const record = await client.get(String(hit.meta.id), signal)
             return typeof record.skill_md === 'string' ? record.skill_md : undefined
           },
           materialise: async (hit, signal) => {
+            if (hit.meta.source !== 'hub') return undefined
             const installed = await client.install(String(hit.meta.id), undefined, signal)
             return { dir: installed.dir, body: installed.skillMd }
           },

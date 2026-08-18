@@ -48,12 +48,17 @@ export class LocalSkillSource implements SkillSource {
 
   private readonly roots: readonly SkillRoot[]
   private readonly maxDepth: number
+  private readonly indexBody: boolean
   private cache: FileSkill[] | undefined
   private index: { bm25: BM25Okapi; skills: FileSkill[] } | undefined
 
-  constructor(roots: readonly SkillRoot[], options: { maxDepth?: number } = {}) {
+  constructor(
+    roots: readonly SkillRoot[],
+    options: { maxDepth?: number; indexBody?: boolean } = {},
+  ) {
     this.roots = roots
     this.maxDepth = options.maxDepth ?? 5
+    this.indexBody = options.indexBody ?? false
   }
 
   /** Drop the scan and the index. Call when a `SKILL.md` changes on disk. */
@@ -92,7 +97,7 @@ export class LocalSkillSource implements SkillSource {
   private async ensureIndex(): Promise<{ bm25: BM25Okapi; skills: FileSkill[] }> {
     if (this.index) return this.index
     const skills = await this.listAll()
-    const corpus = skills.map(s => tokenize(formatSkillText(s)))
+    const corpus = skills.map(s => tokenize(formatSkillText(s, this.indexBody)))
     this.index = { bm25: new BM25Okapi(corpus), skills }
     return this.index
   }
@@ -142,20 +147,28 @@ export class LocalSkillSource implements SkillSource {
  *
  * Byte-for-byte the Python implementation's `_format_skill_text`, because the
  * index text decides the ranking and the two implementations promise the same
- * ranking: the name twice, so a query naming a skill outweighs a long body
- * mentioning the same words; the body capped, so a huge skill does not drown
- * its own signal fields.
+ * ranking: the name twice, so a query naming a skill outweighs a description
+ * mentioning the same words.
+ *
+ * The body is out by default. The description is the retrieval contract of
+ * the `SKILL.md` format — authors are told to write what the skill is *for*
+ * there — and it is also what the gate reads, so indexing it alone keeps
+ * ranking and gating looking at the same text. A body is prose: mostly stop
+ * words, and the single largest source of a spurious match.
  *
  * @param skill - the name, description and body to index.
+ * @param indexBody - append the body, capped. For a corpus with thin
+ *   descriptions; the cost of leaving it off is that a tool named only
+ *   inside a body cannot be found by name.
  * @returns the line handed to the tokenizer.
  */
-export function formatSkillText(skill: {
-  name: string
-  description: string
-  content: string
-}): string {
-  const body = skill.content.slice(0, INDEXED_BODY_CHARS)
-  return `${skill.name} ${skill.name} ${skill.description} ${body}`
+export function formatSkillText(
+  skill: { name: string; description: string; content: string },
+  indexBody = false,
+): string {
+  const parts = [skill.name, skill.name, skill.description]
+  if (indexBody) parts.push(skill.content.slice(0, INDEXED_BODY_CHARS))
+  return parts.join(' ')
 }
 
 async function* walk(root: string, maxDepth: number): AsyncGenerator<string> {

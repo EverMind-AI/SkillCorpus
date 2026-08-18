@@ -119,8 +119,11 @@ def make_segment(ctx: Any) -> Any | None:
     cfg_map.setdefault("agent_id", getattr(services, "agent_id", "") or "")
     config = SearchConfig.from_mapping(cfg_map)
 
-    # Raven passes its live provider and memory backend through the config
-    # slice under private keys — they are objects, not user settings.
+    # Raven passes live objects through the config slice under private
+    # keys — they are objects, not user settings. `_store` reuses the
+    # host's own SkillRegistry so the plugin does not rescan the disk the
+    # host already watches; `_provider` is the model channel the rewriter
+    # and the gate run on.
     provider = cfg_map.get("_provider")
     model = _ProviderAdapter(provider) if provider is not None else None
 
@@ -128,7 +131,6 @@ def make_segment(ctx: Any) -> Any | None:
         config,
         model=model,
         store=cfg_map.get("_store"),
-        memory=cfg_map.get("_memory"),
         get_tools=getattr(services, "get_tool_definitions", None),
     )
     if not search.has_sources:

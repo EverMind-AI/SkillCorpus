@@ -14,8 +14,8 @@ with ``k = 60`` (the long-standing RRF constant) and the per-source
 Three additional behaviors are baked in:
 
 - **Cross-source dedup by name.** A skill appearing in multiple
-  sources (e.g. Local has the canonical version, EverOS has a
-  self-evolved variant under the same name) collapses into one hit.
+  sources (e.g. the local directory holds a pinned copy of one the
+  catalog also publishes) collapses into one hit.
   RRF scores from both sources accumulate; the representative ``hit``
   is the one with the highest per-source ``score`` so the prompt sees
   the best version available.

@@ -121,6 +121,9 @@ def test_the_gate_runs_over_real_http_end_to_end(tmp_path: Path, provider) -> No
                 "model": "gate-model",
                 "model_base_url": base_url,
                 "model_api_key": "sk-test",
+                # Explicit: with only a local directory the gate is off by
+                # default, and these tests are about the gate.
+                "gate": True,
             }
         ),
         encoding="utf-8",

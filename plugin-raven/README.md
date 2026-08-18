@@ -7,8 +7,11 @@ disabling this plugin turns retrieval off rather than silently reverting.
 
 ## Install
 
-Raven needs a host-side change first; see
-[`host-patches/`](host-patches). Then, either way:
+Raven needs a `context_segments` contribution slot, which is being taken
+upstream rather than carried here as a patch: a fork of the host is a fork
+to maintain, and this one had already drifted from `main` and wired only
+one of the three `AgentLoop` construction sites. Until that lands the
+plugin installs cleanly and simply never gets a stage to claim.
 
 ```bash
 pip install ./engine-python ./plugin-raven      # the engine, then the plugin
@@ -44,14 +47,34 @@ which the host validates against; the ones that matter most:
 | `top_k` | `5` | Upper bound on skills injected per turn |
 | `max_select` | `2` | Upper bound on what the gate keeps |
 
+The default is the directory the host already conventions, so a deployment
+that keeps its skills there configures nothing. A directory that does not
+exist is not an error: the local source simply is not there, and retrieval
+runs on whatever else is configured — or, with nothing else, stays off.
+
+`gate` is unset by default, which means *on when a catalog is configured*.
+The gate is told to reject when unsure: a directory you curate is better
+served by ranking and `top_k`, especially now that an unrelated query
+returns nothing from it at all, while a catalog of unvetted skills needs
+the check for whether this agent even has the tools a skill calls for. Set
+it explicitly either way and that wins.
+
 **Configure a `model`.** Fusion ranks by position, so every source's best
 hit reaches the shortlist however weakly it matched, and the gate is the
 only step that removes those. Without one, an unrelated turn still gets a
 skill.
 
-The host passes its live provider and memory backend through the config
-slice under private keys (`_provider`, `_memory`) — not settings, and not
-something a user writes.
+The host passes live objects through the config slice under private keys
+— not settings, and not something a user writes. `_provider` is the model
+channel the rewriter and the gate run on; `_store` is the host's own
+`SkillRegistry`, reused so the plugin does not rescan a directory the host
+already scans and watches.
+
+A host with a source of its own — recall over self-evolved skills, a
+private library — writes it against the engine's `SkillSource` protocol
+and passes it to `SkillSearch(extra_sources=...)`. That adapter belongs to
+the host, not here: this plugin knows about a skills directory and a
+catalog, and nothing else.
 
 ## What the host requires of a segment
 
@@ -73,8 +96,8 @@ python -m pytest plugin-raven/tests -q
 ```
 
 The host is not importable outside a Raven checkout, so the suite pins what
-the host reads. Against a checkout, the repository's `verify-raven.py`
-drives the real path: the registry discovers the plugin, `skills` is
+the host reads. Against a checkout named by `RAVEN_ROOT`, the repository's
+`verify-raven.py` drives the real path: the registry discovers the plugin, `skills` is
 claimed, `ContextAssembler` is built through the host's own factory, and
 the block is asserted to reach the assembled prompt.
 

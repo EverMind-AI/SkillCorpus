@@ -115,7 +115,7 @@ class SkillSearchProvider(MemoryProvider):
         self._home = kwargs.get("hermes_home")
         self._adapter = None
         try:
-            from skillsearch.adapters.hermes import SkillSearchEngine
+            from .engine_adapter import SkillSearchEngine
 
             self._adapter = SkillSearchEngine.from_hermes(
                 _EngineContext(self._host, load_config(self._home)),

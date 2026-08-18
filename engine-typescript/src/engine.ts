@@ -140,9 +140,11 @@ export class SkillSearchEngine {
     const signal = options.signal
     let searchQuery = query
     if (this.rewriter) {
-      const verdict = await this.rewriter.analyze(query, signal)
-      if (!verdict.needRetrieval) return []
-      if (verdict.rewrittenQuery) searchQuery = verdict.rewrittenQuery
+      // Only a cleaner query comes back. Deciding that a turn wants no
+      // skills belongs to the gate, which sees the shortlist and the
+      // agent's tools; the rewriter sees neither.
+      const { rewrittenQuery } = await this.rewriter.analyze(query, signal)
+      if (rewrittenQuery) searchQuery = rewrittenQuery
     }
 
     const poolSize = this.gate ? this.gatePool : this.topK
@@ -163,21 +165,39 @@ export class SkillSearchEngine {
     if (hits.length === 0) return []
 
     hits = await this.hydrateBodies(hits, signal)
+
+    // Before the gate, and only for skills already on disk. The gate is
+    // told to reject a skill whose files it cannot see, and an unresolved
+    // `{baseDir}/scripts/x.py` reads exactly like one — so a local skill
+    // that ships its own files was rejected for shipping them. A few stats
+    // and no network.
+    hits = this.resolveLocalRefs(hits)
+
     if (this.gate) {
       hits = await this.gate.filter(query, hits, options.availableTools, signal)
     }
-    // Only the survivors: extracting a bundle is a download and resolution
-    // stats the disk per ref, so both wait until the gate has decided what
-    // is actually going in.
+    // The remote half stays here: extracting a bundle is a download, so it
+    // waits until the gate has decided what is actually going in.
     return this.resolveHitRefs(hits.slice(0, this.topK), signal)
+  }
+
+  /** Rewrite refs for hits that already know their directory. */
+  private resolveLocalRefs(hits: RouterHit[]): RouterHit[] {
+    if (!this.refs) return hits
+    return hits.map((hit) => {
+      const skillDir = hit.meta.skillDir
+      if (typeof skillDir !== 'string' || !skillDir || !hit.content) return hit
+      const { body } = resolveRefs(hit.content, skillDir)
+      return body === hit.content ? hit : { ...hit, content: body }
+    })
   }
 
   /**
    * Give each survivor a directory, then rewrite its refs against it.
    *
-   * A local hit already knows its directory. A remote one gets its bundle
-   * extracted first, when the host supplied a way to; a failure there is
-   * logged by the caller's own handler and leaves the body unresolved.
+   * A local hit was already resolved before the gate; this pass exists for
+   * the remote ones, whose bundle is extracted first when the host
+   * supplied a way to. A failure there leaves the body unresolved.
    */
   private async resolveHitRefs(hits: RouterHit[], signal?: AbortSignal): Promise<RouterHit[]> {
     if (!this.refs) return hits

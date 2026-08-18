@@ -76,6 +76,16 @@ class SearchConfig:
 
     scan_depth: int = 5
 
+    index_body: bool = False
+    """Index skill bodies alongside name and description.
+
+    Off by default: the description is what the ``SKILL.md`` format asks
+    authors to write the trigger conditions into, and it is what the gate
+    reads, so indexing it alone keeps ranking and gating looking at the
+    same text. Turn this on for a corpus whose skills have thin
+    descriptions — the cost of leaving it off is that a tool named only
+    inside a body cannot be found by name."""
+
     hub_endpoint: str = ""
     """Remote catalog base URL. Empty disables the remote source."""
 
@@ -91,15 +101,11 @@ class SearchConfig:
     catalog deadline would fail every download of any real size."""
     hub_min_safety: float = 0.7
 
-    agent_id: str = ""
-    """Identity for recall over the agent's own skills. Empty disables it."""
-
     # ── Fusion ───────────────────────────────────────────────────────
     weight_local: float = 1.0
     weight_hub: float = 0.85
-    weight_memory: float = 0.9
-    """Rank weights. Local ranks highest as hand-curated; remote lowest as
-    unvetted; the agent's own skills in between."""
+    """Rank weights. Local ranks highest as hand-curated, remote lowest as
+    unvetted. A source passed through ``extra_sources`` carries its own."""
 
     over_fetch: int = 2
     """Ask each source for ``top_k * over_fetch`` before fusing."""
@@ -112,12 +118,36 @@ class SearchConfig:
     """Model for the rewriter and gate. Empty runs retrieval raw."""
 
     rewrite: bool = True
+    """Clean the query before searching. On by default: since it lost the
+    power to veto retrieval it can only sharpen a match, never remove
+    one."""
+
     rewrite_timeout_s: float = 5.0
     """Hard ceiling on the rewrite call. It runs before the gate on the
     same hot path, so it is bounded for the same reason — a stalled
     rewriter must degrade to "search the raw query", not hold the turn."""
 
-    gate: bool = True
+    gate: bool | None = None
+    """Let a model drop candidates before they reach the prompt.
+
+    ``None`` — the default — means "on when a catalog is configured". The
+    gate is a precision instrument, told to reject when unsure, and the two
+    sources need opposite things from it:
+
+    - **Local only.** These are the user's own skills, in a directory they
+      curate. Ranking plus ``top_k`` is enough, and a "nothing here
+      matches" answer now comes from retrieval itself, since an unrelated
+      query returns empty once the corpus-adaptive stop words are pruned.
+      A gate here mostly removes skills the user meant to have.
+    - **With a catalog.** Tens of thousands of unvetted skills, where the
+      best-ranked hit for an unrelated query is still *some* hit, and where
+      the environment check — does this agent even have the tools this
+      skill needs — is the only thing that catches a skill that cannot run
+      here. That is worth a model call.
+
+    An explicit ``True`` or ``False`` is always honoured.
+    """
+
     gate_pool: int = 10
     max_select: int = 2
     gate_timeout_s: float = 20.0
@@ -137,6 +167,10 @@ class SearchConfig:
     workspace: str = "."
     cache_dir: str = ""
     """Where downloaded bundles are extracted. Defaults under ``workspace``."""
+
+    def gate_enabled(self) -> bool:
+        """Whether to build the gate, resolving the ``None`` default."""
+        return bool(self.hub_endpoint) if self.gate is None else self.gate
 
     def resolved_skills_dir(self) -> Path | None:
         if not self.skills_dir:
@@ -179,6 +213,12 @@ class SearchConfig:
             # ``from __future__ import annotations`` makes the latter the
             # string ``"bool"``, so every comparison against a type object
             # is quietly false.
+            elif f.name == "gate":
+                # Tri-state: the default is None ("decide from the sources"),
+                # so it cannot be coerced by the default's type like the
+                # rest. An explicit value, including a string from a host's
+                # config file, becomes a real bool and is honoured.
+                kw[f.name] = None if v is None else _as_bool(v, True)
             elif isinstance(f.default, bool):
                 kw[f.name] = _as_bool(v, f.default)
             elif isinstance(f.default, int):

@@ -65,6 +65,18 @@ which wins so a credential never has to be copied into a file.
 | `timeoutMs` | `SKILLSEARCH_TIMEOUT_MS` | `8000` | Deadline for one retrieval |
 | `availableTools` | `SKILLSEARCH_AVAILABLE_TOOLS` | `[]` | See below |
 
+The default is the directory the host already conventions, so a deployment
+that keeps its skills there configures nothing. A directory that does not
+exist is not an error: the local source simply is not there, and retrieval
+runs on whatever else is configured — or, with nothing else, stays off.
+
+`gate` is unset by default, which means *on when a catalog is configured*.
+The gate is told to reject when unsure: a directory you curate is better
+served by ranking and `top_k`, especially now that an unrelated query
+returns nothing from it at all, while a catalog of unvetted skills needs
+the check for whether this agent even has the tools a skill calls for. Set
+it explicitly either way and that wins.
+
 `skillsDirs: []` turns the local source off. With no local directory and no
 catalog there is nothing to search: the plugin logs that retrieval is off and
 registers no hook at all.

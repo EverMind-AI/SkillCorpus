@@ -28,17 +28,18 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import replace
+from collections.abc import Sequence
 from typing import Any
 
 from skillsearch.config import SearchConfig
-from skillsearch.ports import ChatModel, MemoryRecall, SkillStore
+from skillsearch.ports import ChatModel, SkillStore
 from skillsearch.types import RouterHit
 
 log = logging.getLogger(__name__)
 
 
 class SkillSearch:
-    """Retrieval over local, remote and self-accumulated skills.
+    """Retrieval over a host's own skills directory and a remote catalog.
 
     Build once at host startup and keep it: sources hold an index and an
     HTTP connection pool, both of which want to outlive a single turn.
@@ -50,16 +51,21 @@ class SkillSearch:
         *,
         model: ChatModel | None = None,
         store: SkillStore | None = None,
-        memory: MemoryRecall | None = None,
         hub_client: Any = None,
         get_tools: Any = None,
+        extra_sources: Sequence[Any] = (),
     ) -> None:
         """
         ``store`` — a host's own skill scanner. Omitted, one is built over
         ``config.skills_dir``.
 
-        ``memory`` — recall over the agent's accumulated skills. Omitted,
-        that source is simply absent.
+        ``extra_sources`` — sources this package does not know about,
+        fused alongside the built-in two. Anything with a ``SkillSource``
+        shape qualifies: a host's memory backend, a private library, a
+        second catalog. The engine never learns which host it runs in, so
+        a host wanting its own source writes the adapter and passes it
+        here rather than teaching this package about it. Mirrors the
+        TypeScript engine's ``EngineParts.sources``.
 
         ``hub_client`` — a catalog client the host already built. Passing
         the one its own skill tools use keeps a single connection pool and
@@ -80,7 +86,7 @@ class SkillSearch:
         self._injected_hub = hub_client
         self._local_pool = None
         self._hub_client = None
-        self._router = self._build_router(store, memory)
+        self._router = self._build_router(store, extra_sources)
         self._rewriter, self._gate = self._build_narrowing()
 
     # ── Runtime control ──────────────────────────────────────────────
@@ -91,7 +97,7 @@ class SkillSearch:
 
         A host asks this to decide whether to install its retrieval hook
         at all. False when no skills directory exists, no catalog is
-        configured and no memory backend was passed — in which case
+        configured and no extra source was passed — in which case
         ``retrieve`` returns ``""`` for every query.
         """
         return self._router is not None
@@ -129,7 +135,7 @@ class SkillSearch:
 
     # ── Assembly ─────────────────────────────────────────────────────
 
-    def _build_router(self, store: SkillStore | None, memory: MemoryRecall | None):
+    def _build_router(self, store: SkillStore | None, extra_sources: Sequence[Any]):
         from skillsearch.router import SkillForgeRouter
 
         cfg = self._cfg
@@ -162,16 +168,7 @@ class SkillSearch:
                 ),
             )
 
-        if memory is not None and cfg.agent_id:
-            from skillsearch.sources.everos_source import EverosSkillSource
-
-            sources.append(
-                EverosSkillSource(
-                    backend=memory,
-                    agent_id=cfg.agent_id,
-                    weight=cfg.weight_memory,
-                )
-            )
+        sources.extend(extra_sources)
 
         if not sources:
             log.info("skillsearch: no sources configured; retrieval is off")
@@ -216,7 +213,7 @@ class SkillSearch:
             store = DirectorySkillStore(roots, max_depth=cfg.scan_depth)
 
         self._store = store
-        self._local_pool = LocalPool(store)
+        self._local_pool = LocalPool(store, index_body=cfg.index_body)
         return LocalSkillSource(
             pool=self._local_pool,
             registry=store,
@@ -232,7 +229,7 @@ class SkillSearch:
             from skillsearch.rewriter import QueryRewriter
 
             rewriter = QueryRewriter(self._model, model=cfg.model)
-        if cfg.gate:
+        if cfg.gate_enabled():
             from skillsearch.gate import LLMGateFilter
 
             gate = LLMGateFilter(
@@ -295,11 +292,10 @@ class SkillSearch:
                     self._rewriter.analyze(query),
                     timeout=cfg.rewrite_timeout_s,
                 )
-                # The rewriter also judges whether the turn wants skills at
-                # all — "thanks, that worked" does not. Honouring that skips
-                # the fan-out entirely rather than ranking noise.
-                if not getattr(result, "need_retrieval", True):
-                    return []
+                # Only a cleaner query comes back. Deciding that a turn
+                # wants no skills belongs to the gate, which sees the
+                # shortlist and the agent's tools; the rewriter sees
+                # neither and used to make that call anyway.
                 search_query = getattr(result, "rewritten_query", None) or query
             except TimeoutError:
                 log.warning(
@@ -316,15 +312,46 @@ class SkillSearch:
 
         hits = await self._hydrate_bodies(hits)
 
+        # Before the gate, and only for skills already on disk. The gate is
+        # told to reject a skill whose files it cannot see, and an
+        # unresolved `{baseDir}/scripts/x.py` reads exactly like one — so a
+        # local skill that ships its own files was being rejected for
+        # shipping them. Resolving first costs a few stats and no network.
+        if cfg.resolve_refs:
+            hits = self._resolve_local_refs(hits)
+
         if self._gate is not None:
             hits = await self._run_gate(query, hits)
         hits = hits[: cfg.top_k]
 
-        # Only the survivors: materialising a bundle is a download, so it
-        # waits until the gate has decided what is actually going in.
+        # The remote half stays here: materialising a bundle is a download,
+        # so it waits until the gate has decided what is actually going in.
         if cfg.resolve_refs:
             hits = await self._hydrate_refs(hits)
         return hits
+
+    def _resolve_local_refs(self, hits: list[RouterHit]) -> list[RouterHit]:
+        """Resolve `{baseDir}` and relative links for hits already on disk.
+
+        Synchronous on purpose: this is `os.stat` per referenced path, and
+        it runs on the turn's hot path in front of the gate.
+        """
+        from skillsearch.refs import resolve_refs
+
+        out: list[RouterHit] = []
+        for hit in hits:
+            meta = hit.meta or {}
+            skill_dir = meta.get("skill_dir")
+            if not skill_dir or not hit.content:
+                out.append(hit)
+                continue
+            try:
+                resolved, _ = resolve_refs(hit.content, skill_dir)
+                out.append(replace(hit, content=resolved))
+            except Exception as e:
+                log.debug("skillsearch: could not resolve refs for %s (%s)", hit.name, e)
+                out.append(hit)
+        return out
 
     async def _run_gate(self, task: str, hits: list[RouterHit]) -> list[RouterHit]:
         """Gate with a hard deadline; on timeout keep the top hits.
@@ -391,7 +418,8 @@ class SkillSearch:
         materialised, so this is what makes a skill usable rather than
         merely readable:
 
-        - local — the directory is already known; resolve in place.
+        - local — already resolved before the gate, where the directory
+          was known and the cost was a stat; passed through here.
         - remote — download and extract the bundle, then resolve against
           the extracted directory. Cached by ``<slug>@<version>``, so a
           repeat is a stat.
@@ -409,12 +437,6 @@ class SkillSearch:
             meta = hit.meta or {}
             source = meta.get("source")
             try:
-                if source == "local":
-                    skill_dir = meta.get("skill_dir")
-                    if not skill_dir:
-                        return hit
-                    resolved, _ = resolve_refs(hit.content or "", skill_dir)
-                    return replace(hit, content=resolved)
                 if source == "hub" and self._hub_client is not None:
                     installed = await self._hub_client.install(
                         meta["id"],

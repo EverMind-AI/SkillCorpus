@@ -45,3 +45,56 @@ def test_invalidate_picks_up_a_skill_written_after_the_first_scan(tmp_path: Path
 
     store.invalidate()
     assert len(store.list_all()) == 2
+
+
+def test_the_index_text_is_name_twice_and_description(tmp_path) -> None:
+    """The line the TypeScript `formatSkillText` must match byte for byte.
+
+    The body is out by default: the description is what the `SKILL.md`
+    format asks authors to write the trigger conditions into, and it is
+    also what the gate reads, so indexing it alone keeps ranking and gating
+    looking at the same text.
+    """
+    from skillsearch.local_pool import _format_skill_text
+    from skillsearch.types import SkillMeta
+
+    meta = SkillMeta(
+        name="pdf-tables", description="Extract tables.", content="x" * 5000,
+        source="local", path="", always=False,
+    )
+    assert _format_skill_text(meta) == "pdf-tables pdf-tables Extract tables."
+
+
+def test_index_body_restores_the_capped_body(tmp_path) -> None:
+    from skillsearch.local_pool import _format_skill_text
+    from skillsearch.types import SkillMeta
+
+    meta = SkillMeta(
+        name="pdf-tables", description="Extract tables.", content="x" * 5000,
+        source="local", path="", always=False,
+    )
+    assert _format_skill_text(meta, index_body=True) == (
+        "pdf-tables pdf-tables Extract tables. " + "x" * 4000
+    )
+
+
+async def test_a_term_only_in_a_body_is_findable_once_index_body_is_on(tmp_path) -> None:
+    """The cost of the new default, stated as a test rather than as prose."""
+    from skillsearch import SearchConfig, SkillSearch
+
+    skills = tmp_path / "skills"
+    (skills / "invoicing").mkdir(parents=True)
+    (skills / "invoicing" / "SKILL.md").write_text(
+        "---\nname: invoicing\ndescription: Bill a customer\n---\n\nRun qhjklz to reconcile.\n"
+    )
+
+    def search_for(index_body: bool) -> SkillSearch:
+        return SkillSearch(
+            SearchConfig.from_mapping({
+                "skills_dir": str(skills), "workspace": str(tmp_path),
+                "index_body": index_body,
+            })
+        )
+
+    assert "invoicing" not in await search_for(False).retrieve("qhjklz")
+    assert "invoicing" in await search_for(True).retrieve("qhjklz")

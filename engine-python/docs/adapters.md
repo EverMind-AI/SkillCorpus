@@ -157,8 +157,8 @@ A packaged version of all this is [`../../plugin-hermes/`](../../plugin-hermes);
 install that rather than assembling it by hand. What follows is the shape it
 implements, for anyone adapting a different host the same way.
 
-Configuration lives in `$HERMES_HOME/skillsearch.json`, mirroring where the
-EverOS provider keeps `everos.json`:
+Configuration lives in `$HERMES_HOME/skillsearch.json`, alongside every
+other memory provider's config file:
 
 ```json
 {

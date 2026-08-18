@@ -29,6 +29,11 @@ export function tokenize(text: string): string[] {
  *
  * `score(D, Q) = Σ idf(qᵢ) · f(qᵢ,D) · (k1 + 1) / (f(qᵢ,D) + k1 · (1 − b + b · |D|/avgdl))`
  */
+/** A term in more than this share of documents is treated as a stop word. */
+export const STOPWORD_DF_RATIO = 0.5
+/** Below this many documents, no term is pruned. See `BM25Okapi.stopwords`. */
+export const STOPWORD_MIN_CORPUS = 10
+
 export class BM25Okapi {
   private readonly k1: number
   private readonly b: number
@@ -37,6 +42,20 @@ export class BM25Okapi {
   /** Per document, its term frequencies and its length, kept together. */
   private readonly docs: { freqs: Map<string, number>; len: number }[]
   private readonly idf: Map<string, number>
+  /**
+   * Terms this corpus cannot distinguish on.
+   *
+   * A word in over half the documents carries no ranking signal here — in
+   * a skills directory that is "skill", "run", "use", the vocabulary of
+   * the format itself — but its idf stays just above zero, so every
+   * document holding it still collects score and an unrelated query still
+   * produces a confident-looking ranked list.
+   *
+   * Below `STOPWORD_MIN_CORPUS` documents this stays empty: on a corpus of
+   * three, a term in two is over the threshold, and pruning the query down
+   * to nothing is a worse answer than a weak ranking.
+   */
+  readonly stopwords: ReadonlySet<string>
 
   constructor(tokenizedCorpus: readonly (readonly string[])[], k1 = 1.5, b = 0.75) {
     this.k1 = k1
@@ -59,9 +78,12 @@ export class BM25Okapi {
     // non-negative when a token appears in nearly every document.
     const n = this.corpusSize
     this.idf = new Map()
+    const stopwords = new Set<string>()
     for (const [term, count] of df) {
       this.idf.set(term, Math.log(1 + (n - count + 0.5) / (count + 0.5)))
+      if (n >= STOPWORD_MIN_CORPUS && count / n > STOPWORD_DF_RATIO) stopwords.add(term)
     }
+    this.stopwords = stopwords
   }
 
   /** Score every document against the query. Index-aligned with the corpus. */
@@ -74,6 +96,7 @@ export class BM25Okapi {
     const scores = new Array<number>(this.corpusSize).fill(0)
     if (queryTokens.length === 0 || this.corpusSize === 0) return scores
     for (const term of queryTokens) {
+      if (this.stopwords.has(term)) continue
       const idf = this.idf.get(term) ?? 0
       if (idf <= 0) continue
       for (const [i, doc] of this.docs.entries()) {

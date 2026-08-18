@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { BM25Okapi, tokenize } from '../src/bm25.ts'
+import { BM25Okapi, STOPWORD_MIN_CORPUS, tokenize } from '../src/bm25.ts'
 import { bounded } from '../src/deadline.ts'
 import { RRF_K, rrfMergeWeighted } from '../src/fusion.ts'
 import { LLMGateFilter } from '../src/gate.ts'
@@ -125,11 +125,14 @@ test('the gate prompt is byte-identical to the Python one', async () => {
 })
 
 test('the rewrite prompt is byte-identical to the Python one', async () => {
-  const model = capturing('{"need_retrieval": true}')
+  const model = capturing('{"rewritten_query": "q"}')
   await new QueryRewriter(model).analyze('QUERY')
 
-  assert.equal(Buffer.byteLength(model.prompt), 596)
-  assert.ok(model.prompt.includes('Return JSON: {"need_retrieval": true/false, "rewritten_query": "..." or null}'))
+  // 596 before the veto came out; the retrieval-or-not half of the prompt
+  // went with it.
+  assert.equal(Buffer.byteLength(model.prompt), 289)
+  assert.ok(model.prompt.includes('Return JSON: {"rewritten_query": "..." or null}'))
+  assert.ok(!model.prompt.includes('need_retrieval'), 'the veto is not asked for')
   assert.ok(model.prompt.endsWith('\nQUERY'))
 })
 
@@ -149,7 +152,16 @@ test('a gate that cannot answer keeps candidates rather than dropping to none', 
 test('a rewriter that cannot answer still searches', async () => {
   const garbage = { complete: async () => 'I think you should try rebasing.' }
   assert.deepEqual(await new QueryRewriter(garbage).analyze('fix my branch'), {
-    needRetrieval: true,
+    rewrittenQuery: '',
+  })
+})
+
+test('a model still emitting the old veto no longer stops the search', async () => {
+  // A deployed prompt outlives the code change: models keep answering with
+  // `need_retrieval` for as long as anything caches the old one, and
+  // honouring it was the bug being removed.
+  const refusing = { complete: async () => '{"need_retrieval": false, "rewritten_query": null}' }
+  assert.deepEqual(await new QueryRewriter(refusing).analyze('fill in the acroform'), {
     rewrittenQuery: '',
   })
 })
@@ -166,13 +178,19 @@ test('a query full of replacement patterns reaches the prompt verbatim', async (
 })
 
 test('the BM25 index text is byte-identical to the Python formatting', () => {
-  // Python: f"{name} {name} {description or ''} {body[:4000]}" — the name
-  // twice so it outweighs a long body, the body capped at 4000 characters.
-  // The index text decides the ranking, and the two implementations promise
-  // the same ranking over the same directory.
+  // Python: " ".join([name, name, description]) — the name twice so a query
+  // naming a skill outweighs a description mentioning the same words, and
+  // no body. The index text decides the ranking, and the two
+  // implementations promise the same ranking over the same directory.
+  const skill = { name: 'pdf-tables', description: 'Extract tables.', content: 'x'.repeat(5000) }
+  assert.equal(formatSkillText(skill), 'pdf-tables pdf-tables Extract tables.')
+})
+
+test('indexBody restores the capped body, as the Python flag does', () => {
+  // For a corpus with thin descriptions. Python: parts.append(content[:4000]).
   const skill = { name: 'pdf-tables', description: 'Extract tables.', content: 'x'.repeat(5000) }
   assert.equal(
-    formatSkillText(skill),
+    formatSkillText(skill, true),
     `pdf-tables pdf-tables Extract tables. ${'x'.repeat(4000)}`,
   )
 })
@@ -268,4 +286,31 @@ test('the envelope is judged on both fields, as the Python client judges it', as
     'boom/0': 'rejected',
     'ok/1': 'rejected',
   })
+})
+
+test('the corpus-adaptive stop words are the ones Python prunes', () => {
+  // Python: {term | df/N > 0.5}, and nothing at all below ten documents.
+  // Both numbers are shared, because the two implementations promise the
+  // same ranking over the same directory — and a term pruned on one side
+  // and scored on the other is a silent divergence in what gets injected.
+  const index = new BM25Okapi(
+    Array.from({ length: 12 }, (_, i) => tokenize(`skill for handling case ${i}`)),
+  )
+  assert.deepEqual([...index.stopwords].sort(), ['case', 'for', 'handling', 'skill'])
+  assert.equal(Math.max(...index.getScores(tokenize('skill'))), 0)
+})
+
+test('a corpus under the guard prunes nothing, as in Python', () => {
+  const docs = Array.from({ length: STOPWORD_MIN_CORPUS - 1 }, (_, i) =>
+    tokenize(`shared term appears everywhere ${i}`))
+  const index = new BM25Okapi(docs)
+  assert.equal(index.stopwords.size, 0)
+  assert.ok(Math.max(...index.getScores(tokenize('shared'))) > 0)
+})
+
+test('a distinguishing term still ranks after pruning', () => {
+  const docs = Array.from({ length: 12 }, (_, i) => tokenize(`skill for handling case ${i}`))
+  docs.push(tokenize('skill for parsing pdf acroforms'))
+  const scores = new BM25Okapi(docs).getScores(tokenize('acroforms'))
+  assert.equal(scores.indexOf(Math.max(...scores)), docs.length - 1)
 })

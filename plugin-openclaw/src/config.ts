@@ -33,6 +33,15 @@ export interface SkillSearchConfig {
   /** Upper bound on what the gate keeps. */
   readonly maxSelect: number
   /** Deadline for one retrieval, in milliseconds. */
+  /** Index skill bodies alongside name and description. */
+  readonly indexBody: boolean
+  /** Clean the query before searching. Needs a `model`. */
+  readonly rewrite: boolean
+  /**
+   * Drop candidates with a model before they reach the prompt. Undefined
+   * means "on when a catalog is configured". Needs a `model`.
+   */
+  readonly gate: boolean | undefined
   readonly timeoutMs: number
   /**
    * Tool names this agent can call. The host does not report them to a hook,
@@ -53,6 +62,9 @@ export const DEFAULTS: SkillSearchConfig = {
   topK: 5,
   gatePool: 10,
   maxSelect: 2,
+  indexBody: false,
+  rewrite: true,
+  gate: undefined,
   timeoutMs: 8000,
   availableTools: [],
 }
@@ -69,6 +81,9 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   topK: 'SKILLSEARCH_TOP_K',
   gatePool: 'SKILLSEARCH_GATE_POOL',
   maxSelect: 'SKILLSEARCH_MAX_SELECT',
+  indexBody: 'SKILLSEARCH_INDEX_BODY',
+  rewrite: 'SKILLSEARCH_REWRITE',
+  gate: 'SKILLSEARCH_GATE',
   timeoutMs: 'SKILLSEARCH_TIMEOUT_MS',
   availableTools: 'SKILLSEARCH_AVAILABLE_TOOLS',
 }
@@ -95,6 +110,18 @@ function asNumber(value: unknown): number | undefined {
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value)
     if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function asBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  // An environment variable is always a string, so the words have to be
+  // read: `SKILLSEARCH_INDEX_BODY=false` must not arrive as truthy.
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'on'].includes(text)) return true
+    if (['false', '0', 'no', 'off'].includes(text)) return false
   }
   return undefined
 }
@@ -134,6 +161,11 @@ export function loadConfig(
     topK: asNumber(pick('topK')) ?? DEFAULTS.topK,
     gatePool: asNumber(pick('gatePool')) ?? DEFAULTS.gatePool,
     maxSelect: asNumber(pick('maxSelect')) ?? DEFAULTS.maxSelect,
+    indexBody: asBoolean(pick('indexBody')) ?? DEFAULTS.indexBody,
+    rewrite: asBoolean(pick('rewrite')) ?? DEFAULTS.rewrite,
+    // Stays undefined when unset — `false` and "not configured" mean
+    // different things here.
+    gate: asBoolean(pick('gate')),
     timeoutMs: asNumber(pick('timeoutMs')) ?? DEFAULTS.timeoutMs,
     availableTools: asList(pick('availableTools')) ?? DEFAULTS.availableTools,
   }

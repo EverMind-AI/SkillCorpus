@@ -64,8 +64,6 @@ export interface SkillSource {
 
 /** What the rewriter decides about a turn. */
 export interface RewriteResult {
-  /** False when the turn wants no skills at all, which skips the fan-out. */
-  readonly needRetrieval: boolean
   /** The query to search with; empty means use the user's words unchanged. */
   readonly rewrittenQuery: string
 }

@@ -17,6 +17,11 @@ import re
 # ``re`` precompile is module-level to dodge per-call regex setup.
 _TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[一-鿿]")
 
+# A term in more than this share of documents is treated as a stop word.
+STOPWORD_DF_RATIO = 0.5
+# Below this many documents, no term is pruned. See ``BM25Okapi.stopwords``.
+STOPWORD_MIN_CORPUS = 10
+
 
 def tokenize(text: str) -> list[str]:
     return _TOKEN_RE.findall(text.lower())
@@ -56,11 +61,30 @@ class BM25Okapi:
         # weighting; the ``1 +`` guard keeps it non-negative when n ≈ N.
         self.idf = {term: math.log(1 + (n - count + 0.5) / (count + 0.5)) for term, count in df.items()}
 
+        # Terms this corpus cannot distinguish on. A word in over half the
+        # documents carries no ranking signal here — in a skills directory
+        # that is "skill", "run", "use", the vocabulary of the format
+        # itself — but its idf stays just above zero, so every document
+        # holding it still collects score and an unrelated query still
+        # produces a ranked list.
+        #
+        # Below ``STOPWORD_MIN_CORPUS`` documents this is off: on a corpus
+        # of three, a term in two of them is over the threshold, and
+        # pruning the query down to nothing is a worse answer than a weak
+        # ranking.
+        self.stopwords: frozenset[str] = (
+            frozenset(term for term, count in df.items() if count / n > STOPWORD_DF_RATIO)
+            if n >= STOPWORD_MIN_CORPUS
+            else frozenset()
+        )
+
     def get_scores(self, query_tokens: list[str]) -> list[float]:
         scores = [0.0] * self.corpus_size
         if not query_tokens or self.corpus_size == 0:
             return scores
         for term in query_tokens:
+            if term in self.stopwords:
+                continue
             idf = self.idf.get(term, 0.0)
             if idf <= 0.0:
                 continue

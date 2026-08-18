@@ -145,6 +145,9 @@ def test_a_host_model_client_narrows_the_block_to_the_gate_s_pick(home: Path) ->
     # engine unfiltered, because the model name is what selects the route.
     config = json.loads((home / "skillsearch.json").read_text(encoding="utf-8"))
     config["model"] = "fake-model"
+    # Explicit: with only a local directory the gate is off by default, and
+    # this test is about the gate.
+    config["gate"] = True
     (home / "skillsearch.json").write_text(json.dumps(config), encoding="utf-8")
 
     provider = plugin.SkillSearchProvider(HostWithModel())

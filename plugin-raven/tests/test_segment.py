@@ -107,8 +107,9 @@ def test_the_manifest_id_matches_the_entry_point() -> None:
 
 # `build()` wraps its result in the host's `Segment` type, so these need a
 # Raven checkout. Against one, `verify-raven.py` in the repository root
-# drives the same path further — through the real `ContextAssembler`, to
-# the assembled prompt.
+# drives the same path further — `RAVEN_ROOT=<checkout> python
+# verify-raven.py`, through the real `ContextAssembler`, to the assembled
+# prompt.
 needs_host = pytest.mark.skipif(
     importlib.util.find_spec("raven") is None, reason="needs a Raven checkout on the path"
 )

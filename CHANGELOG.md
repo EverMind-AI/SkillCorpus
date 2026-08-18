@@ -29,6 +29,24 @@
 
 ### Fixed
 
+- **A zip that understates an entry's size is now stopped while inflating**,
+  not after. The size check caught it either way, but only once the bytes
+  were in memory — which is the entire cost a zip bomb exists to impose.
+  `inflateRawSync` now carries `maxOutputLength`.
+
+- **`materialise` / `fetchBody` no longer fire for non-catalog hits.** The
+  engine calls them for any hit without a skill directory, which includes
+  every hit a host-supplied source contributes; those arrived with an
+  undefined id and fetched `/skills/undefined`, so an extra source cost a
+  404 per hit.
+
+- **`timeout_s` in `$HERMES_HOME/skillsearch.json` is read.** The plugin
+  offered it in its setup and wrote it to the file, and
+  `SkillSearchEngine.from_hermes` built the adapter without it — so every
+  value a user chose was discarded for the 8-second default. Found while
+  driving the plugin against an 891-skill corpus, where 8 seconds is not
+  enough and the setting that exists to say so did nothing.
+
 - **A query containing `$&`, `` $` `` or `$'` corrupted the rewrite prompt
   (TypeScript).** The user's text went into `String.replace` as a *string*
   replacement, where `$`-sequences are pattern references — quoting shell's
@@ -90,7 +108,80 @@
   backend one abandoned retrieval per turn accumulated on their private
   loop.
 
+### Removed
+
+- **The EverOS source, and the engine's knowledge of any one host's
+  memory.** `SkillSearch(memory=...)`, `SearchConfig.agent_id` and
+  `SearchConfig.weight_memory` are gone, along with
+  `skillsearch/sources/everos_source.py` and the `MemoryRecall` port.
+  **Breaking** for anyone passing them.
+
+  In their place, `SkillSearch(extra_sources=[...])` — the Python twin of
+  the TypeScript engine's `EngineParts.sources`. Anything shaped like a
+  `SkillSource` is fused beside the two built-in ones, so a host with
+  recall over self-evolved skills writes that adapter itself and the engine
+  never learns what it is. Ten lines on the host's side; one fewer
+  deployment's concepts in this package.
+
+- **`plugin-raven/host-patches/`.** The `context_segments` slot it opened
+  is going upstream instead. A patch is a fork to maintain, and this one
+  had drifted from Raven's `main` and wired one of the three `AgentLoop`
+  construction sites. Until the slot lands the plugin installs and never
+  gets a stage to claim.
+
+- **`skillsearch/adapters/hermes.py`** moved to `plugin-hermes/engine_adapter.py`,
+  beside the plugin that is its only caller. **Breaking** for a direct
+  importer; `engine-python/adapters/` now holds only `http_server.py`, the
+  any-host-over-HTTP channel.
+
 ### Changed
+
+- **The rewriter can no longer veto retrieval.** `need_retrieval` is out of
+  the prompt, out of `RewriteResult`, and no longer consulted; a rewrite
+  now only produces a cleaner query, and every failure path means "search
+  the raw words". Measured here at a coin flip — one query, six live runs,
+  `true` and `false` three each — and reached without sight of a single
+  candidate. The gate sees the shortlist *and* the agent's tool list, so it
+  is the only step with standing to decide that nothing should be injected.
+  **Behaviour change**: turns the rewriter used to skip now fan out.
+
+- **`{baseDir}` resolves before the gate, for skills already on disk.** The
+  gate's prompt tells the model to reject a skill whose referenced files it
+  cannot see, naming `{baseDir}` as the sign of one — and resolution used
+  to run *after* the gate, so every local skill that shipped its own
+  scripts arrived looking exactly like the thing the gate was told to
+  reject. Remote bundles still materialise after the gate: that is a
+  download, and only survivors should cost one.
+
+- **The BM25 index text is name + description, not name + description +
+  body.** The description is the retrieval contract of the `SKILL.md`
+  format — authors are asked to write the trigger conditions there — and it
+  is also what the gate reads, so indexing it alone keeps ranking and
+  gating looking at the same text; a body is prose, and the largest single
+  source of a spurious match. **Behaviour change**, with a real cost: a
+  tool named only inside a body is no longer findable by name, and a skill
+  with no description has only its directory name left to match on. Set
+  `index_body=True` / `indexBody: true` to restore the old text.
+
+- **Query terms the corpus cannot distinguish on are pruned.** A term in
+  over half the documents — "skill", "run", "use", the vocabulary of the
+  format itself — is dropped from the query rather than left to carry it,
+  since BM25's idf keeps such a term just above zero rather than at it. An
+  unrelated query now returns nothing from a local directory instead of
+  returning whatever ranked first. Off below ten documents, where over half
+  is two of three. Threshold and guard are shared by both implementations
+  and pinned in the parity suite.
+
+- **`gate` defaults to "on when a catalog is configured" rather than
+  always on**, and TypeScript gained the independent `gate` / `rewrite`
+  switches Python already had (configuring a `model` used to turn both on
+  together). The gate is a precision instrument told to reject when unsure:
+  a directory the user curates is better served by ranking plus `top_k`,
+  now that an unrelated query returns empty on its own, while a catalog of
+  unvetted skills needs the environment check that is the only thing
+  catching a skill this agent has no tools for. An explicit value always
+  wins. **Behaviour change** for a local-only deployment with a model
+  configured: no gate call, and no gate latency.
 
 - **Gate-failure fallback is `max_select` (2), not `top_k` (5).** Carried
   over from an earlier host integration where the count was 5 and a comment
@@ -105,15 +196,6 @@
   rendered from `SearchConfig.heading` and the parameter was never read.
 - The HTTP adapter no longer documents a `session_id` field. Retrieval is
   stateless and it was never read.
-
-### Known, measured, not fixed
-
-- The rewriter's `need_retrieval` verdict costs recall. Over six live runs
-  one query flipped between `true` and `false` about half the time, and a
-  `false` drops a skill both ranking and the gate would have selected. The
-  prompt already says "when in doubt, choose retrieval". Recorded in both
-  READMEs rather than worked around, because changing the prompt would
-  break the byte-identical parity the two implementations are checked on.
 
 ### Documentation
 

@@ -15,7 +15,7 @@ Nothing under ``skillsearch/`` imports a host. Host-specific code lives in
 
 from skillsearch.config import LocalDir, SearchConfig
 from skillsearch.engine import SkillSearch
-from skillsearch.ports import ChatModel, MemoryRecall, SkillStore
+from skillsearch.ports import ChatModel, SkillStore
 from skillsearch.types import RouterHit
 
 __version__ = "0.1.0"
@@ -23,7 +23,6 @@ __version__ = "0.1.0"
 __all__ = [
     "ChatModel",
     "LocalDir",
-    "MemoryRecall",
     "RouterHit",
     "SearchConfig",
     "SkillSearch",

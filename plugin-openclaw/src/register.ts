@@ -44,7 +44,10 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(dir => isAbsolute(dir) || dir)
   if (dirs.length > 0) {
-    sources.push(new LocalSkillSource(dirs.map(path => ({ path, name: 'local' })), {}))
+    sources.push(new LocalSkillSource(
+      dirs.map(path => ({ path, name: 'local' })),
+      { indexBody: config.indexBody },
+    ))
   }
 
   let client: SkillHubClient | undefined
@@ -67,15 +70,30 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
   return new SkillSearchEngine(
     {
       sources,
-      ...(model ? { rewriter: new QueryRewriter(model) } : {}),
-      ...(model ? { gate: new LLMGateFilter(model, { maxSelect: config.maxSelect }) } : {}),
+      // Two independent switches over one model. Configuring a model used
+      // to turn both on together, leaving no way to keep the query cleaning
+      // and drop the gate.
+      ...(model && config.rewrite ? { rewriter: new QueryRewriter(model) } : {}),
+      // `gate` unset means "on when a catalog is configured": the gate is
+      // told to reject when unsure, which a curated local directory does
+      // not need and an unvetted catalog does.
+      ...(model && (config.gate ?? Boolean(config.hubEndpoint))
+        ? { gate: new LLMGateFilter(model, { maxSelect: config.maxSelect }) }
+        : {}),
       ...(client
         ? {
+          // The engine calls both for any hit without a skill directory,
+          // which is every hit a third-party source contributes too. Without
+          // this guard those arrive here with `hit.meta.id` undefined and
+          // fetch `/skills/undefined` from the catalog, so an extra source
+          // costs a 404 per hit.
           fetchBody: async (hit, signal) => {
+            if (hit.meta.source !== 'hub') return undefined
             const record = await client.get(String(hit.meta.id), signal)
             return typeof record.skill_md === 'string' ? record.skill_md : undefined
           },
           materialise: async (hit, signal) => {
+            if (hit.meta.source !== 'hub') return undefined
             const installed = await client.install(String(hit.meta.id), undefined, signal)
             return { dir: installed.dir, body: installed.skillMd }
           },

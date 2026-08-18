@@ -32,9 +32,9 @@ class RouterHit:
 
     qualified_id: str
     """Globally-unique id with source prefix. Examples:
-    ``"local/git-resolver"`` / ``"mass/curated-xyz"`` /
-    ``"everos/abc123"``. The slash split is unambiguous because
-    source names are simple identifiers (no embedded slashes)."""
+    ``"local/git-resolver"`` / ``"mass/curated-xyz"``. The slash split is
+    unambiguous because source names are simple identifiers (no embedded
+    slashes)."""
 
     name: str
     """Skill display name. Used as the cross-source dedup key inside
@@ -72,10 +72,11 @@ class SkillSource(Protocol):
 
     The seam for adding a source: anything with a ``name``, a ``weight``
     and ``async search(query, history, k)`` participates in fusion, and
-    the three that ship (local, hub, memory-recall) hold no privileged
-    position. A host that only wants to contribute recall over an
-    agent's own skills implements :class:`MemoryRecall` instead, which
-    :class:`EverosSkillSource` wraps into a source.
+    the two that ship (local, hub) hold no privileged position. A host
+    with a source of its own — a memory backend, a private library —
+    writes it against this protocol and passes it to
+    ``SkillSearch(extra_sources=...)``; this package never learns what it
+    is.
 
     Why ``weight`` is a class attribute, not a method param: weights
     are router-wide policy, not per-call, so they belong with the
@@ -84,7 +85,7 @@ class SkillSource(Protocol):
     """
 
     name: str
-    """Stable source identifier (``"local"`` / ``"mass"`` / ``"everos"``).
+    """Stable source identifier (``"local"`` / ``"mass"`` / a host's own).
     Used as the prefix in :attr:`RouterHit.qualified_id` and as the
     feedback-dispatch routing key."""
 

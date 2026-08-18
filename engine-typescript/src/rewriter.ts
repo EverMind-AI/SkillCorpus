@@ -1,15 +1,17 @@
 /**
- * Query rewriting, and the decision to search at all.
+ * Query rewriting: a cleaning step, and nothing more.
  *
- * One call answers both: whether this turn wants skills, and what to search
- * for if it does. A greeting or a follow-up needs nothing, and searching for
- * it spends a fan-out to rank noise. When the user does want something, their
- * words carry paths, ids and boilerplate that dilute a keyword match, so the
- * rewrite keeps the task, the domain and the capabilities and drops the rest.
+ * A user's words carry paths, ids and boilerplate that dilute a keyword
+ * match, so the rewrite keeps the task, the domain and the capabilities and
+ * drops the rest.
  *
- * Every failure resolves to "search anyway" with the original words. Missing a
- * rewrite costs precision; skipping retrieval on a turn that wanted it costs
- * the skill entirely.
+ * It used to also decide whether to search at all, and that veto is gone.
+ * The verdict was measured unstable — one query, six runs, true and false
+ * three each — and it was reached without sight of a single candidate. The
+ * gate sees the shortlist *and* the agent's tools, so it is the only step
+ * with the standing to decide that nothing should be injected.
+ *
+ * Every failure resolves to "search the original words".
  *
  * @module
  */
@@ -18,18 +20,12 @@ import { bounded } from './deadline.js'
 import { extractJsonObject } from './replies.js'
 import type { RewriteResult } from './types.js'
 
-const REWRITE_PROMPT = `Given a user query, first decide if it needs external skill/tool retrieval. \
-Casual chat, greetings, simple follow-ups, and general knowledge tasks do not. \
-Specialized tools, domain-specific workflows, or specific frameworks/APIs do.
-
-If retrieval is needed, rewrite the query for skill retrieval. \
+const REWRITE_PROMPT = `Rewrite the following user query for skill retrieval. \
 Remove noise (paths, IDs, timestamps, boilerplate). \
 Keep task type, domain, required capabilities, and key technical details. \
 Do NOT answer or solve the query — only rewrite it.
 
-When in doubt, choose retrieval.
-
-Return JSON: {"need_retrieval": true/false, "rewritten_query": "..." or null}
+Return JSON: {"rewritten_query": "..." or null}
 
 {query}`
 
@@ -57,19 +53,17 @@ export class QueryRewriter {
   }
 
   /**
-   * Judge whether `query` wants skills, and rewrite it for retrieval.
-   *
-   * Returns `needRetrieval: false` only when the model says so about a
-   * non-empty query, or when the query is blank. Any transport or parse
-   * failure returns `needRetrieval: true` with an empty rewrite.
+   * Rewrite `query` for retrieval.
    *
    * @param query - the user's words for this turn.
    * @param signal - aborts the call when the turn is cancelled.
-   * @returns the verdict, and the rewrite when there is one.
+   * @returns the rewrite, or an empty one meaning "search the raw query".
+   *   A blank query, a transport failure and an unparsable reply all land
+   *   there; none of them stops the search.
    */
   async analyze(query: string, signal?: AbortSignal): Promise<RewriteResult> {
     const truncated = query.trim().slice(0, QUERY_MAX_LENGTH)
-    if (!truncated) return { needRetrieval: false, rewrittenQuery: '' }
+    if (!truncated) return { rewrittenQuery: '' }
 
     // A function replacement, never the string: `truncated` is the user's
     // text, and String.replace reads `$&`/`$'`/$` in a string replacement
@@ -84,7 +78,7 @@ export class QueryRewriter {
         signal,
       )
     } catch {
-      return { needRetrieval: true, rewrittenQuery: '' }
+      return { rewrittenQuery: '' }
     }
     return parse(content)
   }
@@ -92,12 +86,10 @@ export class QueryRewriter {
 
 function parse(content: string): RewriteResult {
   const data = extractJsonObject(content)
-  if (data === undefined) return { needRetrieval: true, rewrittenQuery: '' }
-  const record = data as { need_retrieval?: unknown; rewritten_query?: unknown }
-  const need = record.need_retrieval === undefined ? true : Boolean(record.need_retrieval)
-  if (!need) return { needRetrieval: false, rewrittenQuery: '' }
+  if (data === undefined) return { rewrittenQuery: '' }
+  const record = data as { rewritten_query?: unknown }
   const rewritten =
     typeof record.rewritten_query === 'string' ? record.rewritten_query.trim() : ''
-  return { needRetrieval: true, rewrittenQuery: rewritten }
+  return { rewrittenQuery: rewritten }
 }
 

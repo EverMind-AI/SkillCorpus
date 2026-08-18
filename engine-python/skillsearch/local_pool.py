@@ -4,7 +4,6 @@ The "local" pool covers everything that lives as a SKILL.md file on disk:
 
   - workspace/skills/ (user-authored)
   - packaged builtin/ (the 9 shipped skills)
-  - workspace/skills/everos/ (EverOS-extracted, optional)
 
 These pools are small (tens to a few hundred skills) and frequently edited,
 so BM25 over the in-memory corpus is the right shape:
@@ -38,13 +37,26 @@ if TYPE_CHECKING:
     from skillsearch.ports import SkillStore
 
 
-def _format_skill_text(meta: SkillMeta, body_max: int = 4000) -> str:
-    """One-line representation fed into the BM25 index. Heavier on signal
-    fields (name, description) than body — ``"weather"`` should fire on
-    the weather skill even when the body talks about HTTP and caching."""
-    body = (meta.content or "")[:body_max]
-    # Repeat name + description so they outweigh a long body in BM25 TF.
-    return f"{meta.name} {meta.name} {meta.description or ''} {body}"
+def _format_skill_text(meta: SkillMeta, *, index_body: bool = False, body_max: int = 4000) -> str:
+    """One line per skill, fed into the BM25 index.
+
+    Name twice and the description, and by default nothing else. The
+    description is the retrieval contract of the ``SKILL.md`` format —
+    authors are told to write what the skill is *for* there — and it is
+    also what the gate sees, so indexing it alone keeps the two steps
+    looking at the same thing. A body is prose: mostly stop words, and the
+    single largest source of a spurious match.
+
+    ``index_body`` restores the body, capped, for a corpus whose skills
+    have thin descriptions. The cost of leaving it off is real and worth
+    stating: a tool named only inside a body is no longer searchable, and
+    a skill with no description at all has only its directory name left to
+    match on.
+    """
+    parts = [meta.name, meta.name, meta.description or ""]
+    if index_body:
+        parts.append((meta.content or "")[:body_max])
+    return " ".join(parts)
 
 
 class LocalPool:
@@ -62,8 +74,9 @@ class LocalPool:
     to capture the two references, then scores + sorts outside.
     """
 
-    def __init__(self, registry: SkillStore) -> None:
+    def __init__(self, registry: SkillStore, *, index_body: bool = False) -> None:
         self._registry = registry
+        self._index_body = index_body
         self._metas: list[SkillMeta] = []
         self._bm25: _BM25Okapi | None = None
         # Plain Lock (not RLock): no method re-enters another.
@@ -88,7 +101,9 @@ class LocalPool:
                 self._metas = []
                 self._bm25 = None
             return
-        tokenized_corpus = [_tokenize(_format_skill_text(m)) for m in metas]
+        tokenized_corpus = [
+            _tokenize(_format_skill_text(m, index_body=self._index_body)) for m in metas
+        ]
         bm25 = _BM25Okapi(tokenized_corpus)
         # Defensive copy: registry's ``list_all`` hands out its cached
         # list by reference, and a future rebuild replaces (not mutates)
