@@ -4,25 +4,26 @@ English | [简体中文](README.zh.md)
 
 **The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** The `skillsearch` engine inside watches what the user just asked, retrieves the matching `SKILL.md` skills from a local directory and an optional remote catalog, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
 
-Ask *"extract the tables from this scanned invoice"* and the model's context gains:
+A real turn, on WorkBuddy: ask *“帮我生成一个二维码，内容是 https://evermind.ai，存到桌面”*. No QR skill exists on the machine — but the catalog has one, so before the model answers, its context gains:
 
 ```markdown
 # Skills
 
-### Skill: pdf-tables  [local/pdf-tables]
-**Skill directory**: `/home/you/.openclaw/skills/pdf-tables`
+### Skill: fireflylan-qr-code  [hub/24493cfe-c3cc-4dbe-9f6c-dfeac945b4c1]
+**Skill directory**: `~/.workbuddy-ai/skillsearch-bundles/fireflylan-qr-code@<version>`
 Relative refs (e.g. `references/x.md`, `./scripts/y.sh`) resolve under
 this directory — use the absolute form for read_file / exec.
 
-Extract tables from scanned or native PDFs with camelot. For scanned
-input, run `scripts/ocr.sh` first, then …
+生成二维码/条形码，支持文本、URL、WiFi 配置等内容，可自定义尺寸、颜色并指定保存路径 …
 ```
 
-Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted, permissively-licensed skills — or both fused into one ranking.
+The skill's bundled script is already extracted next to it; the model runs it and the QR code lands on the desktop. Without retrieval, the model improvises — `pip install qrcode` and hope.
+
+Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted, permissively-licensed skills, where that QR skill came from — or both fused into one ranking.
 
 ## Install — paste this to your agent
 
-Every supported host *is* an agent, so the fastest install is to let it install itself. Paste this into Raven, Hermes, OpenClaw, or a DeepSeek Harness session:
+Every supported host *is* an agent, so the fastest install is to let it install itself. Paste this into WorkBuddy, OpenClaw, Hermes, or a DeepSeek Harness session:
 
 > Install the skillsearch plugin for the agent host you are running in.
 > Clone https://gitlab.com/npc-work/aic/ai/skillsearch_plugins and follow
@@ -37,6 +38,7 @@ The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — human-read
 
 | Your host | Do this | Details |
 | --- | --- | --- |
+| **WorkBuddy** | build `plugin-workbuddy`, register it as a marketplace, enable — file-level steps an agent does well: paste the prompt in its README | [plugin-workbuddy](plugin-workbuddy#install--paste-this-to-workbuddy) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`, then two keys in `openclaw.json` | [plugin-openclaw](plugin-openclaw#install) |
 | **DeepSeek Harness** | copy `engine-typescript/` to `packages/skill/skill-search/`, add a `cordis.yml` row | [engine-typescript](engine-typescript#where-this-goes) |
@@ -91,7 +93,7 @@ Nothing is added to durable history — the injection is rebuilt per turn and di
 Honest accounting, because retrieval runs on your conversation:
 
 - **Local-only setup (default)** — nothing. Scanning, ranking and injection are all in-process.
-- **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
+- **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 
 Downloaded skills are third-party content that the model is instructed to follow. The gate exists to reject ones that assume tools or environments your agent lacks — that is why it defaults on when a catalog is configured.
@@ -146,6 +148,7 @@ Each plugin binds this pipeline to one host moment — always *after the user's 
 
 | Plugin | Host | Seam | Host change needed |
 | --- | --- | --- | --- |
+| [`plugin-workbuddy/`](plugin-workbuddy) | WorkBuddy (5.3.13) | `UserPromptSubmit` hook — a process per turn | none |
 | [`plugin-hermes/`](plugin-hermes) | Hermes | memory provider's `prefetch` | none |
 | [`plugin-openclaw/`](plugin-openclaw) | OpenClaw (verified back to 2026.3.8) | `before_prompt_build` hook | none |
 | [`engine-typescript/`](engine-typescript) | DeepSeek Harness | `agent/pre-step` waterfall | none |
@@ -166,6 +169,7 @@ Or point it at any service of your own answering the same envelope. Every SkillC
 ```
 engine-python/       the pipeline in Python 3.11+   (also: HTTP adapter for any host)
 engine-typescript/   the pipeline in TypeScript / Node 18+, and the DeepSeek Harness entry
+plugin-workbuddy/    WorkBuddy plugin over engine-typescript — a hook process per turn
 plugin-hermes/       Hermes plugin    over engine-python
 plugin-raven/        Raven plugin     over engine-python
 plugin-openclaw/     OpenClaw plugin  over engine-typescript
@@ -201,7 +205,7 @@ npm --prefix plugin-openclaw run check:host
 
 Only a real checkout closes the rest: every plugin here has been installed into its host and driven through that host's own loader end to end — `verify-raven.py` in the root drives the Raven path through the host's own `ContextAssembler`.
 
-**Tested against**: Python 3.11–3.13 · Node 18+ (CI on 22) · hermes-agent `main` · OpenClaw (verified back to 2026.3.8) · DeepSeek Harness workspace `main` · Raven pending its upstream slot.
+**Tested against**: Python 3.11–3.13 · Node 18+ (CI on 22) · WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw (verified back to 2026.3.8) · DeepSeek Harness workspace `main` · Raven pending its upstream slot.
 
 ## Part of the EverMind agent stack
 

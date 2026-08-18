@@ -4,6 +4,21 @@
 
 ### Added
 
+- **A fifth host: WorkBuddy** ([`plugin-workbuddy/`](plugin-workbuddy)), where
+  the seam is a process — a `UserPromptSubmit` hook spawned per turn, reading
+  the turn from stdin and answering with `additionalContext` on stdout. Ships
+  a disk-cached local scan (`CachedLocalSkillSource`, fingerprinted by every
+  `SKILL.md`'s path and mtime), its own config file with environment
+  overrides, and a per-turn JSONL log — the host drops the injected block
+  from the transcript, so the log is the only record. Host behaviours
+  (a failed hook blocks the whole turn; instructions in the channel are
+  refused as injection) were established against WorkBuddy 5.3.13 by
+  experiment.
+- **`rrf_k` / `rrfK`** — fusion's rank-damping offset is now a parameter in
+  both implementations (default stays the paper's 60). At a small `topK`,
+  60 makes any weight gap between sources outweigh every rank gap within
+  one, so a host fusing a short head can pass a smaller value; the WorkBuddy
+  plugin defaults to 10.
 - **`INSTALL.agent.md`** — an installation playbook written for the agent
   itself: paste one prompt from the README and the host installs, verifies
   (a positive and a negative retrieval probe) and reports. Carries hard
@@ -36,6 +51,12 @@
 
 ### Fixed
 
+- **The WorkBuddy hook could truncate its own answer and block the turn.**
+  `process.exit(0)` immediately after `process.stdout.write` cuts the
+  document at the 64 KiB pipe buffer once the write goes asynchronous —
+  reachable with two large catalog bodies — and a truncated document is
+  "nothing usable" to the host, which raises `HookBlockedError` and drops
+  the user's message. The exit now happens in the write callback.
 - **A zip that understates an entry's size is now stopped while inflating**,
   not after. The size check caught it either way, but only once the bytes
   were in memory — which is the entire cost a zip bomb exists to impose.

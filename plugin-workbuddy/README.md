@@ -105,13 +105,33 @@ the other way round on 2026-08-18, and the catalog's top two for a poster
 task both depended on infrastructure this machine lacked while the local
 skill that runs here sat unread in seat three.
 
-## Install
+## Install — paste this to WorkBuddy
 
-Package the directory as a marketplace and add it in
-**Experts · Skills · Connectors → Skills → 插件市场**. A source may be a local
-directory, `owner/repo`, a git URL or a zip.
+WorkBuddy is itself an agent, and this install is file-level work an agent
+does well. Paste this into a WorkBuddy session (fill in the plugin source):
 
-**Use git or zip, not a local directory.** A directory-sourced marketplace
-installs the plugin without writing an entry to `installed_plugins.json` or
-copying it into `plugins/cache/`, and after a restart its hooks stop loading
-until the plugin panel is opened again. Observed on 5.3.13.
+> 帮我在 WorkBuddy 里安装 skillsearch 插件。它是一个 UserPromptSubmit hook，
+> 每轮对话前按我的提问检索本机与远端的 skill，把最相关的注入上下文。
+>
+> 插件源（git 地址或本地打包目录）：`<源地址>`
+>
+> 严格按照源里 `plugin-workbuddy/INSTALL.agent.md` 的步骤执行：每做完一步
+> 简短汇报结果；任何一步失败就停下来告诉我，不要跳过，也不要自己想办法
+> 绕过；改任何配置文件之前，先做带时间戳的备份，并把要做的改动展示给我；
+> 市场名和版本号从文件里读，不要自己编。装完后按剧本的自检清单逐项验证，
+> 把结果和所有改动过的文件汇报给我。
+
+The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — backup,
+marketplace registration, cache copy, install record, enablement, then a
+positive and a negative retrieval probe. The same prompt in English works;
+the playbook is English.
+
+### Packaging notes
+
+The panel route (**Experts · Skills · Connectors → Skills → 插件市场**)
+accepts a local directory, `owner/repo`, a git URL or a zip — but **use git
+or zip, not a local directory**. A directory-sourced marketplace installs
+the plugin without writing an entry to `installed_plugins.json` or copying
+it into `plugins/cache/`, and after a restart its hooks stop loading until
+the plugin panel is opened again. Observed on 5.3.13 — and the reason the
+playbook writes the install records directly.

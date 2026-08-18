@@ -4,24 +4,26 @@
 
 **[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** 内置的 `skillsearch` 引擎盯着用户刚说的话，从本地目录和可选的远程技能库里检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
 
-问一句 *"帮我把这张扫描发票里的表格提出来"*，模型的上下文里会多出：
+一个真实轮次，发生在 WorkBuddy 上：问 *"帮我生成一个二维码，内容是 https://evermind.ai，存到桌面"*。这台机器上没有任何二维码技能——但语料库里有，于是模型作答前，它的上下文多出：
 
 ```markdown
 # Skills
 
-### Skill: pdf-tables  [local/pdf-tables]
-**Skill directory**: `/home/you/.openclaw/skills/pdf-tables`
+### Skill: fireflylan-qr-code  [hub/24493cfe-c3cc-4dbe-9f6c-dfeac945b4c1]
+**Skill directory**: `~/.workbuddy-ai/skillsearch-bundles/fireflylan-qr-code@<version>`
 Relative refs (e.g. `references/x.md`, `./scripts/y.sh`) resolve under
 this directory — use the absolute form for read_file / exec.
 
-用 camelot 处理原生 PDF 的表格；扫描件先跑 `scripts/ocr.sh` 做 OCR，然后 …
+生成二维码/条形码，支持文本、URL、WiFi 配置等内容，可自定义尺寸、颜色并指定保存路径 …
 ```
 
-技能来源可以是你自己的技能目录、[SkillHub](https://evermind.ai/skillhub)（[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点，96,401 条经审核、许可宽松的社区技能），或两者融合进同一个排序。
+技能自带的脚本已经解包在旁边；模型直接运行它，二维码落到桌面。没有检索的话，模型只能即兴发挥——`pip install qrcode`，然后碰运气。
+
+技能来源可以是你自己的技能目录、[SkillHub](https://evermind.ai/skillhub)（[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点，96,401 条经审核、许可宽松的社区技能——上面那条二维码技能就来自这里），或两者融合进同一个排序。
 
 ## 安装——把这段话粘给你的 agent
 
-每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 Raven / Hermes / OpenClaw / DeepSeek Harness 的会话：
+每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / OpenClaw / Hermes / DeepSeek Harness 的会话：
 
 > 帮我安装 skillsearch 插件。克隆 https://gitlab.com/npc-work/aic/ai/skillsearch_plugins
 > 并遵循仓库根目录的 `INSTALL.agent.md`：先判断你运行在哪个宿主里；
@@ -34,6 +36,7 @@ this directory — use the absolute form for read_file / exec.
 
 | 你的宿主 | 操作 | 详情 |
 | --- | --- | --- |
+| **WorkBuddy** | 构建 `plugin-workbuddy`、注册为 marketplace、启用——文件级步骤，agent 干最合适：把它 README 里的 prompt 粘给 WorkBuddy | [plugin-workbuddy](plugin-workbuddy#install--paste-this-to-workbuddy) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](plugin-openclaw#install) |
 | **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](engine-typescript#where-this-goes) |
@@ -88,7 +91,7 @@ EOF
 如实交代，因为检索跑在你的对话上：
 
 - **纯本地（默认）**——什么都不出去。扫描、排序、注入全在进程内。
-- **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
+- **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
 - **配了 `model`**——改写器看到你的消息（截断到 2000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 
 下载的技能是第三方内容，模型会被指示遵循它。gate 存在的意义就是剔除那些假定了你的 agent 没有的工具或环境的技能——这也是配了目录服务时它默认开启的原因。
@@ -143,6 +146,7 @@ query
 
 | 插件 | 宿主 | 接入缝 | 宿主需要改动 |
 | --- | --- | --- | --- |
+| [`plugin-workbuddy/`](plugin-workbuddy) | WorkBuddy（5.3.13） | `UserPromptSubmit` 钩子——每轮一个进程 | 无 |
 | [`plugin-hermes/`](plugin-hermes) | Hermes | memory provider 的 `prefetch` | 无 |
 | [`plugin-openclaw/`](plugin-openclaw) | OpenClaw（向下验证至 2026.3.8） | `before_prompt_build` 钩子 | 无 |
 | [`engine-typescript/`](engine-typescript) | DeepSeek Harness | `agent/pre-step` waterfall | 无 |
@@ -163,6 +167,7 @@ curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF
 ```
 engine-python/       Python 3.11+ 的检索管道（另含面向任意宿主的 HTTP 适配器）
 engine-typescript/   TypeScript / Node 18+ 的检索管道，兼 DeepSeek Harness 入口
+plugin-workbuddy/    WorkBuddy 插件 · 基于 engine-typescript——每轮一个钩子进程
 plugin-hermes/       Hermes 插件    · 基于 engine-python
 plugin-raven/        Raven 插件     · 基于 engine-python
 plugin-openclaw/     OpenClaw 插件  · 基于 engine-typescript
@@ -197,7 +202,7 @@ npm --prefix plugin-openclaw run check:host
 
 其余只能靠真实宿主：这里每个插件都装进过宿主、由宿主自己的加载器端到端驱动——根目录的 `verify-raven.py` 把 Raven 路径一路驱动到宿主自己的 `ContextAssembler`。
 
-**测试过的版本**：Python 3.11–3.13 · Node 18+（CI 用 22）· hermes-agent `main` · OpenClaw（向下验证至 2026.3.8） · DeepSeek Harness workspace `main` · Raven 等上游插槽。
+**测试过的版本**：Python 3.11–3.13 · Node 18+（CI 用 22）· WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw（向下验证至 2026.3.8） · DeepSeek Harness workspace `main` · Raven 等上游插槽。
 
 ## EverMind agent 全家桶的一员
 

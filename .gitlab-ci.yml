@@ -82,3 +82,13 @@ openclaw-plugin:
     - cd plugin-openclaw
     - npm install --no-audit --no-fund
     - npm run ci
+
+# The WorkBuddy plugin is a hook process over the TypeScript engine;
+# `ci` typechecks it, runs its suite, and builds the shipped bundle.
+workbuddy-plugin:
+  stage: test
+  image: node:22
+  script:
+    - cd plugin-workbuddy
+    - npm install --no-audit --no-fund
+    - npm run ci
