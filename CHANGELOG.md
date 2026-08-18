@@ -4,6 +4,13 @@
 
 ### Added
 
+- **`INSTALL.agent.md`** — an installation playbook written for the agent
+  itself: paste one prompt from the README and the host installs, verifies
+  (a positive and a negative retrieval probe) and reports. Carries hard
+  rules — back up configs, show diffs before applying, never overwrite a
+  file that fails to parse — and an uninstall section.
+- **A Chinese README** (`README.zh.md`), mirroring the English one.
+
 - **A TypeScript implementation** under [`engine-typescript/`](engine-typescript), for
   DeepSeek Harness. Both implementations now sit side by side and the
   Python one moved into [`engine-python/`](engine-python); `pip install -e .` becomes
@@ -199,6 +206,16 @@
 
 ### Documentation
 
+- **The repository presents as "SkillCorpus Plugins"** — the official
+  agent-host plugins for SkillCorpus. Code is untouched: the engine, the
+  packages and every import keep the `skillsearch` name.
+- **The root READMEs are rebuilt around the reader**: install (paste one
+  prompt to your agent, or by hand per host) and a 30-second local demo come
+  first; new sections give an honest per-turn cost table, a "what leaves
+  your machine" privacy disclosure, a guide to writing findable skill
+  descriptions, troubleshooting (including `SKILLSEARCH_GATE_LOG_PATH`), and
+  uninstall. Architecture, parity and contributor material moved to the
+  back.
 - Removed internal ticket numbers, retired source names, and host-internal
   class references from module and class docstrings.
 - `LICENSE` carries the full Apache-2.0 text rather than the short notice.
