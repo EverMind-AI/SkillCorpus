@@ -1,5 +1,5 @@
 <!-- 所有发布链接均已上线：SkillHub、代码仓库、两个检索模型，以及 1k demo 语料。
-     完整的 96,401 条语料尚未发布（见 Corpus 行与路线图）。 -->
+     完整的 114,190 条语料尚未发布（见 Corpus 行与路线图）。 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 # SkillCorpus
 
-**为你的 agent 备好 96,401 个经过筛选、许可合规的技能，外加一个为每个任务挑出合适技能的检索器。**
+**一句话装进你的 agent，此后每一轮都自动带上对的技能——从 114,190 条经审核、许可宽松的技能里检索。不需要工具调用，也不用记任何技能名字。**
 
 EverMind agent 技术栈的一部分：[Raven](https://github.com/EverMind-AI/raven) 是终端原生的
 agent harness，[EverOS](https://github.com/EverMind-AI/EverOS) 是它所依赖的记忆底座，而
@@ -24,6 +24,25 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 </div>
 
+## 安装——把这句话粘给你的 agent
+
+> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
+
+每个受支持的宿主本身就是 agent，最快的装法是让它自己装。它执行的剧本会先判断宿主、
+改任何配置前先备份并给出 diff、装完验证 `# Skills` 块确实出现——想逐步审计的话可以
+[先读一遍](skillcorpus_plugin/INSTALL.agent.md)。
+
+| 宿主 | 接入缝 | 状态 |
+|---|---|---|
+| **OpenClaw**（≥ 2026.3.8） | `before_prompt_build` 钩子 | ✅ 插件 |
+| **Hermes** | memory provider 的 `prefetch` | ✅ 插件 |
+| **DeepSeek Harness** | `agent/pre-step` waterfall | ✅ 插件 |
+| **WorkBuddy**（5.3.13） | `UserPromptSubmit` 钩子 | ✅ 插件 |
+| **Raven** | 原生 SkillHub 源（`skillForge.router.hub`） | ✅ 内置——插件版等上游插槽 |
+| **其他任何宿主** | 旁边跑 HTTP adapter，`POST /retrieve` | ✅ [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
+
+以上都不需要改宿主代码。详见 [`skillcorpus_plugin/`](skillcorpus_plugin)。
+
 ## SkillCorpus 是什么
 
 Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散落在成千上万个公开
@@ -37,20 +56,15 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 从约 821,000 个爬取文件中，最终留下 96,401 个技能。每个都保留其上游原始许可，每个源仓库也都
 通过了许可审计，因此这套发布的语料可商用、可再分发。
 
-## 📰 动态
-
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
-
 ## 📦 我们发布了什么
 
 | | 产物 | 内容 | 链接 |
 |---|---|---|---|
-| 🌐 | **SkillHub** | 语料 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 96,401 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🌐 | **SkillHub** | 114,190 条技能 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 114,190 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **插件** | 在五个 agent 宿主里逐轮检索本语料 —— OpenClaw、Hermes、Raven、DeepSeek Harness、WorkBuddy | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+| 🔌 | **插件** | 在 OpenClaw · Hermes · DeepSeek Harness · WorkBuddy 里逐轮检索本语料，其他宿主走 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
 *开源：代码、语料、模型；不开源：仅托管的 SkillHub 服务。*
 
@@ -58,7 +72,7 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 <img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
 </div>
 
-96,401 个技能，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
+论文所评测的那一版 96,401 条，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
 检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
 
 ## 📊 效果
@@ -77,17 +91,11 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
 经济类任务收益最小（GDPVal）。
 
-## 🚀 快速开始
+## 🚀 其余用法
 
-| 你想要 | 去看 | 需要什么 |
-|---|---|---|
-| 马上拿到某个任务对应的技能 | [A. 调用托管的 SkillHub](#a-调用托管的-skillhub) | 什么都不用——一个 HTTP 请求 |
-| 两个检索模型跑在自己的 GPU 上 | [B. 自己部署模型](#b-自己部署模型) | 语料 + 两个模型 |
-| 让 agent 自动用上技能 | [C. 接进你的 agent](#c-接进你的-agent) | 一个会读技能目录或能注入 system prompt 的 harness |
+上面的插件覆盖了大多数人。如果你想自己调服务，或者把整套跑在自己的机器上：
 
-若要策展**自己的**源，见 [构建自己的语料](#build-your-own)。
-
-### A. 调用托管的 SkillHub
+### 直接调 API
 
 [SkillHub](https://evermind.ai/skillhub) 把语料分三级提供：发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读正文这一级通常已足够。
@@ -130,13 +138,13 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
-### B. 自己部署模型
+### 自建模型服务
 
 若不想依赖托管端点，可自己跑 selection。语料和两个检索模型都已发布：加载数据、部署两个
 模型，自己做 encode → top-k → rerank。
 
 ```python
-# 数据 —— 目前是 1,000 条 demo；完整的 96,401 条语料后续发布
+# 数据 —— 目前是 1,000 条 demo；完整的 114,190 条语料后续发布
 from datasets import load_dataset
 skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")   # 1,000 条 demo 技能
 # 或者用 pandas 直接读文件（不依赖 datasets）：  pip install pandas
@@ -161,44 +169,7 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 - `examples/skillhub_demo.py` 和 C 节的集成只对接**托管的** SkillHub；自部署时，你直接在 `/embed` + `/score` 之上运行自己的 selection。
 - 它同时也是 producer 去重所用的 embedding 端点，把 `embedding.provider` 配成 `skillrouter_remote`，即可用它来[构建自己的语料](#build-your-own)。
 
-### C. 接进你的 agent
-
-<details>
-<summary><b>Raven</b> —— 第一方 SkillHub 源</summary>
-
-Raven 通过带权 RRF 融合 SkillHub、本地和 EverOS 三个技能源（`skillForge.router`）：
-
-```yaml
-skillForge:
-  enabled: true
-  router:
-    top_k: 5
-    weights: { local: 1.0, everos: 0.9, hub: 0.85 }   # 本地 / 自演化 / SkillCorpus
-    hub:
-      endpoint: https://skillhub.evermind.ai
-      api_key: null          # 公开技能无需鉴权
-      timeout_s: 2.0
-      min_safety: 0.7        # 低于此 score_safety 的技能被过滤
-      source: raven          # 安装统计用的下载标签
-```
-</details>
-
-<details>
-<summary><b>其他 harness</b> —— OpenClaw、Hermes、Claude Code…</summary>
-
-目前还没有第一方插件，但任何会读取技能目录的 harness 都能用第三级：把技能包下载到该目录即可。
-
-```bash
-python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
-#                                          ~/.hermes/skills      (Hermes)
-#                                ~/.openclaw/workspace/skills    (OpenClaw)
-```
-
-如果 harness 采用注入 prompt 的方式，则连下载都不用：从第二级取出 `skill_md`，拼接到 system prompt
-前面即可，demo 里的 `build_prompt()` 正是这么做的。
-</details>
-
-完整契约见 [`docs/integrations.md`](docs/integrations.md)。
+想策展**自己的**源，见 [构建自己的语料](#build-your-own)。
 
 ## 🧩 工作原理
 
@@ -255,6 +226,11 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+## 📰 动态
+
+- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
+- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
+
 ## 🗺️ 路线图
 
 <!-- TODO(@team)：这是按已知缺口列的初版，请按实际计划修改。 -->
@@ -263,10 +239,10 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 微调检索栈 + 三个 benchmark 的评估
 - [x] 公开的 SkillHub 端点
 - [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
-- [ ] 完整的 96,401 条语料上 HuggingFace
+- [ ] 完整的 114,190 条语料上 HuggingFace
 - [x] 两个检索模型的部署脚本（自建 `match/`）
 - [ ] 把 skill 库 + 检索框架打包成插件，供任意 agent harness 使用
-- [ ] Hermes 集成
+- [ ] Raven 插件——等上游 `context_segments` 插槽
 
 ## 引用
 

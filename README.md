@@ -1,5 +1,5 @@
 <!-- All release links are live: SkillHub, the code repo, both retrieval models, and
-     the 1k demo corpus. The full 96,401-skill corpus is not published yet (see the
+     the 1k demo corpus. The full 114,190-skill corpus is not published yet (see the
      Corpus row and the roadmap). -->
 
 <div align="center">
@@ -8,7 +8,7 @@
 
 # SkillCorpus
 
-**Give your agent 96,401 vetted, permissively-licensed skills — and a retriever that picks the right ones for each task.**
+**One line into your agent, and every turn arrives with the right skill — retrieved from 114,190 vetted, permissively-licensed skills. No tool call, no skill names to memorise.**
 
 Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
 terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
@@ -25,6 +25,26 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 
 </div>
 
+## Install — paste this to your agent
+
+> Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
+
+Every supported host is itself an agent, so the fastest install is to let it do the work.
+The playbook it follows detects your host, backs up and diffs before editing any config,
+and verifies a `# Skills` block appears — [read it first](skillcorpus_plugin/INSTALL.agent.md)
+if you want to audit each step.
+
+| Host | Seam | Status |
+|---|---|---|
+| **OpenClaw** (≥ 2026.3.8) | `before_prompt_build` hook | ✅ plugin |
+| **Hermes** | memory-provider `prefetch` | ✅ plugin |
+| **DeepSeek Harness** | `agent/pre-step` waterfall | ✅ plugin |
+| **WorkBuddy** (5.3.13) | `UserPromptSubmit` hook | ✅ plugin |
+| **Raven** | native SkillHub source (`skillForge.router.hub`) | ✅ built in — plugin pending an upstream slot |
+| **Anything else** | run the HTTP adapter, `POST /retrieve` | ✅ [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
+
+None of them need a host patch. Details: [`skillcorpus_plugin/`](skillcorpus_plugin).
+
 ## What is SkillCorpus
 
 Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
@@ -39,20 +59,15 @@ rights. SkillCorpus consolidates that pool into a corpus an agent can draw from,
 From ~821,000 crawled files, 96,401 skills remain. Each carries its upstream license, and every
 source repository is license-audited, so the released set is commercially redistributable.
 
-## 📰 News
-
-- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
-- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
-
 ## 📦 What we release
 
 | | Artifact | What | Link |
 |---|---|---|---|
-| 🌐 | **SkillHub** | the corpus + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 96,401-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🌐 | **SkillHub** | 114,190 skills + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 114,190-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **Plugins** | per-turn retrieval from the corpus, inside five agent hosts — OpenClaw, Hermes, Raven, DeepSeek Harness, WorkBuddy | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+| 🔌 | **Plugins** | per-turn retrieval inside OpenClaw · Hermes · DeepSeek Harness · WorkBuddy, plus an HTTP adapter for any other host | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
 *Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
 
@@ -60,7 +75,7 @@ source repository is license-audited, so the released set is commercially redist
 <img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
 </div>
 
-96,401 skills organised by a 16-class taxonomy and three quality facets
+The 96,401-skill release the paper measures, organised by a 16-class taxonomy and three quality facets
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
@@ -80,17 +95,12 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
 
-## 🚀 Quick Start
+## 🚀 Other ways to use it
 
-| You want | Go to | Needs |
-|---|---|---|
-| skills for a task, right now | [A. Query the hosted SkillHub](#a-query-the-hosted-skillhub) | nothing — one HTTP call |
-| the retrieval models running on your own GPUs | [B. Self-host the models](#b-self-host-the-models) | the corpus + both models on your own GPUs |
-| your agent to use skills automatically | [C. Plug it into your agent](#c-plug-it-into-your-agent) | a harness that reads a skills dir or a system prompt |
+The plugin above covers most people. If you would rather call the service yourself, or run
+the whole thing on your own hardware:
 
-To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
-
-### A. Query the hosted SkillHub
+### Query the API directly
 
 [SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
@@ -135,14 +145,14 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
-### B. Self-host the models
+### Self-host the models
 
 To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
 retrieval models are released: load the data, serve the two models, and run your own
 encode → top-k → rerank.
 
 ```python
-# the data — a 1,000-skill demo for now; the full 96,401-skill corpus follows
+# the data — a 1,000-skill demo for now; the full 114,190-skill corpus follows
 from datasets import load_dataset
 skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")   # 1,000 demo skills
 # or read the file directly with pandas (no `datasets`):  pip install pandas
@@ -169,46 +179,7 @@ drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
 - It is also the embedding endpoint the producer's dedup uses — set
   `embedding.provider: skillrouter_remote` to [build your own corpus](#build-your-own) with it.
 
-### C. Plug it into your agent
-
-<details>
-<summary><b>Raven</b> — first-party SkillHub source</summary>
-
-Raven fuses SkillHub with its local and Everos skill sources via weighted RRF
-(`skillForge.router`):
-
-```yaml
-skillForge:
-  enabled: true
-  router:
-    top_k: 5
-    weights: { local: 1.0, everos: 0.9, hub: 0.85 }   # local / self-evolved / SkillCorpus
-    hub:
-      endpoint: https://skillhub.evermind.ai
-      api_key: null          # public skills need none
-      timeout_s: 2.0
-      min_safety: 0.7        # drop skills below this score_safety
-      source: raven          # download tag for install stats
-```
-</details>
-
-<details>
-<summary><b>Any other harness</b> — OpenClaw, Hermes, Claude Code, …</summary>
-
-There is no first-party plugin yet, but any harness that reads a skills
-directory works with tier 3: download the bundle into that directory.
-
-```bash
-python examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
-#                                          ~/.hermes/skills      (Hermes)
-#                                ~/.openclaw/workspace/skills    (OpenClaw)
-```
-
-For prompt-injection harnesses, skip the download: fetch `skill_md` from tier 2 and
-prepend it to the system prompt, as `build_prompt()` in the demo does.
-</details>
-
-Full contract: [`docs/integrations.md`](docs/integrations.md).
+To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
 
 ## 🧩 How it works
 
@@ -269,6 +240,11 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+## 📰 News
+
+- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
+- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
+
 ## 🗺️ Roadmap
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
@@ -277,10 +253,10 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [x] Public SkillHub endpoint
 - [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
-- [ ] Full 96,401-skill corpus on HuggingFace
+- [ ] Full 114,190-skill corpus on HuggingFace
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
-- [ ] Package the skill library + retrieval as a plugin for any agent harness
-- [ ] Hermes integration
+- [x] Plugins for OpenClaw · Hermes · DeepSeek Harness · WorkBuddy (+ HTTP adapter for any other host)
+- [ ] Raven plugin — waiting on the upstream `context_segments` slot
 
 ## Citation
 
