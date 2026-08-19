@@ -1,0 +1,97 @@
+# Both implementations, each in its own job: a change to one must not be
+# able to break the other's signal, and neither needs the other's toolchain
+# installed to run.
+#
+# This repository is hosted on GitLab, so this file is the one that runs.
+# A `.github/workflows/` file would be inert here — kept alongside only for
+# a mirror, and the two must be changed together.
+#
+# The plugins live under `skillcorpus_plugin/`; every path below is relative
+# to the repository root, because GitLab reads the pipeline only from there.
+
+stages:
+  - test
+
+.python:
+  stage: test
+  image: python:${PY_VERSION}-slim
+  before_script:
+    - cd skillcorpus_plugin/engine-python
+    - pip install --quiet -e '.[dev,hub]'
+
+python:
+  extends: .python
+  parallel:
+    matrix:
+      - PY_VERSION: ['3.11', '3.12', '3.13']
+  script:
+    - ruff check skillsearch tests
+    - ruff format --check skillsearch tests
+    - pytest -q
+
+# The package declares no required dependency; this job is what proves it.
+# Installed bare, the local-pipeline tests must still pass, which fails the
+# moment an unconditional `import httpx` reaches module scope.
+python-no-extras:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - cd skillcorpus_plugin/engine-python
+    - pip install --quiet -e . pytest pytest-asyncio
+    - pytest -q --ignore=tests/test_hub_client.py
+
+# The TypeScript package is a DeepSeek Harness workspace member: its plugin
+# entry and tsconfig references resolve only inside a harness checkout, so
+# this job checks what is checkable standalone — that the pipeline modules
+# parse, that their pure logic behaves, and that the values and prompts
+# shared with the Python side still match it exactly.
+typescript:
+  stage: test
+  image: node:22-slim
+  script:
+    - cd skillcorpus_plugin/engine-typescript
+    - npx --yes tsx --test tests/parity.test.ts
+
+# The Hermes plugin drives the engine through the host's provider contract.
+# Its own tests import the engine from `engine-python/`, so both live in one job.
+hermes-plugin:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install --quiet -e './skillcorpus_plugin/engine-python[dev,hub]'
+    - apt-get update -qq && apt-get install -y -qq git
+    # Against the host's real ABC, not the fallback base class the plugin
+    # declares for standalone use — that fallback checks nothing, so a
+    # missing abstract method would pass without this.
+    - git clone --depth 1 -q https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
+    - PYTHONPATH=/tmp/hermes-agent pytest skillcorpus_plugin/plugin-hermes/tests -q
+
+# The Raven plugin is an adapter over the engine; its suite pins what the
+# host reads from a segment and skips the cases needing a checkout.
+raven-plugin:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install --quiet -e './skillcorpus_plugin/engine-python[dev,hub]' -e ./skillcorpus_plugin/plugin-raven
+    - ruff check skillcorpus_plugin/plugin-raven
+    - pytest skillcorpus_plugin/plugin-raven/tests -q
+
+# The OpenClaw plugin bundles the TypeScript engine; `ci` typechecks it
+# against the host types it copied, runs the suite, and builds the bundle.
+openclaw-plugin:
+  stage: test
+  image: node:22-slim
+  script:
+    - cd skillcorpus_plugin/plugin-openclaw
+    - npm install --no-audit --no-fund
+    - npm run ci
+
+# The WorkBuddy plugin is a hook process over the TypeScript engine;
+# `ci` typechecks it, runs its suite, and builds the shipped bundle.
+workbuddy-plugin:
+  stage: test
+  image: node:22
+  script:
+    - cd skillcorpus_plugin/plugin-workbuddy
+    - npm install --no-audit --no-fund
+    - npm run ci

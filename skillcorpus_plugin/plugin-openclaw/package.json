@@ -1,0 +1,36 @@
+{
+  "name": "@evermind-ai/openclaw-skillsearch",
+  "version": "0.1.0",
+  "description": "Skill retrieval for OpenClaw: local directory, remote catalog, model-gated selection.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "node --import tsx --test \"test/*.test.ts\"",
+    "ci": "npm run typecheck && npm run test && npm run build",
+    "check:host": "tsc -p tsconfig.host-check.json"
+  },
+  "openclaw": {
+    "extensions": [
+      "dist/index.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "description": "skillsearch hooks",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CODEBUDDY_PLUGIN_ROOT}/dist/hook.mjs\"",
+            "description": "检索与当轮提问相关的 skill 并注入",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
