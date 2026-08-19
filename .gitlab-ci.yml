@@ -6,8 +6,8 @@
 # A `.github/workflows/` file would be inert here — kept alongside only for
 # a mirror, and the two must be changed together.
 #
-# The plugins live under `plugins/`; every path below is relative to the
-# repository root, because GitLab reads the pipeline only from there.
+# The plugins live under `skillcorpus_plugin/`; every path below is relative
+# to the repository root, because GitLab reads the pipeline only from there.
 
 stages:
   - test
@@ -16,7 +16,7 @@ stages:
   stage: test
   image: python:${PY_VERSION}-slim
   before_script:
-    - cd plugins/engine-python
+    - cd skillcorpus_plugin/engine-python
     - pip install --quiet -e '.[dev,hub]'
 
 python:
@@ -36,7 +36,7 @@ python-no-extras:
   stage: test
   image: python:3.12-slim
   script:
-    - cd plugins/engine-python
+    - cd skillcorpus_plugin/engine-python
     - pip install --quiet -e . pytest pytest-asyncio
     - pytest -q --ignore=tests/test_hub_client.py
 
@@ -49,7 +49,7 @@ typescript:
   stage: test
   image: node:22-slim
   script:
-    - cd plugins/engine-typescript
+    - cd skillcorpus_plugin/engine-typescript
     - npx --yes tsx --test tests/parity.test.ts
 
 # The Hermes plugin drives the engine through the host's provider contract.
@@ -58,13 +58,13 @@ hermes-plugin:
   stage: test
   image: python:3.12-slim
   script:
-    - pip install --quiet -e './plugins/engine-python[dev,hub]'
+    - pip install --quiet -e './skillcorpus_plugin/engine-python[dev,hub]'
     - apt-get update -qq && apt-get install -y -qq git
     # Against the host's real ABC, not the fallback base class the plugin
     # declares for standalone use — that fallback checks nothing, so a
     # missing abstract method would pass without this.
     - git clone --depth 1 -q https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
-    - PYTHONPATH=/tmp/hermes-agent pytest plugins/plugin-hermes/tests -q
+    - PYTHONPATH=/tmp/hermes-agent pytest skillcorpus_plugin/plugin-hermes/tests -q
 
 # The Raven plugin is an adapter over the engine; its suite pins what the
 # host reads from a segment and skips the cases needing a checkout.
@@ -72,9 +72,9 @@ raven-plugin:
   stage: test
   image: python:3.12-slim
   script:
-    - pip install --quiet -e './plugins/engine-python[dev,hub]' -e ./plugins/plugin-raven
-    - ruff check plugins/plugin-raven
-    - pytest plugins/plugin-raven/tests -q
+    - pip install --quiet -e './skillcorpus_plugin/engine-python[dev,hub]' -e ./skillcorpus_plugin/plugin-raven
+    - ruff check skillcorpus_plugin/plugin-raven
+    - pytest skillcorpus_plugin/plugin-raven/tests -q
 
 # The OpenClaw plugin bundles the TypeScript engine; `ci` typechecks it
 # against the host types it copied, runs the suite, and builds the bundle.
@@ -82,7 +82,7 @@ openclaw-plugin:
   stage: test
   image: node:22-slim
   script:
-    - cd plugins/plugin-openclaw
+    - cd skillcorpus_plugin/plugin-openclaw
     - npm install --no-audit --no-fund
     - npm run ci
 
@@ -92,6 +92,6 @@ workbuddy-plugin:
   stage: test
   image: node:22
   script:
-    - cd plugins/plugin-workbuddy
+    - cd skillcorpus_plugin/plugin-workbuddy
     - npm install --no-audit --no-fund
     - npm run ci
