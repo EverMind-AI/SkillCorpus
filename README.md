@@ -52,6 +52,7 @@ source repository is license-audited, so the released set is commercially redist
 | 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 96,401-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **Plugins** | per-turn retrieval from the corpus, inside five agent hosts — OpenClaw, Hermes, Raven, DeepSeek Harness, WorkBuddy | [`plugins/`](plugins) |
 
 *Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
 

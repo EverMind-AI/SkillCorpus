@@ -50,6 +50,7 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 | 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 96,401 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **插件** | 在五个 agent 宿主里逐轮检索本语料 —— OpenClaw、Hermes、Raven、DeepSeek Harness、WorkBuddy | [`plugins/`](plugins) |
 
 *开源：代码、语料、模型；不开源：仅托管的 SkillHub 服务。*
 
