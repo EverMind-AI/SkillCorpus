@@ -19,7 +19,7 @@ this directory — use the absolute form for read_file / exec.
 
 The skill's bundled script is already extracted next to it; the model runs it and the QR code lands on the desktop. Without retrieval, the model improvises — `pip install qrcode` and hope.
 
-Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted, permissively-licensed skills, where that QR skill came from — or both fused into one ranking.
+Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 114,190 vetted, permissively-licensed skills, where that QR skill came from — or both fused into one ranking.
 
 ## Install — paste this to your agent
 
