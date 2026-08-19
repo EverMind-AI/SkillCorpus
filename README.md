@@ -1,12 +1,18 @@
 <!-- All release links are live: SkillHub, the code repo, both retrieval models, and
-     the 1k demo corpus. The full 96,401-skill corpus is not published yet (see the
-     Availability and roadmap sections). -->
+     the 1k demo corpus. The full 114,190-skill corpus is not published yet (see the
+     Corpus row and the roadmap). -->
 
 <div align="center">
 
+**English** | [简体中文](README.zh-CN.md)
+
 # SkillCorpus
 
-**Curate scattered agent skills and retrieve task-relevant ones.**
+**One line into your agent, and every turn arrives with the right skill — retrieved from 114,190 vetted, permissively-licensed skills. No tool call, no skill names to memorise.**
+
+Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
+terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
+substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -15,191 +21,204 @@
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-**English** | [简体中文](README.zh-CN.md)
+<img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate + curate) and using it (match + evaluate)" width="100%">
 
 </div>
 
-## From open-source foundation to live product
+## 🔌 New — plugins for your agent host
 
-| Entry point | What it provides | Value to developers and enthusiasts |
-|---|---|---|
-| [**SkillCorpus GitHub Repo**](https://github.com/EverMind-AI/SkillCorpus) | Open code for corpus aggregation, governance, deduplication, classification and export, plus retrieval, evaluation, and integrations. | Learn the end-to-end stack, or fork its corpus pipeline and model-serving components to build your own skill library and retrieval workflow with your sources and policies. Each component's license applies, and third-party skills and data retain their upstream terms. |
-| [**Hugging Face models & demo**](https://huggingface.co/EverMind-AI) | A [1K demo corpus](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k), an [embedding model](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) that produces recall vectors, and a [re-ranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) that scores task-to-candidate pairs. | Prototype, evaluate, or self-host retrieval without training the initial models from scratch. You still provide the corpus index, candidate-selection flow, and orchestration. |
-| [**SkillHub**](https://evermind.ai/skillhub) | The live product built from this stack: a hosted catalog and API over the curated skill library. | Experience the system immediately. Search skills, inspect provenance, read `SKILL.md`, and download bundles for compatible agents without cloning the repo or running the models. |
+**Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness** — plus an HTTP adapter for
+any other host. Raven has a packaged adapter, but it waits for Raven's upstream
+`context_segments` slot before it can attach; Raven's built-in retrieval keeps working today.
+Retrieval runs every turn, before the model
+answers: no tool call, no skill names to memorise, no host patch.
 
-> **Availability:** the public downloadable corpus is currently the 1K demo. **96,401 skills** refers to the paper's production snapshot, which is not yet published as a full download.
+> Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
 
-## Try SkillHub in 30 seconds
+Paste that line to your agent and it installs itself. Per-host setup, the five settings you
+will actually touch, what each turn costs and what leaves your machine —
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**.
 
-No install or API key required.
+## 📰 News
 
-Ask the hosted SkillHub for a task-specific skill:
+- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
+- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
+- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
-```bash
-curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
-```
+## What is SkillCorpus
 
-Or [open the same live query in your browser](https://skillhub.evermind.ai/openapi/v1/skills?q=extract%20tables%20from%20a%20PDF). An abridged result looks like this:
+Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
+thousands of public repositories, redundant, uneven in quality, and unclear on redistribution
+rights. SkillCorpus consolidates that pool into a corpus an agent can draw from, in four stages:
 
-```yaml
-name: extract-tables-from-pdf
-category: DOC-PROC
-source: mzlzyCA/html-markdown
-source_url: https://github.com/mzlzyCA/html-markdown
-license: MIT
-quality_score: 0.708
-```
+- **`aggregate`** — discover and clone skills from public `SKILL.md` repositories.
+- **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
+- **`match`** — a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
+- **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
 
-Live rankings and metadata may change as the catalog evolves.
+From ~821,000 crawled files, 96,401 skills remain. Each carries its upstream license, and every
+source repository is license-audited, so the released set is commercially redistributable.
 
-Or use the standard-library-only demo to search and read the matching `SKILL.md` bodies:
+## 📦 What we release
 
-```bash
-python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
-```
+| | Artifact | What | Link |
+|---|---|---|---|
+| 🌐 | **SkillHub** | 114,190 skills + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 114,190-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **Plugins** | per-turn retrieval inside WorkBuddy · Hermes · OpenClaw · DeepSeek Harness, plus an HTTP adapter for any other host | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
-The response starts with metadata, then lets you fetch `skill_md` to inject into an agent prompt. The complete three-tier flow (search, read, and optional download) is in [`examples/skillhub_demo.py`](examples/skillhub_demo.py); the API contract is in [`docs/integrations.md`](docs/integrations.md).
-
-> **Before you run a downloaded skill:** its bundled scripts, assets, and references are third-party content. Review them and their upstream terms before executing anything.
-
-## Why SkillCorpus
-
-Agent skills (`SKILL.md` files that package reusable procedural knowledge) are distributed across public repositories. They can be redundant, uneven in quality, or unclear to redistribute. SkillCorpus turns that fragmented material into a retrieval-ready corpus through four stages:
-
-- **`aggregate`:** discover and clone public `SKILL.md` repositories.
-- **`curate`:** parse, apply text-based safety signals and source-level license policy, deduplicate, classify into 16 classes, and score three quality facets.
-- **`match`:** retrieve candidates with a fine-tuned bi-encoder and rerank them for task relevance.
-- **`evaluate`:** test skill use across three agent benchmarks, two harnesses, and open and frontier backbones.
-
-Quality and safety facet scores support corpus curation and filtering; they are not a guarantee that a skill, its dependencies, or its bundled files are safe for your environment.
+*Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
 
 <div align="center">
-<img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate plus curate) and using it (match plus evaluate)" width="100%">
+<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
 </div>
 
-## Concept: GitHub issue to agent handoff
+The 96,401-skill release the paper measures, organised by a 16-class taxonomy and three quality facets
+(utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
+[`docs/corpus-schema.md`](docs/corpus-schema.md).
 
-**Paste a GitHub issue. Prepare a reviewable handoff for your agent.**
+## 📊 Results
 
-> **Not yet released.** SkillHub can already search, read, and download individual skills. Repository analysis and multi-skill handoffs are not yet available.
-
-The handoff would combine the issue with a repository snapshot into one portable artifact:
-
-```text
-GitHub issue + repository snapshot
-              -> task scope, cited files, declared checks, candidate skills
-              -> review as Markdown, give to an agent, or paste into an Issue/PR
-```
-
-Maintainers could confirm the task boundary before code changes begin, contributors could start unfamiliar work with relevant context and checks, and teams could keep the handoff visible to every collaborator. Candidate skills would include rationale, provenance, and declared license for review; they would remain recommendations, not guarantees of correctness, safety, or license compliance.
-
-## Use it with your agent
-
-### SkillHub
-
-[SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers: discover metadata, read `skill_md`, and download a zip with `scripts/`. Most skills are instructions only, so the read tier is often enough.
-
-```bash
-# search + read bodies; stdlib only, no install, no API key
-python3 examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
-
-# download the bundled files from the top hit into a local skills directory
-python3 examples/skillhub_demo.py --install ./skills "convert a PDF to images"
-
-# retrieve and run the task with an OpenAI-compatible LLM
-export OPENAI_API_KEY=...
-python3 examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
-```
-
-For OpenRouter or local vLLM, also set `OPENAI_BASE_URL`; see the inline help in the demo. Endpoints, response envelopes, status codes, and rate limits are documented in [`docs/integrations.md`](docs/integrations.md).
-
-### Raven and other harnesses
-
-<details>
-<summary><b>Raven</b>: first-party SkillHub source</summary>
-
-Raven combines SkillHub with local and EverOS skill sources through weighted RRF (`skillForge.router`):
-
-```yaml
-skillForge:
-  enabled: true
-  router:
-    top_k: 5
-    weights: { local: 1.0, everos: 0.9, hub: 0.85 }
-    hub:
-      endpoint: https://skillhub.evermind.ai
-      api_key: null          # public skills need none
-      timeout_s: 2.0
-      min_safety: 0.7        # filters by the curation safety facet; not a security guarantee
-      source: raven          # download tag for install stats
-```
-</details>
-
-<details>
-<summary><b>Any other harness</b>: OpenClaw, Hermes, Claude Code, …</summary>
-
-There is no first-party plugin yet. A harness that reads a skills directory can use the download tier:
-
-```bash
-python3 examples/skillhub_demo.py --install ~/.claude/skills "convert a PDF to images"
-#                                          ~/.hermes/skills      (Hermes)
-#                                ~/.openclaw/workspace/skills    (OpenClaw)
-```
-
-For prompt-injection harnesses, fetch `skill_md` from the read tier and prepend it to the system prompt, as `build_prompt()` in the demo does.
-</details>
-
-## Run the retrieval models yourself
-
-Use the released retrieval checkpoints when you want selection to run in your own environment. Start with the public 1K demo corpus (the full 96,401-skill corpus is not published):
-
-Choose a loader path and install its dependencies separately from the retrieval server dependencies:
-
-```bash
-pip install datasets
-# Or, for the direct Parquet path:
-pip install pandas pyarrow
-```
-
-```python
-from datasets import load_dataset
-skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")
-
-# Or read the downloaded parquet directly.
-import pandas as pd
-skills = pd.read_parquet("skills.parquet")
-```
-
-Attachments (`scripts/`, `references/`) ship in the sibling `attachments.tar.zst`. Serve the two checkpoints behind the provided endpoint:
-
-```bash
-pip install -r skillcorpus/match/requirements.txt
-EMBEDDING_MODEL=EverMind-AI/skillcorpus-embedding-0.6b \
-RERANKER_MODEL=EverMind-AI/skillcorpus-reranker-0.6b \
-  bash skillcorpus/match/scripts/run_server.sh
-```
-
-The self-hosted server exposes **`/embed`** and **`/score`** ([Serving](skillcorpus/match/README.md#serving)). It does **not** provide a local SkillHub-compatible `/openapi/v1/skills` corpus index or end-to-end router: load a corpus and compose candidate retrieval, top-k selection, and reranking in your application. The same embedding endpoint can support producer deduplication with `embedding.provider: skillrouter_remote`.
-
-## Paper results
-
-These are results reported in the [paper, Table 1](https://arxiv.org/abs/2607.15557), not a promise of the results you will get from a fresh clone, the public 1K demo, or a different agent configuration.
+Pass rate with no skills → with SkillCorpus, same harness, same backbone
+([paper, Table 1](https://arxiv.org/abs/2607.15557)):
 
 | Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
-|---|---:|---:|---:|
+|---|---|---|---|
 | OpenClaw × Qwen3.5-27B | 8.8 → **13.0** | 81.2 → **83.1** | 65.2 → **66.7** |
 | OpenClaw × Qwen3.5-397B | 11.1 → **16.9** | 82.2 → **84.0** | 65.7 → **67.0** |
 | Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
 | Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
 | **Pooled ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
 
-Metric definitions: SkillsBench reports pass@1, GDPVal reports LLM-judge reward, and QwenClawBench reports its hybrid score; all values are shown ×100.
+The gain is largest where the task needs procedural knowledge the model does not already have
+(SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
 
-The reported gain is largest on SkillsBench, where tasks need procedural knowledge the model may not already contain, and smallest on the more open-ended GDPVal tasks.
+## 🚀 Other ways to use it
 
-## Build your own corpus
+The plugin above covers most people. If you would rather call the service yourself, or run
+the whole thing on your own hardware:
 
-This path is for curating **your own** sources. It needs an LLM endpoint for classification and quality scoring plus an embedding endpoint for deduplication; see [`docs/running.md`](docs/running.md).
+### Query the API directly
+
+[SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers — discover
+(metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
+instructions, so the read tier is usually sufficient.
+
+```bash
+curl "https://skillhub.evermind.ai/openapi/v1/skills?q=extract+tables+from+a+PDF"
+```
+
+Take an `id` from the results, fetch its `skill_md`, and inject it into your agent's
+prompt. [`examples/skillhub_demo.py`](examples/skillhub_demo.py) runs all three tiers:
+
+```bash
+# search + read the bodies — stdlib only, no install, no API key
+python examples/skillhub_demo.py "extract tables from a scanned PDF invoice"
+
+# also fetch the bundled scripts of the top hit
+python examples/skillhub_demo.py --install ./skills "convert a PDF to images"
+
+# retrieve AND run the task — any OpenAI-compatible LLM (OpenAI, OpenRouter, local vLLM, …)
+export OPENAI_API_KEY=...                                # OpenRouter / vLLM: also set
+# export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # OPENAI_BASE_URL + --model openai/gpt-4o-mini
+python examples/skillhub_demo.py --ask "extract tables from a scanned PDF invoice"
+```
+
+```
+task: extract tables from a scanned PDF invoice
+
+[1/2] search  → 2 hit(s), metadata only
+  1. ocr-and-documents   q=0.808  DOC-PROC  MIT
+     Extract text from PDFs/scans (pymupdf, marker-pdf).
+  2. document-workflows  q=0.86   DOC-PROC  MIT
+     Build end-to-end document processing workflows and pipelines …
+
+[2/2] detail  → fetching skill_md for 2 skill(s)
+  ocr-and-documents: 4916 chars  u=8 r=7 s=9  files=4  flags=['no_steps']
+  document-workflows: 31628 chars  u=9 r=9 s=9  files=7
+
+→ built a prompt of 36,742 chars with the skill bodies injected
+```
+
+Endpoints, response envelope, status codes and rate limits:
+[`docs/integrations.md`](docs/integrations.md).
+
+### Self-host the models
+
+To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
+retrieval models are released: load the data, serve the two models, and run your own
+encode → top-k → rerank.
+
+```python
+# the data — a 1,000-skill demo for now; the full 114,190-skill corpus follows
+from datasets import load_dataset
+skills = load_dataset("EverMind-AI/skillcorpus-demo-1k", split="train")   # 1,000 demo skills
+# or read the file directly with pandas (no `datasets`):  pip install pandas
+import pandas as pd; skills = pd.read_parquet("skills.parquet")
+```
+
+Attachments (`scripts/`, `references/`) ship as a sibling `attachments.tar.zst`.
+
+```bash
+# install the serving deps (torch, transformers, …), then point the two env vars at
+# the released checkpoints (the script's defaults are training outputs absent from a
+# fresh clone) and serve both models behind one endpoint  ->  /embed + /score
+pip install -r skillcorpus/match/requirements.txt
+EMBEDDING_MODEL=<embedding checkpoint dir> RERANKER_MODEL=<reranker checkpoint dir> \
+  bash skillcorpus/match/scripts/run_server.sh
+```
+
+This endpoint speaks `/embed` + `/score`
+([`skillcorpus/match/` → Serving](skillcorpus/match/README.md#serving)) — it is **not** a
+drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
+
+- `examples/skillhub_demo.py` and the section-C integrations talk only to the **hosted**
+  SkillHub; a self-hosted setup runs its own selection directly over `/embed` + `/score`.
+- It is also the embedding endpoint the producer's dedup uses — set
+  `embedding.provider: skillrouter_remote` to [build your own corpus](#build-your-own) with it.
+
+To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
+
+## 🧩 How it works
+
+```
+skillcorpus/
+├── core/       data models · SQLite/faiss store · LLM & embedding clients
+├── aggregate/  source registry + multi-repo clone
+├── curate/     parse · safety · license · classify · quality · dedup + full-library passes
+├── export/     corpus writer (parquet + attachments + dataset card)
+├── match/      the 2 released models + training recipe                 ← isolated deps
+├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
+└── cli.py      build · stats · export
+```
+
+`cli build` runs the whole curation chain
+(`ingest → quality_pass → dedup_pass → license_audit → export.corpus`). LLM classification and
+quality scoring degrade gracefully to rules when no model endpoint is reachable, so the pipeline
+always runs end to end.
+
+`match/` and `evaluate/` are standalone toolkits with their own `requirements.txt`
+(torch / transformers, per benchmark); they are **not** pulled in by `pip install` of the producer.
+
+- **Retrieval** — [`skillcorpus/match/`](skillcorpus/match) is **the two released models**:
+  a bi-encoder fine-tuned from `Qwen3-Embedding-0.6B` for candidate recall, and a reranker
+  fine-tuned from `Qwen3-Reranker-0.6B` that scores the top candidates. SkillHub serves both;
+  to run them yourself see [Serving](skillcorpus/match/README.md#serving) (`serve.py` +
+  `run_server.sh`). The directory also holds the training
+  recipe (synthetic queries → InfoNCE → listwise CE) and `eval_compare.py` for the retrieval
+  metrics (nDCG / MRR / Hit / Recall).
+- **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`,
+  `qwenclawbench`, `gdpval` — each self-contained with its own README and dependencies.
+
+<a name="build-your-own"></a>
+
+## 🛠️ Build your own corpus
+
+Only needed if you want to curate **your own** sources. Requires an LLM endpoint for
+classification / quality scoring and an embedding endpoint for dedup — see
+[`docs/running.md`](docs/running.md).
 
 ```bash
 git clone https://github.com/EverMind-AI/SkillCorpus.git skillcorpus && cd skillcorpus
@@ -211,38 +230,28 @@ python -m skillcorpus.cli stats     # counts by source / category / license
 python -m skillcorpus.cli export --out ./corpus
 ```
 
-`cli build` runs `ingest → quality_pass → dedup_pass → license_audit → export.corpus`. The producer's LLM classification and quality scoring fall back to rules if no model endpoint is reachable, so its pipeline can run end to end. `match/` and `evaluate/` are standalone toolkits with their own dependencies and are not installed by the producer package.
+Only skills from GREEN-licensed **sources** are exported (the demo trusts the whitelist in
+`audit/license_safe_sources.json` wholesale; production gates per source-repo SPDX). The per-row
+`license` is each skill's declared value, so a demo corpus can still carry non-GREEN `license`
+strings. Use `--sources-config your.yaml` for your own registry, or `--source <name>` for one source.
 
-Only skills from GREEN-licensed **sources** are exported. The demo trusts the whitelist in `audit/license_safe_sources.json` wholesale; production gates per source-repository SPDX. Each row keeps its declared `license`, so a demo corpus can still contain non-GREEN license strings. Use `--sources-config your.yaml` for your own registry or `--source <name>` for one source.
+```bash
+pip install -e ".[dev]"
+python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
+```
 
-## Trust, provenance, and availability
+## 🗺️ Roadmap
 
-- The public corpus is the [1K demo](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k); **96,401** refers to the paper's production snapshot and is not currently a downloadable corpus.
-- Every released corpus row retains `source`, `source_url`, and its original upstream `license`. You are responsible for following the per-skill terms and reviewing third-party scripts, assets, references, dependencies, and instructions before use.
-- Curation quality and safety scores can help rank or filter material, but they do not constitute a safety, compatibility, or security guarantee.
-- The hosted SkillHub and its availability may differ from a self-hosted retrieval deployment. The self-hosted server only provides `/embed` and `/score`; it is not a local replacement for SkillHub's corpus API.
-
-For the GREEN/RED/YELLOW policy, license data flow, and opt-out process, see [`docs/licence-and-governance.md`](docs/licence-and-governance.md).
-
-## News
-
-- **2026-08-12:** Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus released on [Hugging Face](https://huggingface.co/EverMind-AI).
-- **2026-08-06:** Paper v5 published on [arXiv](https://arxiv.org/abs/2607.15557).
-
-## Roadmap
+<!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
 
 - [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source license audit
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [x] Public SkillHub endpoint
-- [x] Retrieval models (bi-encoder + reranker) and a 1K demo corpus on Hugging Face
-- [ ] GitHub issue to source-cited agent handoff and review manifest
-- [ ] Full 96,401-skill corpus on Hugging Face
-- [x] Deployment script for the two retrieval models (`match/`)
-- [ ] Hermes integration
-
-## Contributing
-
-Contributions to the corpus pipeline, retrieval tooling, evaluations, integrations, and documentation are welcome. See the repository issues and the component documentation before opening a pull request.
+- [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
+- [ ] Full 114,190-skill corpus on HuggingFace
+- [x] Deployment script for the two retrieval models (self-hosting `match/`)
+- [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
+- [ ] Raven plugin — packaged, waiting on the upstream `context_segments` slot
 
 ## Citation
 
@@ -259,8 +268,13 @@ Contributions to the corpus pipeline, retrieval tooling, evaluations, integratio
 
 ## License
 
-- **Code:** Apache-2.0. The `match/` and `evaluate/` toolkits are each MIT; see their own `LICENSE`.
-- **Corpus:** export is gated to skills from GREEN-licensed source repositories. Each row keeps its declared upstream `license`, which may differ from the source-repository license and still requires review; nothing is relicensed. Downstream use must follow the per-skill terms.
+- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
+- **Corpus** — every skill keeps its **original upstream license**; only GREEN
+  (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
+  `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
+
+Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
+[`docs/licence-and-governance.md`](docs/licence-and-governance.md).
 
 ## EverMind Ecosystem
 
@@ -272,39 +286,39 @@ EverMind is an open-source ecosystem for long-term memory, self-evolving agents,
 </tr>
 <tr>
 <td><strong>Memory Runtime</strong></td>
-<td><a href="https://github.com/EverMind-AI/EverOS">EverOS</a> - the local memory operating system and research-backed runtime for agent and user memory.</td>
+<td><a href="https://github.com/EverMind-AI/EverOS">EverOS</a> — the local memory operating system and research-backed runtime for agent and user memory.</td>
 </tr>
 <tr>
 <td><strong>Self-Improving Agent Harness</strong></td>
-<td><a href="https://github.com/EverMind-AI/Raven">Raven</a> - the self-improving agent harness that brings memory, proactivity, context control, and skill evolution into terminal-native agents.</td>
+<td><a href="https://github.com/EverMind-AI/Raven">Raven</a> — the self-improving agent harness that brings memory, proactivity, context control, and skill evolution into terminal-native agents.</td>
 </tr>
 <tr>
 <td><strong>Agent Skills &amp; Retrieval</strong></td>
-<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> - open curation pipeline, SkillRouter retrieval models, public <a href="https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k">1K demo corpus</a>, <a href="https://evermind.ai/skillhub">SkillHub</a> integration, agent integrations, and benchmarks.</td>
+<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> — open curation and retrieval tooling, a public <a href="https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k">1K demo corpus</a>, <a href="https://evermind.ai/skillhub">SkillHub</a>, agent integrations, and benchmarks.</td>
 </tr>
 <tr>
 <td><strong>Algorithm Engine</strong></td>
-<td><a href="https://github.com/EverMind-AI/EverAlgo">EverAlgo</a> - stateless extraction, ranking, parsing, and memory operators that power EverOS.</td>
+<td><a href="https://github.com/EverMind-AI/EverAlgo">EverAlgo</a> — stateless extraction, ranking, parsing, and memory operators that power EverOS.</td>
 </tr>
 <tr>
 <td><strong>Hypergraph Memory</strong></td>
-<td><a href="https://github.com/EverMind-AI/HyperMem">HyperMem</a> - hypergraph memory for long-term conversations, with its own benchmark-backed topic -&gt; episode -&gt; fact retrieval method.</td>
+<td><a href="https://github.com/EverMind-AI/HyperMem">HyperMem</a> — hypergraph memory for long-term conversations, with its own benchmark-backed topic → episode → fact retrieval method.</td>
 </tr>
 <tr>
 <td><strong>Benchmarks</strong></td>
-<td><a href="https://github.com/EverMind-AI/EverMemBench">EverMemBench</a> · <a href="https://github.com/EverMind-AI/EvoAgentBench">EvoAgentBench</a> - evaluation suites for conversational memory and agent self-evolution.</td>
+<td><a href="https://github.com/EverMind-AI/EverMemBench">EverMemBench</a> · <a href="https://github.com/EverMind-AI/EvoAgentBench">EvoAgentBench</a> — evaluation suites for conversational memory and agent self-evolution.</td>
 </tr>
 <tr>
 <td><strong>Long-Context Research</strong></td>
-<td><a href="https://github.com/EverMind-AI/MSA">MSA</a> - Memory Sparse Attention for scalable latent memory and 100M-token contexts.</td>
+<td><a href="https://github.com/EverMind-AI/MSA">MSA</a> — Memory Sparse Attention for scalable latent memory and 100M-token contexts.</td>
 </tr>
 <tr>
 <td><strong>Personal Memory Layer</strong></td>
-<td><a href="https://github.com/EverMind-AI/EverMe">EverMe</a> - CLI and agent plugin suite for cross-device, cross-agent personal memory.</td>
+<td><a href="https://github.com/EverMind-AI/EverMe">EverMe</a> — CLI and agent plugin suite for cross-device, cross-agent personal memory.</td>
 </tr>
 <tr>
 <td><strong>Developer Integrations</strong></td>
-<td><a href="https://github.com/EverMind-AI/evermem-claude-code">evermem-claude-code</a> · <a href="https://github.com/EverMind-AI/everos-plugins">everos-plugins</a> - plugins, skills, and migration tooling for AI coding agents.</td>
+<td><a href="https://github.com/EverMind-AI/evermem-claude-code">evermem-claude-code</a> · <a href="https://github.com/EverMind-AI/everos-plugins">everos-plugins</a> — plugins, skills, and migration tooling for AI coding agents.</td>
 </tr>
 </table>
 
