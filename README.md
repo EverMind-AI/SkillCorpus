@@ -25,25 +25,23 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 
 </div>
 
-## Install — paste this to your agent
+## 🔌 New — plugins for your agent host
+
+**Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness** — plus an HTTP adapter for
+any other host, and native support in Raven. Retrieval runs every turn, before the model
+answers: no tool call, no skill names to memorise, no host patch.
 
 > Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
 
-Every supported host is itself an agent, so the fastest install is to let it do the work.
-The playbook it follows detects your host, backs up and diffs before editing any config,
-and verifies a `# Skills` block appears — [read it first](skillcorpus_plugin/INSTALL.agent.md)
-if you want to audit each step.
+Paste that line to your agent and it installs itself. Per-host setup, the five settings you
+will actually touch, what each turn costs and what leaves your machine —
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**.
 
-| Host | Seam | Status |
-|---|---|---|
-| **OpenClaw** (≥ 2026.3.8) | `before_prompt_build` hook | ✅ plugin |
-| **Hermes** | memory-provider `prefetch` | ✅ plugin |
-| **DeepSeek Harness** | `agent/pre-step` waterfall | ✅ plugin |
-| **WorkBuddy** (5.3.13) | `UserPromptSubmit` hook | ✅ plugin |
-| **Raven** | native SkillHub source (`skillForge.router.hub`) | ✅ built in — plugin pending an upstream slot |
-| **Anything else** | run the HTTP adapter, `POST /retrieve` | ✅ [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
+## 📰 News
 
-None of them need a host patch. Details: [`skillcorpus_plugin/`](skillcorpus_plugin).
+- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
+- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
+- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
 ## What is SkillCorpus
 
@@ -67,7 +65,7 @@ source repository is license-audited, so the released set is commercially redist
 | 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 114,190-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **Plugins** | per-turn retrieval inside OpenClaw · Hermes · DeepSeek Harness · WorkBuddy, plus an HTTP adapter for any other host | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+| 🔌 | **Plugins** | per-turn retrieval inside WorkBuddy · Hermes · OpenClaw · DeepSeek Harness, plus an HTTP adapter for any other host | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
 *Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
 
@@ -240,11 +238,6 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
-## 📰 News
-
-- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
-- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
-
 ## 🗺️ Roadmap
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
@@ -255,7 +248,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
 - [ ] Full 114,190-skill corpus on HuggingFace
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
-- [x] Plugins for OpenClaw · Hermes · DeepSeek Harness · WorkBuddy (+ HTTP adapter for any other host)
+- [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
 - [ ] Raven plugin — waiting on the upstream `context_segments` slot
 
 ## Citation

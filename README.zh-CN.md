@@ -24,24 +24,23 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 </div>
 
-## 安装——把这句话粘给你的 agent
+## 🔌 新增——面向各 agent 宿主的插件
+
+**WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 插件**已发布——其他宿主可走 HTTP adapter，
+Raven 则是原生支持。检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，
+也不用改宿主代码。
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
-每个受支持的宿主本身就是 agent，最快的装法是让它自己装。它执行的剧本会先判断宿主、
-改任何配置前先备份并给出 diff、装完验证 `# Skills` 块确实出现——想逐步审计的话可以
-[先读一遍](skillcorpus_plugin/INSTALL.agent.md)。
+把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
+每轮的开销、以及哪些数据会离开你的机器——都在
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**。
 
-| 宿主 | 接入缝 | 状态 |
-|---|---|---|
-| **OpenClaw**（≥ 2026.3.8） | `before_prompt_build` 钩子 | ✅ 插件 |
-| **Hermes** | memory provider 的 `prefetch` | ✅ 插件 |
-| **DeepSeek Harness** | `agent/pre-step` waterfall | ✅ 插件 |
-| **WorkBuddy**（5.3.13） | `UserPromptSubmit` 钩子 | ✅ 插件 |
-| **Raven** | 原生 SkillHub 源（`skillForge.router.hub`） | ✅ 内置——插件版等上游插槽 |
-| **其他任何宿主** | 旁边跑 HTTP adapter，`POST /retrieve` | ✅ [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
+## 📰 动态
 
-以上都不需要改宿主代码。详见 [`skillcorpus_plugin/`](skillcorpus_plugin)。
+- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
+- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
+- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
 
 ## SkillCorpus 是什么
 
@@ -64,7 +63,7 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 | 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 114,190 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **插件** | 在 OpenClaw · Hermes · DeepSeek Harness · WorkBuddy 里逐轮检索本语料，其他宿主走 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+| 🔌 | **插件** | 在 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 里逐轮检索本语料，其他宿主走 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
 *开源：代码、语料、模型；不开源：仅托管的 SkillHub 服务。*
 
@@ -225,11 +224,6 @@ python -m skillcorpus.cli export --out ./corpus
 pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
-
-## 📰 动态
-
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
 
 ## 🗺️ 路线图
 
