@@ -1,0 +1,23 @@
+{
+  // Compiles the copied host types against a real OpenClaw checkout. Standalone
+  // (not extending the build config) because that one sets rootDir/outDir for
+  // emit, and this project only ever type-checks:
+  //   npx tsc -p tsconfig.host-check.json
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "openclaw-host/*": ["../../openclaw-host/src/*"]
+    }
+  },
+  "files": ["test/host-contract.check.ts"]
+}
