@@ -19,29 +19,26 @@ this directory — use the absolute form for read_file / exec.
 
 技能自带的脚本已经解包在旁边；模型直接运行它，二维码落到桌面。没有检索的话，模型只能即兴发挥——`pip install qrcode`，然后碰运气。
 
-技能来源可以是你自己的技能目录、[SkillHub](https://evermind.ai/skillhub)（[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点，96,401 条经审核、许可宽松的社区技能——上面那条二维码技能就来自这里），或两者融合进同一个排序。
+技能来源可以是你自己的技能目录、[SkillHub](https://evermind.ai/skillhub)（[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点，114,190 条经审核、许可宽松的社区技能——上面那条二维码技能就来自这里），或两者融合进同一个排序。
 
 ## 安装——把这段话粘给你的 agent
 
 每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / OpenClaw / Hermes / DeepSeek Harness 的会话：
 
-> 帮我安装 SkillCorpus Plugins（插件 id：skillsearch）。克隆 https://gitlab.com/npc-work/aic/ai/skillsearch_plugins
-> 并遵循仓库根目录的 `INSTALL.agent.md`：先判断你运行在哪个宿主里；
-> 改任何配置前先备份并给我看 diff；装完用一个测试问题验证出现
-> `# Skills` 块；最后汇报你改了什么和验证结果。
+> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
-它执行的剧本就是 [`INSTALL.agent.md`](INSTALL.agent.md)——人类可读，你可以先审计 agent 将要做的每一步。
+那份剧本人类可读：先判断宿主、改配置前备份并给出 diff、装完验证 `# Skills` 块、逐步汇报——你可以[先读一遍](INSTALL.agent.md)再让它动手。
 
 **手动安装**——按宿主选：
 
 | 你的宿主 | 操作 | 详情 |
 | --- | --- | --- |
-| **WorkBuddy** | 构建 `plugin-workbuddy`、注册为 marketplace、启用——文件级步骤，agent 干最合适：把它 README 里的 prompt 粘给 WorkBuddy | [plugin-workbuddy](plugin-workbuddy#install--paste-this-to-workbuddy) |
-| **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
-| **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](plugin-openclaw#install) |
-| **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](engine-typescript#where-this-goes) |
-| **Raven** | `pip install ./engine-python ./plugin-raven`——等 Raven 上游的 `context_segments` 插槽合并后生效；Raven 自带的检索今天照常工作 | [plugin-raven](plugin-raven#install) |
-| **其他任何宿主** | 旁边跑 `python -m skillsearch.adapters.http_server`，POST `/retrieve` | [engine-python](engine-python/README.md) |
+| **WorkBuddy** | 构建 `plugin-workbuddy`、注册为 marketplace、启用——文件级步骤，agent 干最合适：把它 README 里的 prompt 粘给 WorkBuddy | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install--paste-this-to-workbuddy) |
+| **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-hermes/README.md#install) |
+| **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
+| **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-typescript/README.md#where-this-goes) |
+| **Raven** | `pip install ./engine-python ./plugin-raven`——等 Raven 上游的 `context_segments` 插槽合并后生效；Raven 自带的检索今天照常工作 | [plugin-raven](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-raven/README.md#install) |
+| **其他任何宿主** | 旁边跑 `python -m skillsearch.adapters.http_server`，POST `/retrieve` | [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
 
 ## 30 秒尝鲜
 
@@ -58,6 +55,25 @@ EOF
 ```
 
 问装好插件的 agent 怎么从 PDF 里提表格——上面那个块就会出现在它的上下文里。问它今天天气——什么都不会注入：匹配不到技能的查询就是检索为空。
+
+## 检索到底带来什么，四个宿主实测
+
+每个宿主一个案例，取自 QwenClawBench——同一个宿主跑自己的 agent，开与不开检索各一次。
+
+| 宿主 | 任务 | 无技能 | 有技能 | 检索到 |
+| --- | --- | --- | --- | --- |
+| OpenClaw | 早报摘要技能 | 0.00 | **1.00** | `news-daily`、`news-express` |
+| Hermes | 网关进程监控检查 | 0.17 | **0.92** | `openclaw-cli` |
+| Raven | memos 发现与工作区初始化 | 0.00 | **0.74** | `caihhub-preference` |
+| DeepSeek Harness | polygon 套利监控检查 | 0.50 | **0.83** | `defi-wallet-monitor` |
+
+**OpenClaw —— 0.00 到 1.00。** 任务要求做一个早报摘要技能并把摘要发出去。没有检索时什么都没产出：没有技能文件、没有 frontmatter、没有消息。`news-daily` 和 `news-express` 正好补齐两半——摘要技能长什么样，以及发送它的调用——四个评分点全拿到。
+
+**Hermes —— 0.17 到 0.92。** `openclaw-cli` 写明了怎么列 cron 任务、怎么读网关日志。从零分变满分的那五个点，恰好就是需要这些命令的：按简报执行、解释 cron 缺口、识别安全策略、完成日志分析、给出完整状态汇总。agent 缺的不是推理，是命令。
+
+**Raven —— 0.00 到 0.74。** 工作区初始化，分数取决于跑完之后磁盘上留下了什么。`caihhub-preference` 描述了这个产品预期的目录布局，有了它，这一轮初始化了 git、写了身份文件、跟踪了工作区状态，文档里填的是真实内容而不是占位符。唯一还缺的一分是 memos 调查——那个技能没提。
+
+**DeepSeek Harness —— 0.50 到 0.83。** 套利监控本来两种情况下都能跑；技能改变的是它的输出去了哪里。`defi-wallet-monitor` 规定了数据目录和日志约定，于是这次运行把产物写到了检查程序会去找的位置，而不是丢在脚本旁边。
 
 ## 你真正会碰的五个配置
 
@@ -130,7 +146,7 @@ description: PDF helper.
 query
   ├─ rewrite          把消息清洗成检索查询            （可选）
   ├─ fan out          本地 BM25 · 远程目录 · 宿主自有源¹
-  ├─ fuse             加权 RRF（K = 60），跨源去重
+  ├─ fuse             加权 RRF（K，默认 10），跨源去重
   ├─ hydrate          给只有元数据的候选取回正文
   ├─ resolve (local)  {baseDir} 与链接，先解析再交给 gate 判
   ├─ gate             剔除本 agent 跑不了的            （可选）
