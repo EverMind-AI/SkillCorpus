@@ -23,7 +23,7 @@ Works with a directory of your own skills, with [SkillHub](https://evermind.ai/s
 
 ## Install — paste this to your agent
 
-Every supported host *is* an agent, so the fastest install is to let it install itself. Paste this into WorkBuddy, OpenClaw, Hermes, or a DeepSeek Harness session:
+Every supported host *is* an agent, so the fastest install is to let it install itself. Paste this into WorkBuddy, Hermes, OpenClaw, or a DeepSeek Harness session:
 
 > Install SkillCorpus Plugins (plugin id: skillsearch) for the agent host
 > you are running in.

@@ -23,7 +23,7 @@ this directory — use the absolute form for read_file / exec.
 
 ## 安装——把这段话粘给你的 agent
 
-每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / OpenClaw / Hermes / DeepSeek Harness 的会话：
+每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / Hermes / OpenClaw / DeepSeek Harness 的会话：
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
@@ -108,7 +108,7 @@ EOF
 
 - **纯本地（默认）**——什么都不出去。扫描、排序、注入全在进程内。
 - **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
-- **配了 `model`**——改写器看到你的消息（截断到 2000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
+- **配了 `model`**——改写器看到你的消息（截断到 2,000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 
 下载的技能是第三方内容，模型会被指示遵循它。gate 存在的意义就是剔除那些假定了你的 agent 没有的工具或环境的技能——这也是配了目录服务时它默认开启的原因。
 
