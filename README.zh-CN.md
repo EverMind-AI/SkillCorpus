@@ -22,7 +22,7 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
 
-<p align="center"><a href="docs/assets/skillcorpus_promo_liam.mp4?raw=true"><strong>🎬 播放 SkillCorpus 产品介绍视频</strong></a></p>
+https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 </div>
 
@@ -30,12 +30,12 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
 
-<table width="100%">
+<table style="display: table; width: 100%; table-layout: fixed;">
 <tr>
-<td align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
