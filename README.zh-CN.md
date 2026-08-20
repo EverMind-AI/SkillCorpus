@@ -1,80 +1,80 @@
-<!-- 所有发布链接均已上线：SkillHub、代码仓库、两个检索模型，以及 1k demo 语料。
-     完整的 114,190 条语料尚未发布（见 Corpus 行与路线图）。 -->
+<!-- SkillHub 是在线产品；本仓库包含它背后的开源语料、检索、评估、导出和插件层。 -->
 
-<div align="center">
+<div align="center" id="readme-top">
 
-[English](README.md) | **简体中文**
-
-# SkillCorpus
-
-**一句话装进你的 agent，此后每一轮都自动带上对的技能——从 114,190 条经审核、许可宽松的技能里检索。不需要工具调用，也不用记任何技能名字。**
-
-EverMind agent 技术栈的一部分：[Raven](https://github.com/EverMind-AI/raven) 是终端原生的
-agent harness，[EverOS](https://github.com/EverMind-AI/EverOS) 是它所依赖的记忆底座，而
-SkillCorpus 则是二者检索的社区技能语料。
+<table width="100%" border="1" bordercolor="#d9d9d9" cellspacing="0" cellpadding="0">
+<tr><td><img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" width="100%"></td></tr>
+</table>
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)
-[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/models)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-<img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
+[English](README.md) | **简体中文**
 
 </div>
 
-## 🔌 新增——面向各 agent 宿主的插件
+SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为可靠 agent 上下文的开源流水线：
+它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。公开的
+1,000 条 demo 语料、三个 agent benchmark 和线上的 [SkillHub](https://evermind.ai/skillhub)
+展示了结果；想构建、修改或自行部署这套开源核心时，再 clone 本仓库。
 
-**WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 插件**已发布——其他宿主可走 HTTP adapter，
-Raven 则是原生支持。检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，
-也不用改宿主代码。
+https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
-> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
+<details>
+  <summary><kbd>目录</kbd></summary>
 
-把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
-每轮的开销、以及哪些数据会离开你的机器——都在
-**[`skillcorpus_plugin/`](skillcorpus_plugin)**。
+<br>
 
-## 📰 动态
+- [让 agent 每一轮都更强](#让-agent-每一轮都更强)
+- [效果](#效果)
+- [公开产物](#公开产物)
+- [SkillCorpus 能给你什么](#skillcorpus-能给你什么)
+- [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
+- [动态](#动态)
+- [其余用法](#其余用法)
+- [工作原理](#工作原理)
+- [构建自己的语料](#构建自己的语料)
+- [路线图](#路线图)
+- [EverMind 生态系统](#evermind-生态系统)
 
-- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
+<br>
 
-## SkillCorpus 是什么
+</details>
 
-Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散落在成千上万个公开
-仓库中，彼此重复、良莠不齐，再分发权也不明确。SkillCorpus 把这个庞杂的池子整理成 agent 能直接取用的语料，分四个阶段：
+## 让 agent 每一轮都更强
 
-- **`aggregate`** —— 从公开的 `SKILL.md` 仓库发现并克隆技能。
-- **`curate`** —— 解析 · 安全 · 许可门禁 · 去重 · 16 类分类 · 三维质量打分。
-- **`match`** —— 微调的 bi-encoder + reranker + LLM selector，为任务挑选技能。
-- **`evaluate`** —— 三个真实 agent benchmark、两个 harness、开源与前沿 backbone。
+在 agent 作答时，真正的区别是一层检索：SkillHub 根据当前任务选出经过审核的过程性知识，
+并把它放进 agent 的上下文里。
 
-从约 821,000 个爬取文件中，最终留下 96,401 个技能。每个都保留其上游原始许可，每个源仓库也都
-通过了许可审计，因此这套发布的语料可商用、可再分发。
+<table width="100%">
+<tr>
+<th>维度</th>
+<th>没有 SkillCorpus</th>
+<th>接入 SkillCorpus 之后</th>
+</tr>
+<tr>
+<td><strong>上下文</strong></td>
+<td>模型自身知识，加上人工维护的 prompt。</td>
+<td>每一轮检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
+</tr>
+<tr>
+<td><strong>执行</strong></td>
+<td>通用流程可能漏掉具体步骤、边界情况或配套脚本。</td>
+<td>在执行前把流程、参考资料和可选脚本带进上下文。</td>
+</tr>
+<tr>
+<td><strong>集成</strong></td>
+<td>每个宿主都要自己维护一套任务指令。</td>
+<td>同一套策展后的技能层服务 OpenClaw、Hermes、Raven、WorkBuddy 和其他宿主。</td>
+</tr>
+</table>
 
-## 📦 我们发布了什么
+结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
+记技能名字，也不需要自己接工具调用。
 
-| | 产物 | 内容 | 链接 |
-|---|---|---|---|
-| 🌐 | **SkillHub** | 114,190 条技能 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 114,190 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
-| 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **插件** | 在 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 里逐轮检索本语料，其他宿主走 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
-
-*开源：代码、语料、模型；不开源：仅托管的 SkillHub 服务。*
-
-<div align="center">
-<img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
-</div>
-
-论文所评测的那一版 96,401 条，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
-检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
-
-## 📊 效果
+## 效果
 
 同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
 （[论文 Table 1](https://arxiv.org/abs/2607.15557)）：
@@ -90,7 +90,70 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
 经济类任务收益最小（GDPVal）。
 
-## 🚀 其余用法
+## 公开产物
+
+下面这张表列出目前真正公开的产物。
+
+| | 产物 | 内容 | 链接 |
+|---|---|---|---|
+| 🌐 | **SkillHub** | 当前 114,190 条在线目录 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **语料** *(demo)* | 可下载的 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整目录由 SkillHub 提供服务 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **插件** | 为 OpenClaw · Hermes · WorkBuddy · Raven 提供宿主适配器，另有 DeepSeek Harness 与 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+
+*目前开源：代码、1,000 条 demo 语料和检索模型。托管的 SkillHub 服务不开源，完整在线目录也尚未作为可下载数据集发布。*
+
+<div align="center">
+<img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
+</div>
+
+论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
+检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
+
+## SkillCorpus 能给你什么
+
+你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
+这套能力的开源底座时，才需要 clone SkillCorpus：
+
+- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
+  agent 导出语料。
+- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
+- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
+
+核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
+可以从[构建自己的语料](#构建自己的语料)开始，也可以先用 SkillHub 体验结果，再决定要不要修改底层机制。
+
+## 面向你的 agent 宿主的 SkillHub
+
+SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
+
+<table style="width: 100%;">
+<tr>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+</tr>
+</table>
+
+检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
+Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
+`skills` 阶段；Raven 自带的检索今天照常工作。
+
+> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
+
+把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
+每轮的开销、以及哪些数据会离开你的机器——都在
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**。
+
+## 动态
+
+- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
+- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
+- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
+
+## 其余用法
 
 上面的插件覆盖了大多数人。如果你想自己调服务，或者把整套跑在自己的机器上：
 
@@ -170,7 +233,12 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 
 想策展**自己的**源，见 [构建自己的语料](#build-your-own)。
 
-## 🧩 工作原理
+## 工作原理
+
+<div align="center">
+<img src="docs/assets/pipeline.png" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
+<p><em>收集和策展是基础，真正的价值是 agent 执行前能拿到与任务匹配的技能。</em></p>
+</div>
 
 ```
 skillcorpus/
@@ -200,7 +268,7 @@ export.corpus`）。当没有可用的模型端点时，LLM 分类与质量打�
 
 <a name="build-your-own"></a>
 
-## 🛠️ 构建自己的语料
+## 构建自己的语料
 
 仅当你想策展**自己的**源时才需要这一节。它需要一个 LLM 端点做分类与质量打分，以及一个
 embedding 端点做去重，详见 [`docs/running.md`](docs/running.md)。
@@ -225,7 +293,7 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
-## 🗺️ 路线图
+## 路线图
 
 <!-- TODO(@team)：这是按已知缺口列的初版，请按实际计划修改。 -->
 
@@ -235,8 +303,8 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
 - [ ] 完整的 114,190 条语料上 HuggingFace
 - [x] 两个检索模型的部署脚本（自建 `match/`）
-- [ ] 把 skill 库 + 检索框架打包成插件，供任意 agent harness 使用
-- [ ] Raven 插件——等上游 `context_segments` 插槽
+- [x] 把 skill 库 + 检索框架打包成插件，供 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 使用
+- [ ] Raven 插件——已打包，等上游 `context_segments` 插槽
 
 ## 引用
 
@@ -260,3 +328,51 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 
 完整的 GREEN/RED/YELLOW 策略、许可数据流与 opt-out 通道见
 [`docs/licence-and-governance.md`](docs/licence-and-governance.md)。
+
+## EverMind 生态系统
+
+EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和记忆评估的开源生态系统。
+
+<table>
+<tr>
+<th colspan="2">EverMind 开源生态系统</th>
+</tr>
+<tr>
+<td><strong>记忆运行时</strong></td>
+<td><a href="https://github.com/EverMind-AI/EverOS">EverOS</a> —— 面向 agent 与用户记忆的本地记忆操作系统和研究支撑运行时。</td>
+</tr>
+<tr>
+<td><strong>自我改进 Agent Harness</strong></td>
+<td><a href="https://github.com/EverMind-AI/Raven">Raven</a> —— 将记忆、主动性、上下文控制和技能演进带入终端原生 agent 的 harness。</td>
+</tr>
+<tr>
+<td><strong>Agent 技能与检索</strong></td>
+<td><a href="https://github.com/EverMind-AI/SkillCorpus">SkillCorpus</a> —— 开放策展与检索工具、公开的 <a href="https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k">1K demo 语料</a>、<a href="https://evermind.ai/skillhub">SkillHub</a>、agent 集成和基准测试。</td>
+</tr>
+<tr>
+<td><strong>算法引擎</strong></td>
+<td><a href="https://github.com/EverMind-AI/EverAlgo">EverAlgo</a> —— 为 EverOS 提供支持的无状态提取、排序、解析和记忆算子。</td>
+</tr>
+<tr>
+<td><strong>超图记忆</strong></td>
+<td><a href="https://github.com/EverMind-AI/HyperMem">HyperMem</a> —— 面向长期对话的超图记忆，提供经过基准验证的主题 → episode → 事实检索方法。</td>
+</tr>
+<tr>
+<td><strong>评测基准</strong></td>
+<td><a href="https://github.com/EverMind-AI/EverMemBench">EverMemBench</a> · <a href="https://github.com/EverMind-AI/EvoAgentBench">EvoAgentBench</a> —— 对话记忆和 agent 自我演进的评估套件。</td>
+</tr>
+<tr>
+<td><strong>长上下文研究</strong></td>
+<td><a href="https://github.com/EverMind-AI/MSA">MSA</a> —— 面向可扩展潜在记忆和 100M token 上下文的 Memory Sparse Attention。</td>
+</tr>
+<tr>
+<td><strong>个人记忆层</strong></td>
+<td><a href="https://github.com/EverMind-AI/EverMe">EverMe</a> —— 面向跨设备、跨 agent 个人记忆的 CLI 与 agent 插件套件。</td>
+</tr>
+<tr>
+<td><strong>开发者集成</strong></td>
+<td><a href="https://github.com/EverMind-AI/evermem-claude-code">evermem-claude-code</a> · <a href="https://github.com/EverMind-AI/everos-plugins">everos-plugins</a> —— 面向 AI 编程 agent 的插件、技能与迁移工具。</td>
+</tr>
+</table>
+
+这些仓库共同构成 EverMind 从研究到运行时的技术栈：新的记忆方法、可复用算法、基准证据与实用的 agent 集成。
