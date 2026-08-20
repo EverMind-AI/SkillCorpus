@@ -1,18 +1,18 @@
-<!-- All release links are live: SkillHub, the code repo, both retrieval models, and
-     the 1k demo corpus. The full 114,190-skill corpus is not published yet (see the
-     Corpus row and the roadmap). -->
+<!-- The public surfaces are distinct: this repo contains the pipeline and plugins,
+     Hugging Face hosts the downloadable demo and checkpoints, and SkillHub serves
+     the current hosted catalog. -->
 
-<div align="center">
+<div align="center" id="readme-top">
 
 **English** | [简体中文](README.zh-CN.md)
 
 # SkillCorpus
 
-**One line into your agent, and every turn arrives with the right skill — retrieved from 114,190 vetted, permissively-licensed skills. No tool call, no skill names to memorise.**
+**One line into your agent, and every turn arrives with the right skill — retrieved from SkillHub's curated catalog. No tool call, no skill names to memorise.**
 
 Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
 terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
-substrate it builds on · SkillCorpus, the community skill corpus they retrieve from.
+substrate it builds on · SkillCorpus, the open skill curation and retrieval layer they use.
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -26,6 +26,64 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 </div>
+
+<details>
+  <summary><kbd>Table of Contents</kbd></summary>
+
+<br>
+
+- [One system, three layers](#one-system-three-layers)
+- [SkillHub for your agent host](#skillhub-for-your-agent-host)
+- [News](#news)
+- [What is SkillCorpus](#what-is-skillcorpus)
+- [Public artifacts](#public-artifacts)
+- [Results](#results)
+- [Other ways to use it](#other-ways-to-use-it)
+- [How it works](#how-it-works)
+- [Build your own corpus](#build-your-own-corpus)
+- [Roadmap](#roadmap)
+- [EverMind Ecosystem](#evermind-ecosystem)
+
+<br>
+
+</details>
+
+## 🧭 One system, three layers
+
+SkillCorpus has three connected surfaces with different jobs: the GitHub repository builds and
+evaluates the system, Hugging Face publishes reusable artifacts, and SkillHub serves skills to
+agents at runtime.
+
+<table width="100%">
+<tr>
+<th>Layer</th>
+<th>Primary job</th>
+<th>What lives there</th>
+<th>Best for</th>
+</tr>
+<tr>
+<td><strong>SkillCorpus</strong><br><a href="https://github.com/EverMind-AI/SkillCorpus">GitHub repo</a></td>
+<td>Build, curate, train, and evaluate</td>
+<td>The open-source pipeline (<code>aggregate</code> · <code>curate</code> · <code>match</code> · <code>evaluate</code> · <code>export</code>), schemas, benchmarks, and host plugins</td>
+<td>Building a corpus, adding sources, inspecting the data contract, or reproducing the pipeline</td>
+</tr>
+<tr>
+<td><strong>Hugging Face</strong></td>
+<td>Publish reusable artifacts</td>
+<td>The downloadable 1,000-skill demo dataset, attachments, and the bi-encoder + reranker checkpoints</td>
+<td>Downloading data/models, self-hosting retrieval, or reproducing experiments</td>
+</tr>
+<tr>
+<td><strong>SkillHub</strong></td>
+<td>Serve skills to agents</td>
+<td>The hosted API over the current curated catalog and retrieval stack; metadata, <code>skill_md</code>, and optional script bundles</td>
+<td>Using per-turn retrieval immediately through a plugin or the direct API</td>
+</tr>
+</table>
+
+In one line: **SkillCorpus builds → Hugging Face distributes → SkillHub serves → agents retrieve.**
+The 1,000-skill Hugging Face dataset is the public downloadable demo; the paper's
+96,401-skill snapshot and SkillHub's current 114,190-skill catalog are different release snapshots.
 
 ## 🔌 SkillHub for your agent host
 
@@ -58,7 +116,7 @@ will actually touch, what each turn costs and what leaves your machine —
 - **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
 - **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
-## What is SkillCorpus
+## 🧠 What is SkillCorpus
 
 Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
 thousands of public repositories, redundant, uneven in quality, and unclear on redistribution
@@ -69,26 +127,30 @@ rights. SkillCorpus consolidates that pool into a corpus an agent can draw from,
 - **`match`** — a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
 - **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
 
-From ~821,000 crawled files, 96,401 skills remain. Each carries its upstream license, and every
-source repository is license-audited, so the released set is commercially redistributable.
+From ~821,000 crawled files, 96,401 skills remain in the paper's evaluated snapshot. Each carries
+its upstream license, and every source repository is license-audited, so that snapshot is
+commercially redistributable under its original terms.
 
-## 📦 What we release
+## 📦 Public artifacts
+
+The table above explains the roles; this is the concrete inventory of what is public today.
 
 | | Artifact | What | Link |
 |---|---|---|---|
-| 🌐 | **SkillHub** | 114,190 skills + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **Corpus** *(demo)* | a 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full 114,190-skill corpus follows | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 | 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
-*Open source: the code, corpus, and models — only the hosted SkillHub service is closed.*
+*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
+service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
 
 <div align="center">
 <img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
 </div>
 
-The 96,401-skill release the paper measures, organised by a 16-class taxonomy and three quality facets
+The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
