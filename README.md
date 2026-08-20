@@ -1,6 +1,5 @@
-<!-- The public surfaces are distinct: this repo contains the pipeline and plugins,
-     Hugging Face hosts the downloadable demo and checkpoints, and SkillHub serves
-     the current hosted catalog. -->
+<!-- SkillHub is the live hosted product; this repository contains the open-source corpus,
+     retrieval, evaluation, export, and plugin layer behind it. -->
 
 <div align="center" id="readme-top">
 
@@ -14,10 +13,13 @@ Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/rave
 terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
 substrate it builds on · SkillCorpus, the open skill curation and retrieval layer they use.
 
+Try the live [SkillHub](https://evermind.ai/skillhub) first: browse the library and see how an
+agent gets task-specific skills before it answers. This repository is the open-source core behind
+SkillHub — it builds and evaluates the corpus, trains the retrieval stack, exports the artifacts,
+and packages the plugins that connect agents to the service.
+
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![Corpus](https://img.shields.io/badge/%F0%9F%A4%97-Corpus-yellow.svg)](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k)
-[![Models](https://img.shields.io/badge/%F0%9F%A4%97-Retriever%20%2B%20Reranker-yellow.svg)](https://huggingface.co/EverMind-AI/models)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -46,7 +48,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 </details>
 
-## 🚀 Stronger agents, one turn at a time
+## Stronger agents, one turn at a time
 
 SkillCorpus is not only a collection of skills. It adds a retrieval layer before the agent answers:
 SkillHub selects vetted procedural knowledge for the task and puts it into the agent's context.
@@ -77,7 +79,7 @@ SkillHub selects vetted procedural knowledge for the task and puts it into the a
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
 
-## 🔌 SkillHub for your agent host
+## SkillHub for your agent host
 
 SkillHub brings per-turn skill retrieval to the four hosts below. Choose your host to open its
 plugin guide:
@@ -102,7 +104,7 @@ Paste that line to your agent and it installs itself. Per-host setup, the five s
 will actually touch, what each turn costs and what leaves your machine —
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**.
 
-## 🧠 What is SkillCorpus
+## What is SkillCorpus
 
 Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
 thousands of public repositories, redundant, uneven in quality, and unclear on redistribution
@@ -122,7 +124,7 @@ From ~821,000 crawled files, 96,401 skills remain in the paper's evaluated snaps
 its upstream license, and every source repository is license-audited, so that snapshot is
 commercially redistributable under its original terms.
 
-## 📦 Public artifacts
+## Public artifacts
 
 This is the concrete inventory of what is public today.
 
@@ -145,7 +147,7 @@ The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonom
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
-## 📊 Results
+## Results
 
 Pass rate with no skills → with SkillCorpus, same harness, same backbone
 ([paper, Table 1](https://arxiv.org/abs/2607.15557)):
@@ -161,13 +163,13 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
 
-## 📰 News
+## News
 
 - **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
 - **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
 - **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
-## 🚀 Other ways to use it
+## Other ways to use it
 
 The plugin above covers most people. If you would rather call the service yourself, or run
 the whole thing on your own hardware:
@@ -253,7 +255,7 @@ drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
 
 To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
 
-## 🧩 How it works
+## How it works
 
 ```
 skillcorpus/
@@ -286,7 +288,7 @@ always runs end to end.
 
 <a name="build-your-own"></a>
 
-## 🛠️ Build your own corpus
+## Build your own corpus
 
 Only needed if you want to curate **your own** sources. Requires an LLM endpoint for
 classification / quality scoring and an embedding endpoint for dedup — see
@@ -312,7 +314,7 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
 
