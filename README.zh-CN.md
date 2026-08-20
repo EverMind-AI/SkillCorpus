@@ -2,7 +2,9 @@
 
 <div align="center" id="readme-top">
 
-<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" style="display: block; width: 100%; border: 1px solid #d9d9d9;">
+<table width="100%" border="1" bordercolor="#d9d9d9" cellspacing="0" cellpadding="0">
+<tr><td><img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" width="100%"></td></tr>
+</table>
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
