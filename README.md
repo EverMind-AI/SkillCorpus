@@ -34,10 +34,10 @@ plugin guide:
 
 <table style="width: 100%;">
 <tr>
-<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
