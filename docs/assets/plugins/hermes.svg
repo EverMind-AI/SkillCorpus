@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
-  <title id="title">Hermes</title>
-  <rect width="96" height="96" rx="24" fill="#7c3aed"/>
-  <path d="M21 59c13-17 26-25 40-25 7 0 12 2 16 6-12 0-23 5-33 15-7 7-14 10-23 10z" fill="#fef3c7"/>
-  <path d="M22 59c11-3 21-1 30 6-8 5-18 6-30 2z" fill="#fbbf24"/>
-  <path d="M47 28l5-9 5 9-5 9z" fill="#fbbf24"/>
-  <path d="M55 30l9-4-2 10z" fill="#fef3c7"/>
-  <circle cx="66" cy="43" r="3" fill="#7c3aed"/>
-</svg>
