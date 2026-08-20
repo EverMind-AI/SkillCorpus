@@ -1,0 +1,48 @@
+[plugin]
+id                 = "skillsearch"
+version            = "0.1.0"
+display_name       = "Skill retrieval"
+raven              = ">=0.1"
+bundled            = false
+enabled_by_default = true
+
+# Claims the host's "skills" stage: the per-turn block naming the skills
+# relevant to what the user just asked. Disabling this plugin turns skill
+# retrieval off — the host keeps no built-in fallback.
+[[plugin.contributes.context_segments]]
+name     = "skills"
+factory  = "skillsearch_raven:make_segment"
+replaces = "skills"
+
+[plugin.config_schema]
+# Sources. With neither a skills directory nor a catalog endpoint there is
+# nothing to retrieve, and the segment declines its slot.
+skills_dir     = { type = "string",  default = "skills" }
+builtin_dir    = { type = "string",  default = "" }
+scan_depth     = { type = "integer", default = 5 }
+hub_endpoint   = { type = "string",  default = "" }
+hub_api_key    = { type = "string",  default = "" }
+hub_timeout_s  = { type = "number",  default = 2.0 }
+hub_min_safety = { type = "number",  default = 0.7 }
+agent_id       = { type = "string",  default = "" }
+
+# Fusion. Higher weight = more rank mass when a skill surfaces from more
+# than one source.
+weight_local  = { type = "number",  default = 1.0 }
+weight_hub    = { type = "number",  default = 0.85 }
+over_fetch    = { type = "integer", default = 2 }
+dedup_by      = { type = "string",  enum = ["name", "qualified_id"], default = "name" }
+top_k         = { type = "integer", default = 5 }
+
+# Narrowing. Both the rewriter and the gate need a model; leaving `model`
+# empty runs retrieval raw.
+model          = { type = "string",  default = "" }
+rewrite        = { type = "boolean", default = true }
+gate           = { type = "boolean", default = true }
+gate_pool      = { type = "integer", default = 10 }
+max_select     = { type = "integer", default = 2 }
+gate_timeout_s = { type = "number",  default = 20.0 }
+
+# Output.
+resolve_refs = { type = "boolean", default = true }
+heading      = { type = "string",  default = "# Skills" }

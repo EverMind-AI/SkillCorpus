@@ -1,6 +1,5 @@
 """Step 6: Fine-tune reranker with listwise cross-entropy loss.
 
-Reproduces the SkillRouter reranker training:
   - Base model: Qwen3-Rank-0.6B (causal LM)
   - Loss: Listwise cross-entropy over top-K candidates
   - Score: logit(yes) - logit(no) for each (query, candidate) pair

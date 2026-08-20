@@ -1,0 +1,53 @@
+[project]
+name = "skillsearch-raven"
+version = "0.1.0"
+description = "Skill retrieval for Raven: the context segment that claims the `skills` stage."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "EverMind AI" }]
+keywords = ["raven", "plugin", "agent", "skills", "retrieval"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+# The engine. Not published yet, so an install names both paths:
+#   pip install ./engine-python ./plugin-raven
+dependencies = ["skillsearch"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
+
+# Raven finds pip-installed plugins through this group, then reads
+# raven-plugin.toml from inside the named package. A copy into Raven's
+# user plugin directory works too and takes priority; see the README.
+[project.entry-points."raven.plugins"]
+skillsearch = "skillsearch_raven"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["skillsearch_raven*"]
+
+[tool.setuptools.package-data]
+skillsearch_raven = ["raven-plugin.toml"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]

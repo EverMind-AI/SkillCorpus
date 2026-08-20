@@ -1,0 +1,65 @@
+# GitHub Actions. This repository lives on GitLab, where this file is
+# inert — `.gitlab-ci.yml` at the root is the one that runs. Kept for a
+# GitHub mirror; change the two together or delete this one.
+#
+# Both implementations, each on its own runner: a change to one must not
+# be able to break the other's signal, and neither needs the other's
+# toolchain installed to run.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine-python
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e '.[dev,hub]'
+      - run: ruff check skillsearch tests
+      - run: ruff format --check skillsearch tests
+      - run: pytest -q
+
+  # The package declares no required dependency; this is what proves it.
+  # Installed bare, every local-pipeline test must still pass, which fails
+  # the moment an unconditional `import httpx` reaches module scope.
+  python-no-extras:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine-python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e . pytest pytest-asyncio
+      - run: pytest -q --ignore=tests/test_hub_client.py
+
+  typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine-typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The package is a DeepSeek Harness workspace member: its imports and
+      # tsconfig references resolve only inside a harness checkout, so this
+      # job checks what is checkable standalone — that the pipeline modules
+      # parse and that their pure logic behaves.
+      - run: npx --yes tsx --test tests/parity.test.ts

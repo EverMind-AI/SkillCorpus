@@ -242,10 +242,14 @@ class Ingester:
         # persist source_url onto the DB row (not only the FS meta)
         if source_url and not rec.source_url:
             rec.source_url = source_url
-        # near-dup decision — only triggered when dedup is enabled + an LLM judge exists
+        # near-dup decision — gated solely on `dedup.enable_near_dup`. (dup_judge is
+        # built unconditionally when an LLM is available, so OR-ing it in here made
+        # enable_near_dup=false silently still run the inline LLM judge — a broken
+        # flag + a wedge risk on large skills. The judge is still used *within* this
+        # path via _judge_duplicate, and standalone by dedup_pass.)
         did_supersede = False
         to_supersede: list = []
-        if not force and (self._dedup_enabled or self.dup_judge is not None):
+        if not force and self._dedup_enabled:
             cands = self._collect_near_dup_candidates(rec, embedding)
             cands.sort(key=lambda x: -x[1])  # cos descending
             # first filter out all candidates confirmed as duplicates (auto / LLM)
