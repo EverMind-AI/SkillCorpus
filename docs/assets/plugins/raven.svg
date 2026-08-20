@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Raven</title>
+  <rect width="96" height="96" rx="24" fill="#111827"/>
+  <path d="M72 28c-8 0-16 3-23 10-7 7-12 17-14 29 7-5 13-8 20-8 5 0 10 2 14 5-1-6-4-11-9-15 6-5 11-8 17-9-1-5-2-9-5-12z" fill="#a78bfa"/>
+  <path d="M35 67c8 1 15 5 21 10-10 0-18-3-25-9z" fill="#7c3aed"/>
+  <circle cx="61" cy="39" r="3" fill="#f9fafb"/>
+  <path d="M68 46l11 3-11 3z" fill="#fbbf24"/>
+</svg>

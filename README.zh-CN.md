@@ -22,14 +22,28 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
 
+<video src="docs/assets/skillcorpus_promo_liam.mp4" controls preload="metadata" width="100%">
+  SkillCorpus 产品介绍视频
+</video>
+
 </div>
 
-## 🔌 新增——面向各 agent 宿主的插件
+## 🔌 面向你的 agent 宿主的 SkillHub
 
-**WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 插件**已发布——其他宿主可走 HTTP adapter。
-Raven 的适配器已经打包，但要等 Raven 上游的 `context_segments` 插槽才能接入；Raven 自带的检索今天照常工作。
-检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，
-也不用改宿主代码。
+SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
+
+<table>
+<tr>
+<td align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.svg" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.svg" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.svg" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.svg" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+</tr>
+</table>
+
+检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
+Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
+`skills` 阶段；Raven 自带的检索今天照常工作。
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
@@ -64,7 +78,7 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 | 📚 | **语料** *(demo)* | 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整的 114,190 条语料后续发布 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
 | 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **插件** | 在 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 里逐轮检索本语料，其他宿主走 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+| 🔌 | **插件** | 为 OpenClaw · Hermes · WorkBuddy · Raven 提供宿主适配器，另有 DeepSeek Harness 与 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
 *开源：代码、语料、模型；不开源：仅托管的 SkillHub 服务。*
 
