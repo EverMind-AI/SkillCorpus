@@ -3,7 +3,7 @@
 
 <div align="center" id="readme-top">
 
-<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus banner" width="100%">
+<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus banner" style="display: block; width: 100%; border: 1px solid #d9d9d9;">
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -15,11 +15,11 @@
 
 </div>
 
-SkillCorpus is EverMind's open-source corpus and retrieval layer for agent skills. It aggregates,
-curates, evaluates, and matches reusable procedural knowledge, then delivers task-specific skills
-to hosts such as OpenClaw, Hermes, Raven, and WorkBuddy before the agent answers. Try the live
-[SkillHub](https://evermind.ai/skillhub) to see it in action, or clone this repository to build,
-modify, and self-host the open-source core.
+SkillCorpus is EverMind's open-source pipeline for turning scattered `SKILL.md` files from public
+repositories into reliable agent context. It aggregates sources, applies safety and license gates,
+evaluates quality, and matches task-specific skills before the agent answers. The public 1,000-skill
+demo, three agent benchmarks, and live [SkillHub](https://evermind.ai/skillhub) show the result;
+clone this repository when you want to build, modify, or self-host the open-source core.
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
@@ -29,11 +29,10 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
+- [Results](#results)
+- [Public artifacts](#public-artifacts)
 - [What SkillCorpus gives you](#what-skillcorpus-gives-you)
 - [SkillHub for your agent host](#skillhub-for-your-agent-host)
-- [What is SkillCorpus](#what-is-skillcorpus)
-- [Public artifacts](#public-artifacts)
-- [Results](#results)
 - [News](#news)
 - [Other ways to use it](#other-ways-to-use-it)
 - [How it works](#how-it-works)
@@ -47,8 +46,8 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## Stronger agents, one turn at a time
 
-SkillCorpus is not only a collection of skills. It adds a retrieval layer before the agent answers:
-SkillHub selects vetted procedural knowledge for the task and puts it into the agent's context.
+At answer time, the practical difference is a retrieval layer: SkillHub selects vetted procedural
+knowledge for the task and puts it into the agent's context.
 
 <table width="100%">
 <tr>
@@ -75,6 +74,45 @@ SkillHub selects vetted procedural knowledge for the task and puts it into the a
 
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
+
+## Results
+
+Pass rate with no skills → with SkillCorpus, same harness, same backbone
+([paper, Table 1](https://arxiv.org/abs/2607.15557)):
+
+| Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
+|---|---|---|---|
+| OpenClaw × Qwen3.5-27B | 8.8 → **13.0** | 81.2 → **83.1** | 65.2 → **66.7** |
+| OpenClaw × Qwen3.5-397B | 11.1 → **16.9** | 82.2 → **84.0** | 65.7 → **67.0** |
+| Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
+| Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
+| **Pooled ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
+
+The gain is largest where the task needs procedural knowledge the model does not already have
+(SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
+
+## Public artifacts
+
+This is the concrete inventory of what is public today.
+
+| | Artifact | What | Link |
+|---|---|---|---|
+| 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+
+*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
+service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
+
+<div align="center">
+<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
+</div>
+
+The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
+(utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
+[`docs/corpus-schema.md`](docs/corpus-schema.md).
 
 ## What SkillCorpus gives you
 
@@ -116,65 +154,6 @@ working today.
 Paste that line to your agent and it installs itself. Per-host setup, the five settings you
 will actually touch, what each turn costs and what leaves your machine —
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**.
-
-## What is SkillCorpus
-
-Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
-thousands of public repositories, redundant, uneven in quality, and unclear on redistribution
-rights. SkillCorpus consolidates that pool into a corpus an agent can draw from, in four stages:
-
-- **`aggregate`** — discover and clone skills from public `SKILL.md` repositories.
-- **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
-- **`match`** — a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
-- **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
-
-<div align="center">
-<img src="docs/assets/pipeline.png" alt="SkillCorpus: curated skills are matched to a task and injected into an agent before execution" width="100%">
-<p><em>The collection pipeline is the foundation; the payoff is task-specific skill retrieval before the agent acts.</em></p>
-</div>
-
-From ~821,000 crawled files, 96,401 skills remain in the paper's evaluated snapshot. Each carries
-its upstream license, and every source repository is license-audited, so that snapshot is
-commercially redistributable under its original terms.
-
-## Public artifacts
-
-This is the concrete inventory of what is public today.
-
-| | Artifact | What | Link |
-|---|---|---|---|
-| 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
-| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
-
-*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
-service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
-
-<div align="center">
-<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
-</div>
-
-The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
-(utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
-[`docs/corpus-schema.md`](docs/corpus-schema.md).
-
-## Results
-
-Pass rate with no skills → with SkillCorpus, same harness, same backbone
-([paper, Table 1](https://arxiv.org/abs/2607.15557)):
-
-| Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
-|---|---|---|---|
-| OpenClaw × Qwen3.5-27B | 8.8 → **13.0** | 81.2 → **83.1** | 65.2 → **66.7** |
-| OpenClaw × Qwen3.5-397B | 11.1 → **16.9** | 82.2 → **84.0** | 65.7 → **67.0** |
-| Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
-| Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
-| **Pooled ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
-
-The gain is largest where the task needs procedural knowledge the model does not already have
-(SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
 
 ## News
 
@@ -269,6 +248,11 @@ drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
 To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
 
 ## How it works
+
+<div align="center">
+<img src="docs/assets/pipeline.png" alt="SkillCorpus: curated skills are matched to a task and injected into an agent before execution" width="100%">
+<p><em>The collection pipeline is the foundation; the payoff is task-specific skill retrieval before the agent acts.</em></p>
+</div>
 
 ```
 skillcorpus/

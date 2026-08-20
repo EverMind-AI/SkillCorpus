@@ -2,7 +2,7 @@
 
 <div align="center" id="readme-top">
 
-<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" width="100%">
+<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" style="display: block; width: 100%; border: 1px solid #d9d9d9;">
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
@@ -13,10 +13,10 @@
 
 </div>
 
-SkillCorpus 是 EverMind 面向 agent 技能的开源语料与检索层：它聚合、策展、评估并匹配可复用的
-过程性知识，在 agent 作答前把与任务匹配的技能交付给 OpenClaw、Hermes、Raven、WorkBuddy 等
-宿主。你可以先去线上的 [SkillHub](https://evermind.ai/skillhub) 体验，再 clone 本仓库来构建、
-修改或自行部署这套开源核心。
+SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为可靠 agent 上下文的开源流水线：
+它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。公开的
+1,000 条 demo 语料、三个 agent benchmark 和线上的 [SkillHub](https://evermind.ai/skillhub)
+展示了结果；想构建、修改或自行部署这套开源核心时，再 clone 本仓库。
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
@@ -26,11 +26,10 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [让 agent 每一轮都更强](#让-agent-每一轮都更强)
+- [效果](#效果)
+- [公开产物](#公开产物)
 - [SkillCorpus 能给你什么](#skillcorpus-能给你什么)
 - [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
-- [SkillCorpus 是什么](#skillcorpus-是什么)
-- [公开产物](#公开产物)
-- [效果](#效果)
 - [动态](#动态)
 - [其余用法](#其余用法)
 - [工作原理](#工作原理)
@@ -44,8 +43,8 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## 让 agent 每一轮都更强
 
-SkillCorpus 不只是一个技能集合。它在 agent 作答前增加了一层检索：SkillHub 根据当前任务选出
-经过审核的过程性知识，并把它放进 agent 的上下文里。
+在 agent 作答时，真正的区别是一层检索：SkillHub 根据当前任务选出经过审核的过程性知识，
+并把它放进 agent 的上下文里。
 
 <table width="100%">
 <tr>
@@ -72,6 +71,43 @@ SkillCorpus 不只是一个技能集合。它在 agent 作答前增加了一层�
 
 结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
 记技能名字，也不需要自己接工具调用。
+
+## 效果
+
+同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
+（[论文 Table 1](https://arxiv.org/abs/2607.15557)）：
+
+| Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
+|---|---|---|---|
+| OpenClaw × Qwen3.5-27B | 8.8 → **13.0** | 81.2 → **83.1** | 65.2 → **66.7** |
+| OpenClaw × Qwen3.5-397B | 11.1 → **16.9** | 82.2 → **84.0** | 65.7 → **67.0** |
+| Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
+| Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
+| **合并 ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
+
+任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
+经济类任务收益最小（GDPVal）。
+
+## 公开产物
+
+下面这张表列出目前真正公开的产物。
+
+| | 产物 | 内容 | 链接 |
+|---|---|---|---|
+| 🌐 | **SkillHub** | 当前 114,190 条在线目录 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **语料** *(demo)* | 可下载的 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整目录由 SkillHub 提供服务 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **插件** | 为 OpenClaw · Hermes · WorkBuddy · Raven 提供宿主适配器，另有 DeepSeek Harness 与 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+
+*目前开源：代码、1,000 条 demo 语料和检索模型。托管的 SkillHub 服务不开源，完整在线目录也尚未作为可下载数据集发布。*
+
+<div align="center">
+<img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
+</div>
+
+论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
+检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
 
 ## SkillCorpus 能给你什么
 
@@ -108,61 +144,6 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
 每轮的开销、以及哪些数据会离开你的机器——都在
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**。
-
-## SkillCorpus 是什么
-
-Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散落在成千上万个公开
-仓库中，彼此重复、良莠不齐，再分发权也不明确。SkillCorpus 把这个庞杂的池子整理成 agent 能直接取用的语料，分四个阶段：
-
-- **`aggregate`** —— 从公开的 `SKILL.md` 仓库发现并克隆技能。
-- **`curate`** —— 解析 · 安全 · 许可门禁 · 去重 · 16 类分类 · 三维质量打分。
-- **`match`** —— 微调的 bi-encoder + reranker + LLM selector，为任务挑选技能。
-- **`evaluate`** —— 三个真实 agent benchmark、两个 harness、开源与前沿 backbone。
-
-<div align="center">
-<img src="docs/assets/pipeline.png" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
-<p><em>收集和策展是基础，真正的价值是 agent 执行前能拿到与任务匹配的技能。</em></p>
-</div>
-
-从约 821,000 个爬取文件中，论文所评测的快照最终留下 96,401 个技能。每个都保留其上游原始许可，
-每个源仓库也都通过了许可审计，因此这份快照可以按照原始条款商用和再分发。
-
-## 公开产物
-
-下面这张表列出目前真正公开的产物。
-
-| | 产物 | 内容 | 链接 |
-|---|---|---|---|
-| 🌐 | **SkillHub** | 当前 114,190 条在线目录 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **语料** *(demo)* | 可下载的 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整目录由 SkillHub 提供服务 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
-| 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **插件** | 为 OpenClaw · Hermes · WorkBuddy · Raven 提供宿主适配器，另有 DeepSeek Harness 与 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
-
-*目前开源：代码、1,000 条 demo 语料和检索模型。托管的 SkillHub 服务不开源，完整在线目录也尚未作为可下载数据集发布。*
-
-<div align="center">
-<img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
-</div>
-
-论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
-检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
-
-## 效果
-
-同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
-（[论文 Table 1](https://arxiv.org/abs/2607.15557)）：
-
-| Harness × backbone | SkillsBench | GDPVal | QwenClawBench |
-|---|---|---|---|
-| OpenClaw × Qwen3.5-27B | 8.8 → **13.0** | 81.2 → **83.1** | 65.2 → **66.7** |
-| OpenClaw × Qwen3.5-397B | 11.1 → **16.9** | 82.2 → **84.0** | 65.7 → **67.0** |
-| Raven × Qwen3.5-27B | 10.0 → **16.5** | 82.6 → **83.8** | 66.9 → **70.8** |
-| Raven × Qwen3.5-397B | 9.2 → **22.6** | 84.0 → **85.2** | 68.8 → **73.2** |
-| **合并 ∆** | **+7.5**±2.3 (z=3.2) | **+1.51**±0.49 (z=3.1) | **+2.79**±0.70 (z=4.0) |
-
-任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
-经济类任务收益最小（GDPVal）。
 
 ## 动态
 
@@ -251,6 +232,11 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 想策展**自己的**源，见 [构建自己的语料](#build-your-own)。
 
 ## 工作原理
+
+<div align="center">
+<img src="docs/assets/pipeline.png" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
+<p><em>收集和策展是基础，真正的价值是 agent 执行前能拿到与任务匹配的技能。</em></p>
+</div>
 
 ```
 skillcorpus/
