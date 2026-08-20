@@ -30,12 +30,12 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
 
-<table class="width-full" width="100%">
+<table style="width: 100%;">
 <tr>
-<td width="25%" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="25%" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td width="25%" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td width="25%" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td style="width: 25%; text-align: center;"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
