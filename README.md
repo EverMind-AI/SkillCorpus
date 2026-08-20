@@ -23,9 +23,7 @@ substrate it builds on · SkillCorpus, the community skill corpus they retrieve 
 
 <img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate + curate) and using it (match + evaluate)" width="100%">
 
-<video src="docs/assets/skillcorpus_promo_liam.mp4" controls preload="metadata" width="100%">
-  SkillCorpus promo video
-</video>
+<p align="center"><a href="docs/assets/skillcorpus_promo_liam.mp4">🎬 Watch the SkillCorpus promo video</a></p>
 
 </div>
 

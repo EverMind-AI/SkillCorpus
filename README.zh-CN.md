@@ -22,9 +22,7 @@ SkillCorpus 则是二者检索的社区技能语料。
 
 <img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
 
-<video src="docs/assets/skillcorpus_promo_liam.mp4" controls preload="metadata" width="100%">
-  SkillCorpus 产品介绍视频
-</video>
+<p align="center"><a href="docs/assets/skillcorpus_promo_liam.mp4">🎬 观看 SkillCorpus 产品介绍视频</a></p>
 
 </div>
 
