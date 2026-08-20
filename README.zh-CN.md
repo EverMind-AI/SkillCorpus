@@ -20,8 +20,6 @@ SkillCorpus 则是二者使用的开放技能策展与检索层。
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-<img src="docs/assets/pipeline.png" alt="SkillCorpus：构建语料（aggregate + curate）与使用语料（match + evaluate）" width="100%">
-
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 </div>
@@ -31,12 +29,13 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 <br>
 
+- [让 agent 每一轮都更强](#让-agent-每一轮都更强)
 - [三层关系](#三层关系)
 - [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
-- [动态](#动态)
 - [SkillCorpus 是什么](#skillcorpus-是什么)
 - [公开产物](#公开产物)
 - [效果](#效果)
+- [动态](#动态)
 - [其余用法](#其余用法)
 - [工作原理](#工作原理)
 - [构建自己的语料](#构建自己的语料)
@@ -46,6 +45,37 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 </details>
+
+## 🚀 让 agent 每一轮都更强
+
+SkillCorpus 不只是一个技能集合。它在 agent 作答前增加了一层检索：SkillHub 根据当前任务选出
+经过审核的过程性知识，并把它放进 agent 的上下文里。
+
+<table width="100%">
+<tr>
+<th>维度</th>
+<th>没有 SkillCorpus</th>
+<th>接入 SkillCorpus 之后</th>
+</tr>
+<tr>
+<td><strong>上下文</strong></td>
+<td>模型自身知识，加上人工维护的 prompt。</td>
+<td>每一轮检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
+</tr>
+<tr>
+<td><strong>执行</strong></td>
+<td>通用流程可能漏掉具体步骤、边界情况或配套脚本。</td>
+<td>在执行前把流程、参考资料和可选脚本带进上下文。</td>
+</tr>
+<tr>
+<td><strong>集成</strong></td>
+<td>每个宿主都要自己维护一套任务指令。</td>
+<td>同一套策展后的技能层服务 OpenClaw、Hermes、Raven、WorkBuddy 和其他宿主。</td>
+</tr>
+</table>
+
+结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
+记技能名字，也不需要自己接工具调用。
 
 ## 🧭 三层关系
 
@@ -89,10 +119,10 @@ SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标�
 
 <table style="width: 100%;">
 <tr>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
@@ -106,12 +136,6 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 每轮的开销、以及哪些数据会离开你的机器——都在
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**。
 
-## 📰 动态
-
-- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
-
 ## 🧠 SkillCorpus 是什么
 
 Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散落在成千上万个公开
@@ -121,6 +145,11 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 - **`curate`** —— 解析 · 安全 · 许可门禁 · 去重 · 16 类分类 · 三维质量打分。
 - **`match`** —— 微调的 bi-encoder + reranker + LLM selector，为任务挑选技能。
 - **`evaluate`** —— 三个真实 agent benchmark、两个 harness、开源与前沿 backbone。
+
+<div align="center">
+<img src="docs/assets/pipeline.png" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
+<p><em>收集和策展是基础，真正的价值是 agent 执行前能拿到与任务匹配的技能。</em></p>
+</div>
 
 从约 821,000 个爬取文件中，论文所评测的快照最终留下 96,401 个技能。每个都保留其上游原始许可，
 每个源仓库也都通过了许可审计，因此这份快照可以按照原始条款商用和再分发。
@@ -161,6 +190,12 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 
 任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
 经济类任务收益最小（GDPVal）。
+
+## 📰 动态
+
+- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
+- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
+- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
 
 ## 🚀 其余用法
 

@@ -21,8 +21,6 @@ substrate it builds on · SkillCorpus, the open skill curation and retrieval lay
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-<img src="docs/assets/pipeline.png" alt="SkillCorpus: building the corpus (aggregate + curate) and using it (match + evaluate)" width="100%">
-
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 </div>
@@ -32,12 +30,13 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 <br>
 
+- [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
 - [One system, three layers](#one-system-three-layers)
 - [SkillHub for your agent host](#skillhub-for-your-agent-host)
-- [News](#news)
 - [What is SkillCorpus](#what-is-skillcorpus)
 - [Public artifacts](#public-artifacts)
 - [Results](#results)
+- [News](#news)
 - [Other ways to use it](#other-ways-to-use-it)
 - [How it works](#how-it-works)
 - [Build your own corpus](#build-your-own-corpus)
@@ -47,6 +46,37 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 </details>
+
+## 🚀 Stronger agents, one turn at a time
+
+SkillCorpus is not only a collection of skills. It adds a retrieval layer before the agent answers:
+SkillHub selects vetted procedural knowledge for the task and puts it into the agent's context.
+
+<table width="100%">
+<tr>
+<th>Dimension</th>
+<th>Without SkillCorpus</th>
+<th>With SkillCorpus</th>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td>Model knowledge plus a manually maintained prompt.</td>
+<td>Task-specific, license-audited <code>SKILL.md</code> retrieved on every turn.</td>
+</tr>
+<tr>
+<td><strong>Execution</strong></td>
+<td>Generic workflows can miss exact steps, edge cases, or supporting scripts.</td>
+<td>Procedures, references, and optional scripts arrive before execution.</td>
+</tr>
+<tr>
+<td><strong>Integration</strong></td>
+<td>Each host maintains its own collection of task instructions.</td>
+<td>One curated skill layer serves OpenClaw, Hermes, Raven, WorkBuddy, and other hosts.</td>
+</tr>
+</table>
+
+The result is the same agent with better task-specific procedures available at the moment it needs
+them — stronger execution without asking users to memorise skill names or wire up tool calls.
 
 ## 🧭 One system, three layers
 
@@ -92,10 +122,10 @@ plugin guide:
 
 <table style="width: 100%;">
 <tr>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="docs/assets/plugins/hermes.png" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="docs/assets/plugins/openclaw.png" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="docs/assets/plugins/raven.png" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="docs/assets/plugins/workbuddy.png" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="300" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
@@ -110,12 +140,6 @@ Paste that line to your agent and it installs itself. Per-host setup, the five s
 will actually touch, what each turn costs and what leaves your machine —
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**.
 
-## 📰 News
-
-- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
-- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
-- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
-
 ## 🧠 What is SkillCorpus
 
 Agent skills — `SKILL.md` files packaging reusable procedural knowledge — are scattered across
@@ -126,6 +150,11 @@ rights. SkillCorpus consolidates that pool into a corpus an agent can draw from,
 - **`curate`** — parse · safety · license gate · dedup · 16-class classification · 3-facet quality scoring.
 - **`match`** — a fine-tuned bi-encoder + reranker + LLM selector that picks skills for a task.
 - **`evaluate`** — three real-world agent benchmarks, two harnesses, open and frontier backbones.
+
+<div align="center">
+<img src="docs/assets/pipeline.png" alt="SkillCorpus: curated skills are matched to a task and injected into an agent before execution" width="100%">
+<p><em>The collection pipeline is the foundation; the payoff is task-specific skill retrieval before the agent acts.</em></p>
+</div>
 
 From ~821,000 crawled files, 96,401 skills remain in the paper's evaluated snapshot. Each carries
 its upstream license, and every source repository is license-audited, so that snapshot is
@@ -169,6 +198,12 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
+
+## 📰 News
+
+- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
+- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
+- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
 
 ## 🚀 Other ways to use it
 
