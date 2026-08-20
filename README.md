@@ -31,7 +31,6 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
-- [One system, three layers](#one-system-three-layers)
 - [SkillHub for your agent host](#skillhub-for-your-agent-host)
 - [What is SkillCorpus](#what-is-skillcorpus)
 - [Public artifacts](#public-artifacts)
@@ -77,43 +76,6 @@ SkillHub selects vetted procedural knowledge for the task and puts it into the a
 
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
-
-## 🧭 One system, three layers
-
-SkillCorpus has three connected surfaces with different jobs: the GitHub repository builds and
-evaluates the system, Hugging Face publishes reusable artifacts, and SkillHub serves skills to
-agents at runtime.
-
-<table width="100%">
-<tr>
-<th>Layer</th>
-<th>Primary job</th>
-<th>What lives there</th>
-<th>Best for</th>
-</tr>
-<tr>
-<td><strong>SkillCorpus</strong><br><a href="https://github.com/EverMind-AI/SkillCorpus">GitHub repo</a></td>
-<td>Build, curate, train, and evaluate</td>
-<td>The open-source pipeline (<code>aggregate</code> · <code>curate</code> · <code>match</code> · <code>evaluate</code> · <code>export</code>), schemas, benchmarks, and host plugins</td>
-<td>Building a corpus, adding sources, inspecting the data contract, or reproducing the pipeline</td>
-</tr>
-<tr>
-<td><strong>Hugging Face</strong></td>
-<td>Publish reusable artifacts</td>
-<td>The downloadable 1,000-skill demo dataset, attachments, and the bi-encoder + reranker checkpoints</td>
-<td>Downloading data/models, self-hosting retrieval, or reproducing experiments</td>
-</tr>
-<tr>
-<td><strong>SkillHub</strong></td>
-<td>Serve skills to agents</td>
-<td>The hosted API over the current curated catalog and retrieval stack; metadata, <code>skill_md</code>, and optional script bundles</td>
-<td>Using per-turn retrieval immediately through a plugin or the direct API</td>
-</tr>
-</table>
-
-In one line: **SkillCorpus builds → Hugging Face distributes → SkillHub serves → agents retrieve.**
-The 1,000-skill Hugging Face dataset is the public downloadable demo; the paper's
-96,401-skill snapshot and SkillHub's current 114,190-skill catalog are different release snapshots.
 
 ## 🔌 SkillHub for your agent host
 
@@ -162,7 +124,7 @@ commercially redistributable under its original terms.
 
 ## 📦 Public artifacts
 
-The table above explains the roles; this is the concrete inventory of what is public today.
+This is the concrete inventory of what is public today.
 
 | | Artifact | What | Link |
 |---|---|---|---|

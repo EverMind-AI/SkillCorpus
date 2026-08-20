@@ -30,7 +30,6 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [让 agent 每一轮都更强](#让-agent-每一轮都更强)
-- [三层关系](#三层关系)
 - [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
 - [SkillCorpus 是什么](#skillcorpus-是什么)
 - [公开产物](#公开产物)
@@ -77,42 +76,6 @@ SkillCorpus 不只是一个技能集合。它在 agent 作答前增加了一层�
 结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
 记技能名字，也不需要自己接工具调用。
 
-## 🧭 三层关系
-
-SkillCorpus 有三个彼此衔接、但职责不同的入口：GitHub 仓库负责构建和评估，Hugging Face
-负责发布可复用的资产，SkillHub 负责在运行时把技能提供给 agent。
-
-<table width="100%">
-<tr>
-<th>层</th>
-<th>主要职责</th>
-<th>里面有什么</th>
-<th>适合什么时候用</th>
-</tr>
-<tr>
-<td><strong>SkillCorpus</strong><br><a href="https://github.com/EverMind-AI/SkillCorpus">GitHub 仓库</a></td>
-<td>构建、策展、训练和评估</td>
-<td>开源流水线（<code>aggregate</code> · <code>curate</code> · <code>match</code> · <code>evaluate</code> · <code>export</code>）、字段约定、benchmark 和宿主插件</td>
-<td>构建语料、增加来源、检查数据契约，或复现整条流水线</td>
-</tr>
-<tr>
-<td><strong>Hugging Face</strong></td>
-<td>发布可复用资产</td>
-<td>可下载的 1,000 条 demo 语料、附件，以及 bi-encoder + reranker 检查点</td>
-<td>下载数据/模型、自建检索服务，或复现实验</td>
-</tr>
-<tr>
-<td><strong>SkillHub</strong></td>
-<td>给 agent 提供技能</td>
-<td>基于当前策展语料库和检索栈的托管 API；提供元数据、<code>skill_md</code> 和可选脚本包</td>
-<td>通过插件或直接调 API，立即使用逐轮检索</td>
-</tr>
-</table>
-
-一句话：**SkillCorpus 构建 → Hugging Face 分发 → SkillHub 提供服务 → agent 完成检索。**
-Hugging Face 上的 1,000 条语料是目前公开可下载的 demo；论文里的 96,401 条快照和 SkillHub 当前的
-114,190 条在线目录属于不同的发布快照。
-
 ## 🔌 面向你的 agent 宿主的 SkillHub
 
 SkillHub 已为下面四个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
@@ -156,7 +119,7 @@ Agent 技能（即封装了可复用过程性知识的 `SKILL.md` 文件）散�
 
 ## 📦 公开产物
 
-上面的表格解释三者各自负责什么；下面这张表列出目前真正公开的产物。
+下面这张表列出目前真正公开的产物。
 
 | | 产物 | 内容 | 链接 |
 |---|---|---|---|
