@@ -4,7 +4,7 @@
 <div align="center" id="readme-top">
 
 <table width="100%" border="1" bordercolor="#d9d9d9" cellspacing="0" cellpadding="0">
-<tr><td><img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus banner" width="100%"></td></tr>
+<tr><td><img src="https://github.com/user-attachments/assets/2ef7e877-275d-4115-8ddf-f9b49de8ff5d" alt="SkillCorpus banner" width="100%"></td></tr>
 </table>
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
