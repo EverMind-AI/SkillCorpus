@@ -31,6 +31,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [让 agent 每一轮都更强](#让-agent-每一轮都更强)
+- [SkillCorpus 能给你什么](#skillcorpus-能给你什么)
 - [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
 - [SkillCorpus 是什么](#skillcorpus-是什么)
 - [公开产物](#公开产物)
@@ -76,6 +77,19 @@ SkillCorpus 不只是一个技能集合。它在 agent 作答前增加了一层�
 
 结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
 记技能名字，也不需要自己接工具调用。
+
+## SkillCorpus 能给你什么
+
+你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
+这套能力的开源底座时，才需要 clone SkillCorpus：
+
+- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
+  agent 导出语料。
+- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
+- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
+
+核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
+可以从[构建自己的语料](#构建自己的语料)开始，也可以先用 SkillHub 体验结果，再决定要不要修改底层机制。
 
 ## 面向你的 agent 宿主的 SkillHub
 

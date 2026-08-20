@@ -33,6 +33,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <br>
 
 - [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
+- [What SkillCorpus gives you](#what-skillcorpus-gives-you)
 - [SkillHub for your agent host](#skillhub-for-your-agent-host)
 - [What is SkillCorpus](#what-is-skillcorpus)
 - [Public artifacts](#public-artifacts)
@@ -78,6 +79,22 @@ SkillHub selects vetted procedural knowledge for the task and puts it into the a
 
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
+
+## What SkillCorpus gives you
+
+You can use the live [SkillHub](https://evermind.ai/skillhub) without cloning this repository. Clone
+SkillCorpus when you want the open-source machinery behind that experience:
+
+- **Build your own skill layer** — point the pipeline at your own source registry, apply the
+  curation, safety, and license gates, and export a corpus for your agents.
+- **Change the behavior** — modify the taxonomy, quality and dedup rules, retrieval recipe, export
+  schema, evaluation suites, or host plugins.
+- **Keep control of deployment** — self-host the released retrieval models and connect your own
+  agent host instead of using the hosted SkillHub API.
+
+The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
+upstream license. Start with [Build your own corpus](#build-your-own-corpus), or use SkillHub first
+to see the result before changing the machinery.
 
 ## SkillHub for your agent host
 
