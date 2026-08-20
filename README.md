@@ -3,29 +3,25 @@
 
 <div align="center" id="readme-top">
 
-**English** | [简体中文](README.zh-CN.md)
-
-# SkillCorpus
-
-**One line into your agent, and every turn arrives with the right skill — retrieved from SkillHub's curated catalog. No tool call, no skill names to memorise.**
-
-Part of the EverMind agent stack — [Raven](https://github.com/EverMind-AI/raven), the
-terminal-native agent harness · [EverOS](https://github.com/EverMind-AI/EverOS), the memory
-substrate it builds on · SkillCorpus, the open skill curation and retrieval layer they use.
-
-Try the live [SkillHub](https://evermind.ai/skillhub) first: browse the library and see how an
-agent gets task-specific skills before it answers. This repository is the open-source core behind
-SkillHub — it builds and evaluates the corpus, trains the retrieval stack, exports the artifacts,
-and packages the plugins that connect agents to the service.
+<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus banner" width="100%">
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
+**English** | [简体中文](README.zh-CN.md)
+
 
 </div>
+
+SkillCorpus is EverMind's open-source corpus and retrieval layer for agent skills. It aggregates,
+curates, evaluates, and matches reusable procedural knowledge, then delivers task-specific skills
+to hosts such as OpenClaw, Hermes, Raven, and WorkBuddy before the agent answers. Try the live
+[SkillHub](https://evermind.ai/skillhub) to see it in action, or clone this repository to build,
+modify, and self-host the open-source core.
+
+https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 <details>
   <summary><kbd>Table of Contents</kbd></summary>

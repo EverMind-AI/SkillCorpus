@@ -2,28 +2,23 @@
 
 <div align="center" id="readme-top">
 
-[English](README.md) | **简体中文**
-
-# SkillCorpus
-
-**一句话装进你的 agent，此后每一轮都自动带上对的技能——从 SkillHub 的策展语料库里检索。不需要工具调用，也不用记任何技能名字。**
-
-EverMind agent 技术栈的一部分：[Raven](https://github.com/EverMind-AI/raven) 是终端原生的
-agent harness，[EverOS](https://github.com/EverMind-AI/EverOS) 是它所依赖的记忆底座，而
-SkillCorpus 则是二者使用的开放技能策展与检索层。
-
-先打开线上的 [SkillHub](https://evermind.ai/skillhub) 体验一下：浏览技能库，看看 agent 如何在
-作答前拿到与任务匹配的技能。本仓库就是 SkillHub 背后的开源核心——负责构建和评估语料、训练
-检索栈、导出产物，并提供把各类 agent 接入服务的插件。
+<img src="https://github.com/user-attachments/assets/ff102cc8-4781-4753-962d-a772781475d0" alt="SkillCorpus 横幅" width="100%">
 
 [![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
 [![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
+[English](README.md) | **简体中文**
 
 </div>
+
+SkillCorpus 是 EverMind 面向 agent 技能的开源语料与检索层：它聚合、策展、评估并匹配可复用的
+过程性知识，在 agent 作答前把与任务匹配的技能交付给 OpenClaw、Hermes、Raven、WorkBuddy 等
+宿主。你可以先去线上的 [SkillHub](https://evermind.ai/skillhub) 体验，再 clone 本仓库来构建、
+修改或自行部署这套开源核心。
+
+https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 <details>
   <summary><kbd>目录</kbd></summary>
