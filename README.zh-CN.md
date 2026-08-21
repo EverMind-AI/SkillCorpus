@@ -36,6 +36,8 @@ SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为�
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
+<br>
+
 ## 让 agent 每一轮都更强
 
 在 agent 作答时，真正的区别是一层检索：SkillHub 根据当前任务选出经过审核的过程性知识，
@@ -67,6 +69,8 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
 记技能名字，也不需要自己接工具调用。
 
+<br>
+
 ## 效果
 
 同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
@@ -82,6 +86,8 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
 经济类任务收益最小（GDPVal）。
+
+<br>
 
 ## SkillHub 集成
 
@@ -107,6 +113,8 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 每轮的开销、以及哪些数据会离开你的机器——都在
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**。
 
+<br>
+
 ## 公开产物
 
 下面这张表列出目前真正公开的产物。
@@ -127,6 +135,8 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 
 论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
 检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
+
+<br>
 
 ## 直接调 API
 
@@ -171,6 +181,8 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
+<br>
+
 ## 自建模型服务
 
 若不想依赖托管端点，可自己跑 selection。语料和两个检索模型都已发布：加载数据、部署两个
@@ -203,6 +215,8 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 - 它同时也是 producer 去重所用的 embedding 端点，把 `embedding.provider` 配成 `skillrouter_remote`，即可用它来[构建自己的语料](#build-your-own)。
 
 想策展**自己的**源，见 [构建自己的语料](#build-your-own)。
+
+<br>
 
 ## 工作原理
 
@@ -239,6 +253,8 @@ export.corpus`）。当没有可用的模型端点时，LLM 分类与质量打�
 
 <a name="build-your-own"></a>
 
+<br>
+
 ## 构建自己的语料
 
 仅当你想策展**自己的**源时才需要这一节。它需要一个 LLM 端点做分类与质量打分，以及一个
@@ -264,6 +280,8 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+<br>
+
 ## 路线图
 
 <!-- TODO(@team)：这是按已知缺口列的初版，请按实际计划修改。 -->
@@ -276,6 +294,8 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 两个检索模型的部署脚本（自建 `match/`）
 - [x] 把 skill 库 + 检索框架打包成插件，供 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 使用
 - [ ] Raven 插件——已打包，等上游 `context_segments` 插槽
+
+<br>
 
 ## EverMind 生态系统
 
@@ -325,6 +345,8 @@ EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和�
 
 这些仓库共同构成 EverMind 从研究到运行时的技术栈：新的记忆方法、可复用算法、基准证据与实用的 agent 集成。
 
+<br>
+
 ## 引用
 
 ```bibtex
@@ -337,6 +359,8 @@ EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和�
   url           = {https://arxiv.org/abs/2607.15557}
 }
 ```
+
+<br>
 
 ## 许可
 

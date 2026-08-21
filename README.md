@@ -42,6 +42,8 @@ result.
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
+<br>
+
 ## Stronger agents, one turn at a time
 
 At answer time, the practical difference is a retrieval layer: SkillHub selects vetted procedural
@@ -73,6 +75,8 @@ knowledge for the task and puts it into the agent's context.
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
 
+<br>
+
 ## Results
 
 Pass rate with no skills → with SkillCorpus, same harness, same backbone
@@ -88,6 +92,8 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
+
+<br>
 
 ## SkillHub integrations
 
@@ -115,6 +121,8 @@ Paste that line to your agent and it installs itself. Per-host setup, the five s
 will actually touch, what each turn costs and what leaves your machine —
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**.
 
+<br>
+
 ## Public artifacts
 
 This is the concrete inventory of what is public today.
@@ -137,6 +145,8 @@ service is closed, and the full hosted catalog is not yet published as a downloa
 The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
+
+<br>
 
 ## Query the API directly
 
@@ -183,6 +193,8 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
+<br>
+
 ## Self-host the models
 
 To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
@@ -218,6 +230,8 @@ drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
   `embedding.provider: skillrouter_remote` to [build your own corpus](#build-your-own) with it.
 
 To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
+
+<br>
 
 ## How it works
 
@@ -257,6 +271,8 @@ always runs end to end.
 
 <a name="build-your-own"></a>
 
+<br>
+
 ## Build your own corpus
 
 Only needed if you want to curate **your own** sources. Requires an LLM endpoint for
@@ -283,6 +299,8 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+<br>
+
 ## Roadmap
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
@@ -295,6 +313,8 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
 - [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
 - [ ] Raven plugin — packaged, waiting on the upstream `context_segments` slot
+
+<br>
 
 ## EverMind Ecosystem
 
@@ -344,6 +364,8 @@ EverMind is an open-source ecosystem for long-term memory, self-evolving agents,
 
 Together, these repositories form EverMind's research-to-runtime stack: new memory methods, reusable algorithms, benchmark evidence, and practical agent integrations.
 
+<br>
+
 ## Citation
 
 ```bibtex
@@ -356,6 +378,8 @@ Together, these repositories form EverMind's research-to-runtime stack: new memo
   url           = {https://arxiv.org/abs/2607.15557}
 }
 ```
+
+<br>
 
 ## License
 
