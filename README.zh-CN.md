@@ -128,17 +128,7 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
 检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
 
-## 动态
-
-- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
-
-## 其余用法
-
-上面的插件覆盖了大多数人。如果你想自己调服务，或者把整套跑在自己的机器上：
-
-### 直接调 API
+## 直接调 API
 
 [SkillHub](https://evermind.ai/skillhub) 把语料分三级提供：发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读正文这一级通常已足够。
@@ -181,7 +171,7 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
-### 自建模型服务
+## 自建模型服务
 
 若不想依赖托管端点，可自己跑 selection。语料和两个检索模型都已发布：加载数据、部署两个
 模型，自己做 encode → top-k → rerank。

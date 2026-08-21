@@ -138,18 +138,7 @@ The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonom
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
-## News
-
-- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
-- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
-- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
-
-## Other ways to use it
-
-The plugin above covers most people. If you would rather call the service yourself, or run
-the whole thing on your own hardware:
-
-### Query the API directly
+## Query the API directly
 
 [SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
@@ -194,7 +183,7 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
-### Self-host the models
+## Self-host the models
 
 To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
 retrieval models are released: load the data, serve the two models, and run your own
