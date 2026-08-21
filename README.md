@@ -307,29 +307,6 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
 - [ ] Raven plugin — packaged, waiting on the upstream `context_segments` slot
 
-## Citation
-
-```bibtex
-@article{wang2026skillcorpus,
-  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
-  year          = {2026},
-  eprint        = {2607.15557},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2607.15557}
-}
-```
-
-## License
-
-- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
-- **Corpus** — every skill keeps its **original upstream license**; only GREEN
-  (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
-  `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
-
-Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
-[`docs/licence-and-governance.md`](docs/licence-and-governance.md).
-
 ## EverMind Ecosystem
 
 EverMind is an open-source ecosystem for long-term memory, self-evolving agents, AI-native interfaces, and memory evaluation.
@@ -377,3 +354,26 @@ EverMind is an open-source ecosystem for long-term memory, self-evolving agents,
 </table>
 
 Together, these repositories form EverMind's research-to-runtime stack: new memory methods, reusable algorithms, benchmark evidence, and practical agent integrations.
+
+## Citation
+
+```bibtex
+@article{wang2026skillcorpus,
+  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  year          = {2026},
+  eprint        = {2607.15557},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2607.15557}
+}
+```
+
+## License
+
+- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
+- **Corpus** — every skill keeps its **original upstream license**; only GREEN
+  (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
+  `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
+
+Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
+[`docs/licence-and-governance.md`](docs/licence-and-governance.md).

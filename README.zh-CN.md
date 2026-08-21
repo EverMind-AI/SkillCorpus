@@ -287,29 +287,6 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 把 skill 库 + 检索框架打包成插件，供 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 使用
 - [ ] Raven 插件——已打包，等上游 `context_segments` 插槽
 
-## 引用
-
-```bibtex
-@article{wang2026skillcorpus,
-  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
-  year          = {2026},
-  eprint        = {2607.15557},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2607.15557}
-}
-```
-
-## 许可
-
-- **代码** —— Apache-2.0（`match/` 和 `evaluate/` 两个工具包各自为 MIT，见其目录下的 `LICENSE`）。
-- **语料** —— 每个技能保留其**上游原始许可**；只收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）
-  许可的技能，不做任何重新授权。每行都带 `source`、`source_url`、`license`，下游使用须遵循
-  各技能自身的条款。
-
-完整的 GREEN/RED/YELLOW 策略、许可数据流与 opt-out 通道见
-[`docs/licence-and-governance.md`](docs/licence-and-governance.md)。
-
 ## EverMind 生态系统
 
 EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和记忆评估的开源生态系统。
@@ -357,3 +334,26 @@ EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和�
 </table>
 
 这些仓库共同构成 EverMind 从研究到运行时的技术栈：新的记忆方法、可复用算法、基准证据与实用的 agent 集成。
+
+## 引用
+
+```bibtex
+@article{wang2026skillcorpus,
+  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  year          = {2026},
+  eprint        = {2607.15557},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2607.15557}
+}
+```
+
+## 许可
+
+- **代码** —— Apache-2.0（`match/` 和 `evaluate/` 两个工具包各自为 MIT，见其目录下的 `LICENSE`）。
+- **语料** —— 每个技能保留其**上游原始许可**；只收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）
+  许可的技能，不做任何重新授权。每行都带 `source`、`source_url`、`license`，下游使用须遵循
+  各技能自身的条款。
+
+完整的 GREEN/RED/YELLOW 策略、许可数据流与 opt-out 通道见
+[`docs/licence-and-governance.md`](docs/licence-and-governance.md)。
