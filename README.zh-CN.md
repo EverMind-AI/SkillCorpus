@@ -6,42 +6,38 @@
 <tr><td><img src="https://github.com/user-attachments/assets/2ef7e877-275d-4115-8ddf-f9b49de8ff5d" alt="SkillCorpus 横幅" width="100%"></td></tr>
 </table>
 
-[![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+<p align="center">
+  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
+  <a href="https://huggingface.co/EverMind-AI"><img src="https://img.shields.io/badge/HuggingFace-EverMind-F5C842?labelColor=gray&style=for-the-badge&logo=huggingface&logoColor=white" alt="Hugging Face"></a>
+  <a href="https://discord.gg/gYep5nQRZJ"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2FgYep5nQRZJ%3Fwith_counts%3Dtrue&query=%24.approximate_presence_count&suffix=%20online&label=Discord&color=404EED&labelColor=gray&style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://github.com/EverMind-AI/EverOS/discussions/67"><img src="https://img.shields.io/badge/WeCom-EverMind_%E7%A4%BE%E5%8C%BA-07C160?labelColor=gray&style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
+</p>
 
-[English](README.md) | **简体中文**
+<p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
 
 </div>
 
+<br>
+
+## SkillCorpus 能给你什么
+
 SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为可靠 agent 上下文的开源流水线：
-它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。公开的
-1,000 条 demo 语料、三个 agent benchmark 和线上的 [SkillHub](https://evermind.ai/skillhub)
-展示了结果；想构建、修改或自行部署这套开源核心时，再 clone 本仓库。
+它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。
+
+你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
+这套能力的开源底座时，才需要 clone SkillCorpus：
+
+- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
+  agent 导出语料。
+- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
+- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
+
+核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
+公开的 1,000 条 demo 语料、三个 agent benchmark 和线上的 SkillHub 展示了结果。
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
-<details>
-  <summary><kbd>目录</kbd></summary>
-
 <br>
-
-- [让 agent 每一轮都更强](#让-agent-每一轮都更强)
-- [效果](#效果)
-- [公开产物](#公开产物)
-- [SkillCorpus 能给你什么](#skillcorpus-能给你什么)
-- [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
-- [动态](#动态)
-- [其余用法](#其余用法)
-- [工作原理](#工作原理)
-- [构建自己的语料](#构建自己的语料)
-- [路线图](#路线图)
-- [EverMind 生态系统](#evermind-生态系统)
-
-<br>
-
-</details>
 
 ## 让 agent 每一轮都更强
 
@@ -74,6 +70,8 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 结果不是换了一个 agent，而是让同一个 agent 在真正需要时获得更贴合任务的过程性知识——不需要用户
 记技能名字，也不需要自己接工具调用。
 
+<br>
+
 ## 效果
 
 同一 harness、同一 backbone，通过率从「无技能」到「接入 SkillCorpus」的变化
@@ -89,6 +87,34 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 任务越依赖模型本身不具备的过程性知识，收益越大（SkillsBench）；模型本来就能做的开放式
 经济类任务收益最小（GDPVal）。
+
+<br>
+
+## SkillHub 集成
+
+SkillHub 已为下面五个 agent 平台提供逐轮技能检索。点击对应平台，直接查看插件指南：
+
+<table width="100%">
+<tr>
+<td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+</tr>
+</table>
+
+检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
+Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
+`skills` 阶段；Raven 自带的检索今天照常工作。
+
+> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
+
+把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
+每轮的开销、以及哪些数据会离开你的机器——都在
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**。
+
+<br>
 
 ## 公开产物
 
@@ -111,54 +137,9 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
 检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
 
-## SkillCorpus 能给你什么
+<br>
 
-你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
-这套能力的开源底座时，才需要 clone SkillCorpus：
-
-- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
-  agent 导出语料。
-- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
-- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
-
-核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
-可以从[构建自己的语料](#构建自己的语料)开始，也可以先用 SkillHub 体验结果，再决定要不要修改底层机制。
-
-## 面向你的 agent 宿主的 SkillHub
-
-SkillHub 已为下面五个宿主提供逐轮技能检索。点击对应图标，直接查看该宿主的插件指南：
-
-<table width="100%">
-<tr>
-<td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
-</tr>
-</table>
-
-检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
-Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
-`skills` 阶段；Raven 自带的检索今天照常工作。
-
-> 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
-
-把上面这句粘给你的 agent，它会自己装好。各宿主的具体配置、你真正会碰的五个配置项、
-每轮的开销、以及哪些数据会离开你的机器——都在
-**[`skillcorpus_plugin/`](skillcorpus_plugin)**。
-
-## 动态
-
-- **2026-08-19** —— **SkillCorpus Plugins** 发布：在 WorkBuddy、Hermes、OpenClaw、DeepSeek Harness 里逐轮检索技能。
-- **2026-08-12** —— 检索模型（bi-encoder + reranker）与 1,000 条 demo 语料上 [🤗 HuggingFace](https://huggingface.co/EverMind-AI)。
-- **2026-08-06** —— 论文 v5 上 [arXiv](https://arxiv.org/abs/2607.15557)。
-
-## 其余用法
-
-上面的插件覆盖了大多数人。如果你想自己调服务，或者把整套跑在自己的机器上：
-
-### 直接调 API
+## 直接调 API
 
 [SkillHub](https://evermind.ai/skillhub) 把语料分三级提供：发现（元数据）、读正文
 （`skill_md`）、下载（含 `scripts/` 的 zip）。大多数技能是纯指令，读正文这一级通常已足够。
@@ -201,7 +182,9 @@ task: extract tables from a scanned PDF invoice
 
 端点、响应信封、状态码和限速见 [`docs/integrations.md`](docs/integrations.md)。
 
-### 自建模型服务
+<br>
+
+## 自建模型服务
 
 若不想依赖托管端点，可自己跑 selection。语料和两个检索模型都已发布：加载数据、部署两个
 模型，自己做 encode → top-k → rerank。
@@ -233,6 +216,8 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 - 它同时也是 producer 去重所用的 embedding 端点，把 `embedding.provider` 配成 `skillrouter_remote`，即可用它来[构建自己的语料](#build-your-own)。
 
 想策展**自己的**源，见 [构建自己的语料](#build-your-own)。
+
+<br>
 
 ## 工作原理
 
@@ -269,6 +254,8 @@ export.corpus`）。当没有可用的模型端点时，LLM 分类与质量打�
 
 <a name="build-your-own"></a>
 
+<br>
+
 ## 构建自己的语料
 
 仅当你想策展**自己的**源时才需要这一节。它需要一个 LLM 端点做分类与质量打分，以及一个
@@ -294,6 +281,8 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+<br>
+
 ## 路线图
 
 <!-- TODO(@team)：这是按已知缺口列的初版，请按实际计划修改。 -->
@@ -307,28 +296,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 把 skill 库 + 检索框架打包成插件，供 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 使用
 - [ ] Raven 插件——已打包，等上游 `context_segments` 插槽
 
-## 引用
-
-```bibtex
-@article{wang2026skillcorpus,
-  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
-  year          = {2026},
-  eprint        = {2607.15557},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2607.15557}
-}
-```
-
-## 许可
-
-- **代码** —— Apache-2.0（`match/` 和 `evaluate/` 两个工具包各自为 MIT，见其目录下的 `LICENSE`）。
-- **语料** —— 每个技能保留其**上游原始许可**；只收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）
-  许可的技能，不做任何重新授权。每行都带 `source`、`source_url`、`license`，下游使用须遵循
-  各技能自身的条款。
-
-完整的 GREEN/RED/YELLOW 策略、许可数据流与 opt-out 通道见
-[`docs/licence-and-governance.md`](docs/licence-and-governance.md)。
+<br>
 
 ## EverMind 生态系统
 
@@ -377,3 +345,30 @@ EverMind 是一个面向长期记忆、自我演进 agent、AI 原生界面和�
 </table>
 
 这些仓库共同构成 EverMind 从研究到运行时的技术栈：新的记忆方法、可复用算法、基准证据与实用的 agent 集成。
+
+<br>
+
+## 引用
+
+```bibtex
+@article{wang2026skillcorpus,
+  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  year          = {2026},
+  eprint        = {2607.15557},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2607.15557}
+}
+```
+
+<br>
+
+## 许可
+
+- **代码** —— Apache-2.0（`match/` 和 `evaluate/` 两个工具包各自为 MIT，见其目录下的 `LICENSE`）。
+- **语料** —— 每个技能保留其**上游原始许可**；只收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）
+  许可的技能，不做任何重新授权。每行都带 `source`、`source_url`、`license`，下游使用须遵循
+  各技能自身的条款。
+
+完整的 GREEN/RED/YELLOW 策略、许可数据流与 opt-out 通道见
+[`docs/licence-and-governance.md`](docs/licence-and-governance.md)。

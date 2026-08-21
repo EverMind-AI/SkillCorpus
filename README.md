@@ -7,44 +7,43 @@
 <tr><td><img src="https://github.com/user-attachments/assets/2ef7e877-275d-4115-8ddf-f9b49de8ff5d" alt="SkillCorpus banner" width="100%"></td></tr>
 </table>
 
-[![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+<p align="center">
+  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
+  <a href="https://huggingface.co/EverMind-AI"><img src="https://img.shields.io/badge/HuggingFace-EverMind-F5C842?labelColor=gray&style=for-the-badge&logo=huggingface&logoColor=white" alt="Hugging Face"></a>
+  <a href="https://discord.gg/gYep5nQRZJ"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2FgYep5nQRZJ%3Fwith_counts%3Dtrue&query=%24.approximate_presence_count&suffix=%20online&label=Discord&color=404EED&labelColor=gray&style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://github.com/EverMind-AI/EverOS/discussions/67"><img src="https://img.shields.io/badge/WeCom-EverMind_%E7%A4%BE%E5%8C%BA-07C160?labelColor=gray&style=for-the-badge&logo=wechat&logoColor=white" alt="WeCom"></a>
+</p>
 
-**English** | [简体中文](README.zh-CN.md)
+<p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
 
 </div>
 
+<br>
+
+## What SkillCorpus gives you
+
 SkillCorpus is EverMind's open-source pipeline for turning scattered `SKILL.md` files from public
 repositories into reliable agent context. It aggregates sources, applies safety and license gates,
-evaluates quality, and matches task-specific skills before the agent answers. The public 1,000-skill
-demo, three agent benchmarks, and live [SkillHub](https://evermind.ai/skillhub) show the result;
-clone this repository when you want to build, modify, or self-host the open-source core.
+evaluates quality, and matches task-specific skills before the agent answers.
+
+You can use the live [SkillHub](https://evermind.ai/skillhub) without cloning this repository. Clone
+SkillCorpus when you want the open-source machinery behind that experience:
+
+- **Build your own skill layer** — point the pipeline at your own source registry, apply the
+  curation, safety, and license gates, and export a corpus for your agents.
+- **Change the behavior** — modify the taxonomy, quality and dedup rules, retrieval recipe, export
+  schema, evaluation suites, or host plugins.
+- **Keep control of deployment** — self-host the released retrieval models and connect your own
+  agent host instead of using the hosted SkillHub API.
+
+The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
+upstream license. The public 1,000-skill demo, three agent benchmarks, and live SkillHub show the
+result.
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
-<details>
-  <summary><kbd>Table of Contents</kbd></summary>
-
 <br>
-
-- [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
-- [Results](#results)
-- [Public artifacts](#public-artifacts)
-- [What SkillCorpus gives you](#what-skillcorpus-gives-you)
-- [SkillHub for your agent host](#skillhub-for-your-agent-host)
-- [News](#news)
-- [Other ways to use it](#other-ways-to-use-it)
-- [How it works](#how-it-works)
-- [Build your own corpus](#build-your-own-corpus)
-- [Roadmap](#roadmap)
-- [EverMind Ecosystem](#evermind-ecosystem)
-
-<br>
-
-</details>
 
 ## Stronger agents, one turn at a time
 
@@ -77,6 +76,8 @@ knowledge for the task and puts it into the agent's context.
 The result is the same agent with better task-specific procedures available at the moment it needs
 them — stronger execution without asking users to memorise skill names or wire up tool calls.
 
+<br>
+
 ## Results
 
 Pass rate with no skills → with SkillCorpus, same harness, same backbone
@@ -92,6 +93,36 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
+
+<br>
+
+## SkillHub integrations
+
+SkillHub brings per-turn skill retrieval to the five agent platforms below. Choose a platform to open its
+plugin guide:
+
+<table width="100%">
+<tr>
+<td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
+</tr>
+</table>
+
+Retrieval runs every turn, before the model answers: no tool call, no skill names to memorise,
+no host patch. The packaged Raven plugin is ready to install, but it will claim the `skills`
+stage once Raven merges its upstream `context_segments` slot; Raven's built-in retrieval keeps
+working today.
+
+> Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
+
+Paste that line to your agent and it installs itself. Per-host setup, the five settings you
+will actually touch, what each turn costs and what leaves your machine —
+**[`skillcorpus_plugin/`](skillcorpus_plugin)**.
+
+<br>
 
 ## Public artifacts
 
@@ -116,60 +147,9 @@ The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonom
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
 
-## What SkillCorpus gives you
+<br>
 
-You can use the live [SkillHub](https://evermind.ai/skillhub) without cloning this repository. Clone
-SkillCorpus when you want the open-source machinery behind that experience:
-
-- **Build your own skill layer** — point the pipeline at your own source registry, apply the
-  curation, safety, and license gates, and export a corpus for your agents.
-- **Change the behavior** — modify the taxonomy, quality and dedup rules, retrieval recipe, export
-  schema, evaluation suites, or host plugins.
-- **Keep control of deployment** — self-host the released retrieval models and connect your own
-  agent host instead of using the hosted SkillHub API.
-
-The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
-upstream license. Start with [Build your own corpus](#build-your-own-corpus), or use SkillHub first
-to see the result before changing the machinery.
-
-## SkillHub for your agent host
-
-SkillHub brings per-turn skill retrieval to the five hosts below. Choose your host to open its
-plugin guide:
-
-<table width="100%">
-<tr>
-<td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
-</tr>
-</table>
-
-Retrieval runs every turn, before the model answers: no tool call, no skill names to memorise,
-no host patch. The packaged Raven plugin is ready to install, but it will claim the `skills`
-stage once Raven merges its upstream `context_segments` slot; Raven's built-in retrieval keeps
-working today.
-
-> Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
-
-Paste that line to your agent and it installs itself. Per-host setup, the five settings you
-will actually touch, what each turn costs and what leaves your machine —
-**[`skillcorpus_plugin/`](skillcorpus_plugin)**.
-
-## News
-
-- **2026-08-19** — **SkillCorpus Plugins** shipped: per-turn retrieval inside WorkBuddy, Hermes, OpenClaw and DeepSeek Harness.
-- **2026-08-12** — Retrieval models (bi-encoder + reranker) and a 1,000-skill demo corpus on [🤗 HuggingFace](https://huggingface.co/EverMind-AI).
-- **2026-08-06** — Paper v5 on [arXiv](https://arxiv.org/abs/2607.15557).
-
-## Other ways to use it
-
-The plugin above covers most people. If you would rather call the service yourself, or run
-the whole thing on your own hardware:
-
-### Query the API directly
+## Query the API directly
 
 [SkillHub](https://evermind.ai/skillhub) serves the corpus in three tiers — discover
 (metadata), read (`skill_md`), download (zip with `scripts/`). Most skills are pure
@@ -214,7 +194,9 @@ task: extract tables from a scanned PDF invoice
 Endpoints, response envelope, status codes and rate limits:
 [`docs/integrations.md`](docs/integrations.md).
 
-### Self-host the models
+<br>
+
+## Self-host the models
 
 To avoid depending on the hosted endpoint, run selection yourself. The corpus and both
 retrieval models are released: load the data, serve the two models, and run your own
@@ -249,6 +231,8 @@ drop-in for SkillHub's hosted-only `/openapi/v1/skills` API. So:
   `embedding.provider: skillrouter_remote` to [build your own corpus](#build-your-own) with it.
 
 To curate **your own** sources instead, see [Build your own corpus](#build-your-own).
+
+<br>
 
 ## How it works
 
@@ -288,6 +272,8 @@ always runs end to end.
 
 <a name="build-your-own"></a>
 
+<br>
+
 ## Build your own corpus
 
 Only needed if you want to curate **your own** sources. Requires an LLM endpoint for
@@ -314,6 +300,8 @@ pip install -e ".[dev]"
 python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 ```
 
+<br>
+
 ## Roadmap
 
 <!-- TODO(@team): this is a first pass from known gaps — edit to match your plan. -->
@@ -327,28 +315,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
 - [ ] Raven plugin — packaged, waiting on the upstream `context_segments` slot
 
-## Citation
-
-```bibtex
-@article{wang2026skillcorpus,
-  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
-  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
-  year          = {2026},
-  eprint        = {2607.15557},
-  archivePrefix = {arXiv},
-  url           = {https://arxiv.org/abs/2607.15557}
-}
-```
-
-## License
-
-- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
-- **Corpus** — every skill keeps its **original upstream license**; only GREEN
-  (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
-  `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
-
-Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
-[`docs/licence-and-governance.md`](docs/licence-and-governance.md).
+<br>
 
 ## EverMind Ecosystem
 
@@ -397,3 +364,30 @@ EverMind is an open-source ecosystem for long-term memory, self-evolving agents,
 </table>
 
 Together, these repositories form EverMind's research-to-runtime stack: new memory methods, reusable algorithms, benchmark evidence, and practical agent integrations.
+
+<br>
+
+## Citation
+
+```bibtex
+@article{wang2026skillcorpus,
+  title         = {SkillCorpus: Consolidating and Evaluating the Open Skill Ecosystem for Real-World LLM Agents},
+  author        = {Wang, Yanze and Yao, Pengfei and Sun, Tianyi and Hu, Chuanrui and Xiao, Yan and Luo, Xiaotian and Han, Yunyun and Chen, Yifan and Sun, Jun and Deng, Yafeng},
+  year          = {2026},
+  eprint        = {2607.15557},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2607.15557}
+}
+```
+
+<br>
+
+## License
+
+- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
+- **Corpus** — every skill keeps its **original upstream license**; only GREEN
+  (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
+  `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.
+
+Full GREEN/RED/YELLOW policy, license data flow, and opt-out:
+[`docs/licence-and-governance.md`](docs/licence-and-governance.md).
