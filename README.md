@@ -7,44 +7,41 @@
 <tr><td><img src="https://github.com/user-attachments/assets/2ef7e877-275d-4115-8ddf-f9b49de8ff5d" alt="SkillCorpus banner" width="100%"></td></tr>
 </table>
 
-[![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#license)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+<p align="center">
+  <a href="https://github.com/EverMind-AI/SkillCorpus"><img src="https://img.shields.io/badge/SkillCorpus-EverMind_Open--Source-000000?labelColor=gray&style=for-the-badge&logo=github&logoColor=white" alt="SkillCorpus"></a>
+  <a href="https://evermind.ai/skillhub"><img src="https://img.shields.io/badge/SkillHub-live-2ea44f?labelColor=gray&style=for-the-badge" alt="SkillHub"></a>
+  <a href="https://huggingface.co/EverMind-AI"><img src="https://img.shields.io/badge/HuggingFace-EverMind-F5C842?labelColor=gray&style=for-the-badge&logo=huggingface&logoColor=white" alt="Hugging Face"></a>
+  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
+</p>
 
-**English** | [简体中文](README.zh-CN.md)
+<p align="center"><a href="https://evermind.ai/skillhub">SkillHub</a> · <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
 
 </div>
 
+<br>
+
+## What SkillCorpus gives you
+
 SkillCorpus is EverMind's open-source pipeline for turning scattered `SKILL.md` files from public
 repositories into reliable agent context. It aggregates sources, applies safety and license gates,
-evaluates quality, and matches task-specific skills before the agent answers. The public 1,000-skill
-demo, three agent benchmarks, and live [SkillHub](https://evermind.ai/skillhub) show the result;
-clone this repository when you want to build, modify, or self-host the open-source core.
+evaluates quality, and matches task-specific skills before the agent answers.
+
+You can use the live [SkillHub](https://evermind.ai/skillhub) without cloning this repository. Clone
+SkillCorpus when you want the open-source machinery behind that experience:
+
+- **Build your own skill layer** — point the pipeline at your own source registry, apply the
+  curation, safety, and license gates, and export a corpus for your agents.
+- **Change the behavior** — modify the taxonomy, quality and dedup rules, retrieval recipe, export
+  schema, evaluation suites, or host plugins.
+- **Keep control of deployment** — self-host the released retrieval models and connect your own
+  agent host instead of using the hosted SkillHub API.
+
+The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
+upstream license. The public 1,000-skill demo, three agent benchmarks, and live SkillHub show the
+result.
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
-
-<details>
-  <summary><kbd>Table of Contents</kbd></summary>
-
-<br>
-
-- [Stronger agents, one turn at a time](#stronger-agents-one-turn-at-a-time)
-- [Results](#results)
-- [Public artifacts](#public-artifacts)
-- [What SkillCorpus gives you](#what-skillcorpus-gives-you)
-- [SkillHub for your agent host](#skillhub-for-your-agent-host)
-- [News](#news)
-- [Other ways to use it](#other-ways-to-use-it)
-- [How it works](#how-it-works)
-- [Build your own corpus](#build-your-own-corpus)
-- [Roadmap](#roadmap)
-- [EverMind Ecosystem](#evermind-ecosystem)
-
-<br>
-
-</details>
 
 ## Stronger agents, one turn at a time
 
@@ -115,22 +112,6 @@ service is closed, and the full hosted catalog is not yet published as a downloa
 The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
 (utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
 [`docs/corpus-schema.md`](docs/corpus-schema.md).
-
-## What SkillCorpus gives you
-
-You can use the live [SkillHub](https://evermind.ai/skillhub) without cloning this repository. Clone
-SkillCorpus when you want the open-source machinery behind that experience:
-
-- **Build your own skill layer** — point the pipeline at your own source registry, apply the
-  curation, safety, and license gates, and export a corpus for your agents.
-- **Change the behavior** — modify the taxonomy, quality and dedup rules, retrieval recipe, export
-  schema, evaluation suites, or host plugins.
-- **Keep control of deployment** — self-host the released retrieval models and connect your own
-  agent host instead of using the hosted SkillHub API.
-
-The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
-upstream license. Start with [Build your own corpus](#build-your-own-corpus), or use SkillHub first
-to see the result before changing the machinery.
 
 ## SkillHub for your agent host
 

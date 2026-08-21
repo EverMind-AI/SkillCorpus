@@ -6,42 +6,36 @@
 <tr><td><img src="https://github.com/user-attachments/assets/2ef7e877-275d-4115-8ddf-f9b49de8ff5d" alt="SkillCorpus 横幅" width="100%"></td></tr>
 </table>
 
-[![Paper](https://img.shields.io/badge/arXiv-2607.15557-b31b1b.svg)](https://arxiv.org/abs/2607.15557)
-[![SkillHub](https://img.shields.io/badge/SkillHub-live-2ea44f.svg)](https://evermind.ai/skillhub)
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](#许可)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+<p align="center">
+  <a href="https://github.com/EverMind-AI/SkillCorpus"><img src="https://img.shields.io/badge/SkillCorpus-EverMind_Open--Source-000000?labelColor=gray&style=for-the-badge&logo=github&logoColor=white" alt="SkillCorpus"></a>
+  <a href="https://evermind.ai/skillhub"><img src="https://img.shields.io/badge/SkillHub-live-2ea44f?labelColor=gray&style=for-the-badge" alt="SkillHub"></a>
+  <a href="https://huggingface.co/EverMind-AI"><img src="https://img.shields.io/badge/HuggingFace-EverMind-F5C842?labelColor=gray&style=for-the-badge&logo=huggingface&logoColor=white" alt="Hugging Face"></a>
+  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
+</p>
 
-[English](README.md) | **简体中文**
+<p align="center"><a href="README.md">English</a> · <a href="https://evermind.ai/skillhub">SkillHub</a> · <strong>简体中文</strong></p>
 
 </div>
 
+<br>
+
+## SkillCorpus 能给你什么
+
 SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为可靠 agent 上下文的开源流水线：
-它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。公开的
-1,000 条 demo 语料、三个 agent benchmark 和线上的 [SkillHub](https://evermind.ai/skillhub)
-展示了结果；想构建、修改或自行部署这套开源核心时，再 clone 本仓库。
+它聚合源仓库，执行安全与许可门禁，评估质量，并在 agent 作答前匹配与任务相关的技能。
+
+你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
+这套能力的开源底座时，才需要 clone SkillCorpus：
+
+- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
+  agent 导出语料。
+- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
+- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
+
+核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
+公开的 1,000 条 demo 语料、三个 agent benchmark 和线上的 SkillHub 展示了结果。
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
-
-<details>
-  <summary><kbd>目录</kbd></summary>
-
-<br>
-
-- [让 agent 每一轮都更强](#让-agent-每一轮都更强)
-- [效果](#效果)
-- [公开产物](#公开产物)
-- [SkillCorpus 能给你什么](#skillcorpus-能给你什么)
-- [面向你的 agent 宿主的 SkillHub](#面向你的-agent-宿主的-skillhub)
-- [动态](#动态)
-- [其余用法](#其余用法)
-- [工作原理](#工作原理)
-- [构建自己的语料](#构建自己的语料)
-- [路线图](#路线图)
-- [EverMind 生态系统](#evermind-生态系统)
-
-<br>
-
-</details>
 
 ## 让 agent 每一轮都更强
 
@@ -110,19 +104,6 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
 检索向量。字段约定见 [`docs/corpus-schema.md`](docs/corpus-schema.md)。
-
-## SkillCorpus 能给你什么
-
-你可以直接使用线上的 [SkillHub](https://evermind.ai/skillhub)，不需要 clone 本仓库。只有当你想拥有
-这套能力的开源底座时，才需要 clone SkillCorpus：
-
-- **构建自己的技能层** —— 把流水线指向自己的 source registry，使用策展、安全和许可门禁，再为自己的
-  agent 导出语料。
-- **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
-- **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
-
-核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
-可以从[构建自己的语料](#构建自己的语料)开始，也可以先用 SkillHub 体验结果，再决定要不要修改底层机制。
 
 ## 面向你的 agent 宿主的 SkillHub
 
