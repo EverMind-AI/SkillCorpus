@@ -137,7 +137,7 @@ to see the result before changing the machinery.
 SkillHub brings per-turn skill retrieval to the five hosts below. Choose your host to open its
 plugin guide:
 
-<table width="100%" style="display: table; width: 100%; max-width: 100%; table-layout: fixed;">
+<table width="100%" class="width-full">
 <tr>
 <td width="20%" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
 <td width="20%" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
