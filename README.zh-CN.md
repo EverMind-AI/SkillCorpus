@@ -7,9 +7,9 @@
 </table>
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
   <a href="https://evermind.ai/skillhub"><img src="https://img.shields.io/badge/SkillHub-live-2ea44f?labelColor=gray&style=for-the-badge" alt="SkillHub"></a>
   <a href="https://huggingface.co/EverMind-AI"><img src="https://img.shields.io/badge/HuggingFace-EverMind-F5C842?labelColor=gray&style=for-the-badge&logo=huggingface&logoColor=white" alt="Hugging Face"></a>
-  <a href="https://arxiv.org/abs/2607.15557"><img src="https://img.shields.io/badge/arXiv-2607.15557-b31b1b?labelColor=gray&style=for-the-badge" alt="Paper"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
