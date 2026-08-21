@@ -89,32 +89,9 @@ Pass rate with no skills → with SkillCorpus, same harness, same backbone
 The gain is largest where the task needs procedural knowledge the model does not already have
 (SkillsBench), and smallest on open-ended economic tasks it can already do (GDPVal).
 
-## Public artifacts
+## SkillHub integrations
 
-This is the concrete inventory of what is public today.
-
-| | Artifact | What | Link |
-|---|---|---|---|
-| 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
-| 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
-| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
-| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
-| 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
-
-*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
-service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
-
-<div align="center">
-<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
-</div>
-
-The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
-(utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
-[`docs/corpus-schema.md`](docs/corpus-schema.md).
-
-## SkillHub for your agent host
-
-SkillHub brings per-turn skill retrieval to the five hosts below. Choose your host to open its
+SkillHub brings per-turn skill retrieval to the five agent platforms below. Choose a platform to open its
 plugin guide:
 
 <table width="100%">
@@ -137,6 +114,29 @@ working today.
 Paste that line to your agent and it installs itself. Per-host setup, the five settings you
 will actually touch, what each turn costs and what leaves your machine —
 **[`skillcorpus_plugin/`](skillcorpus_plugin)**.
+
+## Public artifacts
+
+This is the concrete inventory of what is public today.
+
+| | Artifact | What | Link |
+|---|---|---|---|
+| 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
+| 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
+| 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
+| 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
+
+*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
+service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
+
+<div align="center">
+<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
+</div>
+
+The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
+(utility / robustness / safety), with 1024-dim retrieval embeddings. Column contract:
+[`docs/corpus-schema.md`](docs/corpus-schema.md).
 
 ## News
 
