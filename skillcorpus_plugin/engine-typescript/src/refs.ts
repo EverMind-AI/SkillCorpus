@@ -164,7 +164,7 @@ export function resolvePlaceholders(
 
   return body.replace(PLACEHOLDER_RE, (match, name: string, arg?: string) => {
     if (name === 'SKILL_DIR') {
-      return sd && arg ? join(dirname(sd), arg) : match
+      return sd && arg && arg !== '.' && arg !== '..' ? join(dirname(sd), arg) : match
     }
     if (name === 'AGENT_STATE_DIR') {
       return runtime.stateDir || runtime.outputDir || match

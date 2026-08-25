@@ -196,13 +196,18 @@ export function register(
   // workspace directory is known. Using `process.cwd()` (the host process's
   // cwd) would be wrong for multi-agent hosts and for sessions with a
   // different workspace.
-  let engine: SkillSearchEngine | undefined
+  const engines = new Map<string, SkillSearchEngine>()
 
   api.on('before_prompt_build', async (
     event: BeforePromptBuildEvent,
     ctx: { workspaceDir?: string },
   ): Promise<BeforePromptBuildResult | void> => {
-    engine ??= build(config, ctx?.workspaceDir)
+    const workspaceDir = ctx?.workspaceDir || process.cwd()
+    let engine = engines.get(workspaceDir)
+    if (!engine) {
+      engine = build(config, workspaceDir)
+      engines.set(workspaceDir, engine)
+    }
 
     const query = (event.prompt || '').trim() || recentUserText(event.messages ?? [])
     if (!query) return

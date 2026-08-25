@@ -263,6 +263,10 @@ test('PathGuard placeholders resolve per agent, with traversal kept literal', ()
     'see {{SKILL_DIR:../../secret}}')
   assert.equal(resolvePlaceholders('see {{SKILL_DIR:/etc/passwd}}', '/skills/foo'),
     'see {{SKILL_DIR:/etc/passwd}}')
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:.}}/x', '/skills/foo'),
+    'see {{SKILL_DIR:.}}/x')
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:..}}/x', '/skills/foo'),
+    'see {{SKILL_DIR:..}}/x')
 
   // Without a directory, the placeholder stays literal — never a bare path
   // that would tell the model the bundle is present when it did not download.

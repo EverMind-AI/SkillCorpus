@@ -53,6 +53,11 @@ def test_absolute_name_kept_literal() -> None:
     assert out == "see {{SKILL_DIR:/etc/passwd}}"
 
 
+def test_named_skill_dir_rejects_dot_components() -> None:
+    assert resolve_placeholders("see {{SKILL_DIR:.}}/x", "/skills/foo") == "see {{SKILL_DIR:.}}/x"
+    assert resolve_placeholders("see {{SKILL_DIR:..}}/x", "/skills/foo") == "see {{SKILL_DIR:..}}/x"
+
+
 def test_unknown_placeholder_untouched() -> None:
     out = resolve_placeholders("set {{YOUR_TOKEN}} and go", "/skills/foo")
     assert out == "set {{YOUR_TOKEN}} and go"

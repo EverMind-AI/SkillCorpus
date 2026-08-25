@@ -140,7 +140,11 @@ def resolve_placeholders(
     def _sub(m: re.Match[str]) -> str:
         name, arg = m.group(1), m.group(2)
         if name == "SKILL_DIR":  # {{SKILL_DIR:<name>}} — arg is a safe slug
-            return str(Path(sd).parent / arg) if sd and arg else m.group(0)
+            return (
+                str(Path(sd).parent / arg)
+                if sd and arg and arg not in {".", ".."}
+                else m.group(0)
+            )
         if name == "AGENT_STATE_DIR":
             return state_dir or output_dir or m.group(0)
         if name == "HOME":
