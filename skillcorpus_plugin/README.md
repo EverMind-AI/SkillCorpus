@@ -99,16 +99,18 @@ way; what the skill changed is where its output went. `defi-wallet-monitor`
 names the data directory and log convention, so the run wrote its outputs
 where the check looks for them rather than beside the script.
 
-## The five settings you'll actually touch
+## The seven settings you'll actually touch
 
-Full per-host tables live in each plugin's README; these five decide behaviour everywhere (Python / TypeScript spellings):
+Full per-host tables live in each plugin's README; these seven decide behaviour everywhere (Python / TypeScript spellings):
 
 | Setting | Default | What it decides |
 | --- | --- | --- |
 | `skills_dir` / `skillsDirs` | the host's own skills directory | Where local skills are scanned. Missing directory = the source simply doesn't exist. |
-| `hub_endpoint` / `hubEndpoint` | *(empty)* | Remote catalog, e.g. `https://skillhub.evermind.ai`. Empty = fully local. **Read [What leaves your machine](#what-leaves-your-machine) before setting this.** |
+| `hub_endpoint` / `hubEndpoint` | *(empty)* | EverMind-compatible catalog. Empty disables only this source. |
+| `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub search; empty disables it. |
+| `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn search; empty disables it. |
 | `model` (+ host-specific route) | *(empty)* | Enables the query rewriter and the gate. Empty = retrieval runs unfiltered, ranked by keywords. |
-| `top_k` / `topK` | 5 | Most skills ever injected per turn. |
+| `top_k` / `topK` | 2 | Most skills ever injected per turn. |
 | `gate` | *auto* | LLM filter that drops skills this agent can't run. Auto = **off** for local-only (your own skills, ranking suffices), **on** when a catalog is configured (wild skills need vetting). Override with `true`/`false`. |
 
 ## What it costs you
@@ -118,7 +120,7 @@ Per turn, worst case, all bounded and all fail-open — a slow or broken step co
 | Step | When | Cost ceiling |
 | --- | --- | --- |
 | Local BM25 | always | milliseconds, in-process |
-| Catalog search + body fetches | hub configured | 2s per request |
+| Catalog search | remote source enabled | 5s per request |
 | Query rewrite | model configured | one small model call, 5s cap |
 | Gate | model + (auto) hub configured | one model call over ≤10 candidates, 20s cap |
 | Bundle download | hub skill selected | 30s cap, cached by version — repeat turns are a disk stat |
@@ -130,7 +132,8 @@ Nothing is added to durable history — the injection is rebuilt per turn and di
 
 Honest accounting, because retrieval runs on your conversation:
 
-- **Local-only setup (default)** — nothing. Scanning, ranking and injection are all in-process.
+- **Local-only setup (after explicitly disabling the three remote endpoints)** — nothing. Scanning, ranking and injection are all in-process.
+- **Default installation** — ClawHub and skillhub.cn are enabled; the retrieval query is sent to both services. Set their endpoint fields to an empty string to disable either one.
 - **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 

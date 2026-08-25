@@ -135,7 +135,7 @@ def test_the_factory_declines_its_slot_when_nothing_is_configured(tmp_path: Path
     """No skills directory and no catalog: the host keeps no fallback, so
     declining is what turns retrieval off rather than injecting nothing."""
 
-    assert make_segment(PluginContext(tmp_path, {"skills_dir": str(tmp_path / "absent")})) is None
+    assert make_segment(PluginContext(tmp_path, {"skills_dir": str(tmp_path / "absent"), "clawhub_endpoint": "", "skillhub_cn_endpoint": ""})) is None
 
 
 @needs_host

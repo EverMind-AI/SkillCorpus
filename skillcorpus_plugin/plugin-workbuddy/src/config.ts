@@ -19,6 +19,8 @@ export interface SkillSearchConfig {
   readonly skillsDirs: string[]
   readonly hubEndpoint: string
   readonly hubApiKey: string
+  readonly clawhubEndpoint: string
+  readonly skillhubCnEndpoint: string
   readonly bundleCacheDir: string
   readonly model: string
   readonly modelBaseUrl: string
@@ -94,11 +96,13 @@ export const DEFAULTS: SkillSearchConfig = {
   skillsDirs: ['~/.workbuddy-ai/skills', '~/.workbuddy-ai/plugins/cache'],
   hubEndpoint: '',
   hubApiKey: '',
+  clawhubEndpoint: 'https://clawhub.ai',
+  skillhubCnEndpoint: 'https://api.skillhub.cn',
   bundleCacheDir: '',
   model: '',
   modelBaseUrl: 'https://api.openai.com/v1',
   modelApiKey: '',
-  topK: 3,
+  topK: 2,
   gatePool: 10,
   maxSelect: 2,
   indexBody: false,
@@ -107,9 +111,10 @@ export const DEFAULTS: SkillSearchConfig = {
   // has no way to show that it is working.
   rewrite: false,
   gate: undefined,
-  // 8s is the shared default. Here it would be 8s of visible silence, so the
-  // deadline is set to what a person will not notice losing.
-  timeoutMs: 2500,
+  // ClawHub measured about 4s through the supported proxy. Keep enough room for
+  // search plus one cached-or-downloaded body, while staying below the host’s
+  // own 10s hook timeout so the hook can fail open first.
+  timeoutMs: 8000,
   availableTools: [],
   // Local first, catalog third. Tried the other way on 2026-08-18: the
   // catalog's top two for a poster task both depended on infrastructure this
@@ -129,6 +134,8 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   skillsDirs: 'SKILLSEARCH_SKILLS_DIRS',
   hubEndpoint: 'SKILLSEARCH_HUB_ENDPOINT',
   hubApiKey: 'SKILLSEARCH_HUB_API_KEY',
+  clawhubEndpoint: 'SKILLSEARCH_CLAWHUB_ENDPOINT',
+  skillhubCnEndpoint: 'SKILLSEARCH_SKILLHUB_CN_ENDPOINT',
   bundleCacheDir: 'SKILLSEARCH_BUNDLE_CACHE_DIR',
   model: 'SKILLSEARCH_MODEL',
   modelBaseUrl: 'SKILLSEARCH_MODEL_BASE_URL',
@@ -171,6 +178,10 @@ function asBoolean(value: unknown): boolean | undefined {
     if (['false', '0', 'no', 'off'].includes(text)) return false
   }
   return undefined
+}
+
+function asEndpoint(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value.trim() : fallback
 }
 
 function asText(value: unknown): string | undefined {
@@ -222,6 +233,8 @@ export function loadConfig(
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
     hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
+    clawhubEndpoint: asEndpoint(pick('clawhubEndpoint'), DEFAULTS.clawhubEndpoint),
+    skillhubCnEndpoint: asEndpoint(pick('skillhubCnEndpoint'), DEFAULTS.skillhubCnEndpoint),
     bundleCacheDir: asText(pick('bundleCacheDir')) ?? DEFAULTS.bundleCacheDir,
     model: asText(pick('model')) ?? DEFAULTS.model,
     modelBaseUrl: asText(pick('modelBaseUrl')) ?? DEFAULTS.modelBaseUrl,

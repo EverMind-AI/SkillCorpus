@@ -20,6 +20,8 @@ export interface SkillSearchConfig {
   /** Remote catalog base URL. Empty disables the remote source. */
   readonly hubEndpoint: string
   readonly hubApiKey: string
+  readonly clawhubEndpoint: string
+  readonly skillhubCnEndpoint: string
   /** Where extracted bundles live. Outside every scanned skills directory. */
   readonly bundleCacheDir: string
   /** Route for the rewriter and the gate. Empty runs retrieval unfiltered. */
@@ -55,11 +57,13 @@ export const DEFAULTS: SkillSearchConfig = {
   skillsDirs: ['~/.openclaw/skills'],
   hubEndpoint: '',
   hubApiKey: '',
+  clawhubEndpoint: 'https://clawhub.ai',
+  skillhubCnEndpoint: 'https://api.skillhub.cn',
   bundleCacheDir: '',
   model: '',
   modelBaseUrl: 'https://api.openai.com/v1',
   modelApiKey: '',
-  topK: 5,
+  topK: 2,
   gatePool: 10,
   maxSelect: 2,
   indexBody: false,
@@ -74,6 +78,8 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   skillsDirs: 'SKILLSEARCH_SKILLS_DIRS',
   hubEndpoint: 'SKILLSEARCH_HUB_ENDPOINT',
   hubApiKey: 'SKILLSEARCH_HUB_API_KEY',
+  clawhubEndpoint: 'SKILLSEARCH_CLAWHUB_ENDPOINT',
+  skillhubCnEndpoint: 'SKILLSEARCH_SKILLHUB_CN_ENDPOINT',
   bundleCacheDir: 'SKILLSEARCH_BUNDLE_CACHE_DIR',
   model: 'SKILLSEARCH_MODEL',
   modelBaseUrl: 'SKILLSEARCH_MODEL_BASE_URL',
@@ -126,6 +132,10 @@ function asBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+function asEndpoint(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value.trim() : fallback
+}
+
 function asText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
@@ -154,6 +164,8 @@ export function loadConfig(
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
     hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
+    clawhubEndpoint: asEndpoint(pick('clawhubEndpoint'), DEFAULTS.clawhubEndpoint),
+    skillhubCnEndpoint: asEndpoint(pick('skillhubCnEndpoint'), DEFAULTS.skillhubCnEndpoint),
     bundleCacheDir: asText(pick('bundleCacheDir')) ?? DEFAULTS.bundleCacheDir,
     model: asText(pick('model')) ?? DEFAULTS.model,
     modelBaseUrl: asText(pick('modelBaseUrl')) ?? DEFAULTS.modelBaseUrl,

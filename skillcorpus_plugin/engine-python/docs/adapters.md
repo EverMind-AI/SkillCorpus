@@ -109,7 +109,7 @@ replaces = "skills"
 skills_dir   = { type = "string",  default = "skills" }
 hub_endpoint = { type = "string",  default = "" }
 model        = { type = "string",  default = "" }
-top_k        = { type = "integer", default = 5 }
+top_k        = { type = "integer", default = 2 }
 max_select   = { type = "integer", default = 2 }
 ```
 

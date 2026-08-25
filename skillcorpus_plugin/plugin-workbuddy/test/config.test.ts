@@ -20,8 +20,8 @@ test('the defaults search the two directories WorkBuddy keeps skills in', () => 
   assert.equal(config.gate, undefined)
 })
 
-test('the deadline is tighter than the shared default, because it is visible silence', () => {
-  assert.ok(DEFAULTS.timeoutMs <= 3000, `${DEFAULTS.timeoutMs}ms is too long to hold a turn`)
+test('the default deadline allows the measured public hubs but stays below the host timeout', () => {
+  assert.equal(DEFAULTS.timeoutMs, MAX_TIMEOUT_MS)
   assert.equal(DEFAULTS.rewrite, false)
 })
 

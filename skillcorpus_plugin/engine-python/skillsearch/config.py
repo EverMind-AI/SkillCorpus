@@ -90,6 +90,12 @@ class SearchConfig:
     """Remote catalog base URL. Empty disables the remote source."""
 
     hub_api_key: str = ""
+    clawhub_endpoint: str = ""
+    """ClawHub base URL. Empty disables this source."""
+    skillhub_cn_endpoint: str = ""
+    """skillhub.cn API base URL. Empty disables this source."""
+    marketplace_timeout_s: float = 5.0
+    marketplace_download_timeout_s: float = 30.0
     hub_timeout_s: float = 2.0
     """Deadline for a catalog query. Deliberately tight: a search runs on
     every turn, and a slow catalog must cost this turn its remote hits
@@ -104,6 +110,8 @@ class SearchConfig:
     # ── Fusion ───────────────────────────────────────────────────────
     weight_local: float = 1.0
     weight_hub: float = 0.85
+    weight_clawhub: float = 0.75
+    weight_skillhub_cn: float = 0.75
 
     rrf_k: int = 60
     """Rank-damping offset in the fusion. The paper's 60 by default.
@@ -122,7 +130,7 @@ class SearchConfig:
     """Hard upper bound contributed by each source before fusion."""
 
     dedup_by: str = "name"
-    top_k: int = 5
+    top_k: int = 2
 
     # ── Narrowing ────────────────────────────────────────────────────
     model: str = ""
@@ -181,7 +189,8 @@ class SearchConfig:
 
     def gate_enabled(self) -> bool:
         """Whether to build the gate, resolving the ``None`` default."""
-        return bool(self.hub_endpoint) if self.gate is None else self.gate
+        has_remote = bool(self.hub_endpoint or self.clawhub_endpoint or self.skillhub_cn_endpoint)
+        return has_remote if self.gate is None else self.gate
 
     def resolved_skills_dir(self) -> Path | None:
         if not self.skills_dir:

@@ -13,6 +13,7 @@ import { isAbsolute, join } from 'node:path'
 import { SkillSearchEngine } from '../../engine-typescript/src/engine.js'
 import { LLMGateFilter } from '../../engine-typescript/src/gate.js'
 import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-source.js'
+import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
 import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
@@ -61,6 +62,19 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
     sources.push(new HubSkillSource(client))
   }
 
+  const marketplaceClients = new Map<string, MarketplaceClient>()
+  for (const [kind, endpoint] of [
+    ['clawhub', config.clawhubEndpoint],
+    ['skillhub_cn', config.skillhubCnEndpoint],
+  ] as const) {
+    if (!endpoint) continue
+    const marketplace = new MarketplaceClient(kind, endpoint, {
+      cacheDir: config.bundleCacheDir ? expandHome(config.bundleCacheDir) : join(homedir(), '.openclaw', 'skillsearch-bundles'),
+    })
+    marketplaceClients.set(kind, marketplace)
+    sources.push(new MarketplaceSkillSource(marketplace))
+  }
+
   const model = createChatModel({
     baseUrl: config.modelBaseUrl,
     apiKey: config.modelApiKey,
@@ -77,10 +91,10 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
       // `gate` unset means "on when a catalog is configured": the gate is
       // told to reject when unsure, which a curated local directory does
       // not need and an unvetted catalog does.
-      ...(model && (config.gate ?? Boolean(config.hubEndpoint))
+      ...(model && (config.gate ?? (Boolean(config.hubEndpoint) || marketplaceClients.size > 0))
         ? { gate: new LLMGateFilter(model, { maxSelect: config.maxSelect }) }
         : {}),
-      ...(client
+      ...((client || marketplaceClients.size > 0)
         ? {
           // The engine calls both for any hit without a skill directory,
           // which is every hit a third-party source contributes too. Without
@@ -88,7 +102,12 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
           // fetch `/skills/undefined` from the catalog, so an extra source
           // costs a 404 per hit.
           fetchBody: async (hit, signal) => {
-            if (hit.meta.source !== 'hub') return undefined
+            const marketplace = marketplaceClients.get(String(hit.meta.source))
+            if (marketplace) {
+              const installed = await marketplace.install(hit, signal)
+              return { body: installed.body, record: { _installed: installed } }
+            }
+            if (hit.meta.source !== 'hub' || !client) return undefined
             const record = await client.get(String(hit.meta.id), signal)
             // The record rides along so `materialise` can skip re-fetching
             // the same detail — one request per selected skill otherwise.
@@ -98,7 +117,13 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
             }
           },
           materialise: async (hit, signal) => {
-            if (hit.meta.source !== 'hub') return undefined
+            const marketplace = marketplaceClients.get(String(hit.meta.source))
+            if (marketplace) {
+              const fetched = hit.meta._fetched as { _installed?: { dir: string; body: string } } | undefined
+              const installed = fetched?._installed ?? await marketplace.install(hit, signal)
+              return { dir: installed.dir, body: installed.body }
+            }
+            if (hit.meta.source !== 'hub' || !client) return undefined
             const fetched = hit.meta._fetched as Record<string, unknown> | undefined
             const installed = await client.install(String(hit.meta.id), fetched, signal)
             return { dir: installed.dir, body: installed.skillMd }

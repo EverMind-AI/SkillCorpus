@@ -113,7 +113,7 @@ export class SkillSearchEngine {
     this.gate = parts.gate
     this.fetchBody = parts.fetchBody
     this.materialise = parts.materialise
-    this.topK = options.topK ?? 5
+    this.topK = options.topK ?? 2
     this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
@@ -185,6 +185,8 @@ export class SkillSearchEngine {
     if (hits.length === 0) return []
 
     hits = await this.hydrateBodies(hits, signal)
+    hits = hits.filter(hit => !['clawhub', 'skillhub_cn'].includes(String(hit.meta.source)) || Boolean(hit.content))
+    if (hits.length === 0) return []
 
     // Before the gate, and only for skills already on disk. The gate is
     // told to reject a skill whose files it cannot see, and an unresolved

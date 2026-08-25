@@ -30,6 +30,16 @@
         "default": "",
         "description": "Bearer token for the remote catalog"
       },
+      "clawhubEndpoint": {
+        "type": "string",
+        "default": "https://clawhub.ai",
+        "description": "ClawHub API base URL; empty disables this source"
+      },
+      "skillhubCnEndpoint": {
+        "type": "string",
+        "default": "https://api.skillhub.cn",
+        "description": "skillhub.cn API base URL; empty disables this source"
+      },
       "model": {
         "type": "string",
         "default": "",
@@ -47,7 +57,7 @@
       },
       "topK": {
         "type": "number",
-        "default": 5,
+        "default": 2,
         "description": "Upper bound on skills injected per turn"
       },
       "gatePool": {

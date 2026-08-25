@@ -99,7 +99,11 @@ function fakeApi(pluginConfig: Record<string, unknown>): {
     api: {
       id: 'skillsearch',
       name: 'Skill Search',
-      pluginConfig,
+      pluginConfig: {
+        clawhubEndpoint: '',
+        skillhubCnEndpoint: '',
+        ...pluginConfig,
+      },
       logger: { info: () => {}, warn: () => {} },
       on: (event, handler) => { hooks.set(event, handler as never) },
     },

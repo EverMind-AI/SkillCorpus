@@ -42,8 +42,10 @@ CONFIG_FILENAME = "skillsearch.json"
 DEFAULTS: dict[str, Any] = {
     "skills_dir": "~/.hermes/skills",
     "hub_endpoint": "",
+    "clawhub_endpoint": "https://clawhub.ai",
+    "skillhub_cn_endpoint": "https://api.skillhub.cn",
     "model": "",
-    "top_k": "5",
+    "top_k": "2",
     "max_select": "2",
     "timeout_s": "8.0",
 }

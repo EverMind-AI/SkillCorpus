@@ -54,12 +54,14 @@ which wins so a credential never has to be copied into a file.
 | Key | Env | Default | Purpose |
 |---|---|---|---|
 | `skillsDirs` | `SKILLSEARCH_SKILLS_DIRS` | `["~/.openclaw/skills"]` | Directories scanned for `SKILL.md` |
-| `hubEndpoint` | `SKILLSEARCH_HUB_ENDPOINT` | — | Remote catalog base URL; empty means local only |
+| `hubEndpoint` | `SKILLSEARCH_HUB_ENDPOINT` | - | EverMind-compatible catalog; empty disables this source only |
+| `clawhubEndpoint` | `SKILLSEARCH_CLAWHUB_ENDPOINT` | `https://clawhub.ai` | ClawHub API; empty disables it |
+| `skillhubCnEndpoint` | `SKILLSEARCH_SKILLHUB_CN_ENDPOINT` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `hubApiKey` | `SKILLSEARCH_HUB_API_KEY` | — | Bearer token for that catalog |
 | `model` | `SKILLSEARCH_MODEL` | — | Model for the rewriter and the gate |
 | `modelBaseUrl` | `SKILLSEARCH_MODEL_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint |
 | `modelApiKey` | `SKILLSEARCH_MODEL_API_KEY` | — | Credential for that endpoint |
-| `topK` | `SKILLSEARCH_TOP_K` | `5` | Upper bound on skills injected per turn |
+| `topK` | `SKILLSEARCH_TOP_K` | `2` | Upper bound on skills injected per turn |
 | `gatePool` | `SKILLSEARCH_GATE_POOL` | `10` | Candidates the gate judges |
 | `maxSelect` | `SKILLSEARCH_MAX_SELECT` | `2` | Upper bound on what the gate keeps |
 | `timeoutMs` | `SKILLSEARCH_TIMEOUT_MS` | `8000` | Deadline for one retrieval |

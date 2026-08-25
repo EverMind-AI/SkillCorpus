@@ -77,14 +77,16 @@ EOF
 
 ## 你真正会碰的五个配置
 
-每宿主的完整配置表在各插件 README 里；决定行为的是这五个（Python / TypeScript 写法）：
+每宿主的完整配置表在各插件 README 里；决定行为的是这七个（Python / TypeScript 写法）：
 
 | 配置 | 默认 | 决定什么 |
 | --- | --- | --- |
 | `skills_dir` / `skillsDirs` | 宿主自己的技能目录 | 本地技能扫哪里。目录不存在 = 这个源就不存在。 |
-| `hub_endpoint` / `hubEndpoint` | *(空)* | 远程技能库，如 `https://skillhub.evermind.ai`。空 = 纯本地。**设置前先读[哪些数据会离开你的机器](#哪些数据会离开你的机器)。** |
+| `hub_endpoint` / `hubEndpoint` | *(空)* | EverMind 兼容目录；空值只关闭这个来源。 |
+| `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub 检索；空值关闭。 |
+| `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn 检索；空值关闭。 |
 | `model`（+ 宿主自己的路由字段） | *(空)* | 启用查询改写器和 gate。空 = 检索裸跑，按关键词排序注入。 |
-| `top_k` / `topK` | 5 | 每轮最多注入的技能数。 |
+| `top_k` / `topK` | 2 | 每轮最多注入的技能数。 |
 | `gate` | *自动* | 用 LLM 剔除本 agent 跑不了的技能。自动 = 纯本地时**关**（自己的技能，排序够了），配了目录服务时**开**（野生技能需要把关）。可用 `true`/`false` 显式覆盖。 |
 
 ## 它花你什么代价
@@ -94,7 +96,7 @@ EOF
 | 步骤 | 何时发生 | 上限 |
 | --- | --- | --- |
 | 本地 BM25 | 总是 | 毫秒级，进程内 |
-| 目录检索 + 正文补全 | 配了 hub | 每请求 2s |
+| 远程目录检索 | 开启了任一远程来源 | 每请求 5s |
 | 查询改写 | 配了 model | 一次小模型调用，5s |
 | Gate | 配了 model +（自动）hub | 一次模型调用（≤10 候选），20s |
 | Bundle 下载 | 选中了远程技能 | 30s，按版本缓存——之后同版本只是一次磁盘 stat |
@@ -106,7 +108,8 @@ EOF
 
 如实交代，因为检索跑在你的对话上：
 
-- **纯本地（默认）**——什么都不出去。扫描、排序、注入全在进程内。
+- **显式清空三个远程 endpoint 后的纯本地模式**——什么都不出去。扫描、排序、注入全在进程内。
+- **默认安装**——ClawHub 与 skillhub.cn 默认开启，检索查询会发送给这两个服务；将对应 endpoint 设为空字符串可分别关闭。
 - **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
 - **配了 `model`**——改写器看到你的消息（截断到 2,000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 

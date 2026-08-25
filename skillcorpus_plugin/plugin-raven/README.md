@@ -42,9 +42,11 @@ which the host validates against; the ones that matter most:
 | Key | Default | Purpose |
 |---|---|---|
 | `skills_dir` | `skills` | Directory scanned for `SKILL.md`, relative to the workspace |
-| `hub_endpoint` | — | Remote catalog base URL; empty means local only |
+| `hub_endpoint` | - | EverMind-compatible catalog; empty disables this source only |
+| `clawhub_endpoint` | `https://clawhub.ai` | ClawHub API; empty disables it |
+| `skillhub_cn_endpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `model` | — | Model for the rewriter and the gate |
-| `top_k` | `5` | Upper bound on skills injected per turn |
+| `top_k` | `2` | Upper bound on skills injected per turn |
 | `max_select` | `2` | Upper bound on what the gate keeps |
 
 The default is the directory the host already conventions, so a deployment

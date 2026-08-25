@@ -15,7 +15,7 @@ Top 2 是上限，不是必须凑满的数量。没有候选达到要求时返�
 | 用户本地 Skill | 0～2 | 开启 |
 | EverMind SkillHub | 0～2 | 开启 |
 | ClawHub | 0～2 | 默认开启 |
-| skillhub.cn | 0～2 | 适配器通过验收后默认开启 |
+| skillhub.cn | 0～2 | 默认开启 |
 
 四个来源最多产生 8 个候选，再统一排序并输出最多 2 个。
 
@@ -289,8 +289,8 @@ source + sourceId + version/contentHash
 retrieval:
   max_results: 2
   per_source_max_candidates: 2
-  source_timeout_ms: 1000
-  body_timeout_ms: 2000
+  source_timeout_ms: 5000
+  body_timeout_ms: 30000
   local_tie_margin: 0.05
   unified_relevance_threshold: null
 
@@ -335,9 +335,9 @@ sources:
 
 这些数据用于调整各来源阈值、统一相关性阈值和超时时间。
 
-## 13. 实施顺序
+## 13. 实施状态（已完成）
 
-### 第一阶段
+### 核心能力
 
 - 统一候选结构；
 - 保持本地和 EverMind 现有功能；
@@ -346,7 +346,7 @@ sources:
 - 实现身份去重、内容去重和缓存；
 - 实现本地优先和运行统计。
 
-### 第二阶段
+### 第三方来源与宿主接入
 
 - 接入并验证 skillhub.cn 搜索协议；
 - 增加 skillhub.cn 适配器；

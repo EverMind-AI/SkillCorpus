@@ -207,13 +207,12 @@ def test_a_blank_query_searches_nothing(home: Path) -> None:
         provider.shutdown()
 
 
-def test_a_missing_config_disables_retrieval_without_raising(tmp_path: Path) -> None:
-    provider = plugin.SkillSearchProvider()
-    provider.initialize("session-1", hermes_home=str(tmp_path))
-    try:
-        assert provider.prefetch("anything") == ""
-    finally:
-        provider.shutdown()
+def test_a_missing_config_enables_public_marketplaces_by_default(tmp_path: Path) -> None:
+    from engine_adapter import load_config
+
+    config = load_config(str(tmp_path))
+    assert config.clawhub_endpoint == "https://clawhub.ai"
+    assert config.skillhub_cn_endpoint == "https://api.skillhub.cn"
 
 
 def test_a_malformed_config_disables_retrieval_without_raising(tmp_path: Path) -> None:
