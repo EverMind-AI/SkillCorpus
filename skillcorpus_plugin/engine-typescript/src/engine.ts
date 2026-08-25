@@ -27,6 +27,8 @@ export interface EngineOptions {
   readonly gatePool?: number
   /** Multiplier on what each source is asked for before fusion narrows. */
   readonly overFetch?: number
+  /** Hard upper bound requested from each source before fusion. */
+  readonly perSourceMax?: number
   /** Rank-damping offset for fusion. Defaults to the paper's 60. */
   readonly rrfK?: number
   /** Collapse key across sources. */
@@ -100,6 +102,7 @@ export class SkillSearchEngine {
   private readonly rrfK: number | undefined
   private readonly gatePool: number
   private readonly overFetch: number
+  private readonly perSourceMax: number
   private readonly dedupBy: 'name' | 'qualifiedId'
   private readonly heading: string
   private readonly refs: boolean
@@ -114,6 +117,7 @@ export class SkillSearchEngine {
     this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
+    this.perSourceMax = options.perSourceMax ?? 2
     this.dedupBy = options.dedupBy ?? 'name'
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
@@ -162,7 +166,7 @@ export class SkillSearchEngine {
     }
 
     const poolSize = this.gate ? this.gatePool : this.topK
-    const perSource = poolSize * this.overFetch
+    const perSource = Math.min(this.perSourceMax, poolSize * this.overFetch)
     const results = await Promise.all(
       this.sources.map(async (source): Promise<SourceResult> => {
         try {

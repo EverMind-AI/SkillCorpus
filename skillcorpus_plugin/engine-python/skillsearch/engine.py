@@ -165,6 +165,7 @@ class SkillSearch:
                     self._hub_client,
                     weight=cfg.weight_hub,
                     min_safety=cfg.hub_min_safety,
+                    max_candidates=cfg.per_source_max,
                 ),
             )
 
@@ -183,6 +184,7 @@ class SkillSearch:
             over_fetch_factor=cfg.over_fetch,
             dedup_by=cfg.dedup_by,
             rrf_k=cfg.rrf_k,
+            per_source_max=cfg.per_source_max,
         )
 
     def _build_local_source(self, store: SkillStore | None):

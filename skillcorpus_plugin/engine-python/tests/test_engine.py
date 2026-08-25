@@ -154,7 +154,7 @@ class TestGate:
         base = {"skills_dir": "skills", "workspace": str(tmp_path), "top_k": 5}
 
         ungated = await SkillSearch(SearchConfig(**base)).retrieve("extract data from documents")
-        assert len(_names(ungated)) == 3
+        assert len(_names(ungated)) == 2
 
         model = _ScriptedModel(keep="pdf")
         gated = await SkillSearch(

@@ -75,7 +75,7 @@ async def test_an_outside_source_is_searched_with_the_query_and_a_bound() -> Non
     await search.retrieve("anything")
 
     assert source.calls[-1][0] == "anything"
-    assert source.calls[-1][1] == 6, "k is top_k * over_fetch, as for every other source"
+    assert source.calls[-1][1] == 2, "every source is capped at two candidates before fusion"
 
 
 async def test_it_is_fused_beside_the_local_source_rather_than_replacing_it(tmp_path: Path) -> None:

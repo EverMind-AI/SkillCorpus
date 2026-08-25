@@ -116,7 +116,10 @@ class SearchConfig:
     unvetted. A source passed through ``extra_sources`` carries its own."""
 
     over_fetch: int = 2
-    """Ask each source for ``top_k * over_fetch`` before fusing."""
+    """Multiplier used before the per-source hard cap."""
+
+    per_source_max: int = 2
+    """Hard upper bound contributed by each source before fusion."""
 
     dedup_by: str = "name"
     top_k: int = 5
