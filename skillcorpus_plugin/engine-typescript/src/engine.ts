@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto'
 
 import { rrfMergeWeighted, type SourceResult } from './fusion.js'
 import { LLMGateFilter } from './gate.js'
-import { resolveRefs } from './refs.js'
+import { resolvePlaceholders, resolveRefs, type PlaceholderRuntime } from './refs.js'
 import { QueryRewriter } from './rewriter.js'
 import type { RouterHit, SkillSource } from './types.js'
 
@@ -44,6 +44,18 @@ export interface EngineOptions {
    * would promise files the model cannot open.
    */
   readonly resolveRefs?: boolean
+  /**
+   * The agent's writable output directory, for `{{OUTPUT_DIR}}`. Empty
+   * resolves to `workspace` at substitution time.
+   */
+  readonly outputDir?: string
+  /** The agent's home directory, for `{{HOME}}`. */
+  readonly homeDir?: string
+  /**
+   * The agent's own config/state root, for `{{AGENT_STATE_DIR}}`
+   * (`~/.openclaw`, `~/.hermes` …). Empty means the agent has no such concept.
+   */
+  readonly stateDir?: string
 }
 
 /** Per-turn inputs, which vary by agent and by cancellation. */
@@ -125,6 +137,7 @@ export class SkillSearchEngine {
   private readonly dedupBy: 'name' | 'qualifiedId'
   private readonly heading: string
   private readonly refs: boolean
+  private readonly runtime: PlaceholderRuntime
 
   constructor(parts: EngineParts, options: EngineOptions = {}) {
     this.sources = parts.sources
@@ -141,6 +154,11 @@ export class SkillSearchEngine {
     this.dedupBy = options.dedupBy ?? 'qualifiedId'
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
+    this.runtime = {
+      outputDir: options.outputDir,
+      homeDir: options.homeDir,
+      stateDir: options.stateDir,
+    }
   }
 
   /** Whether anything is configured to search. */
@@ -230,7 +248,7 @@ export class SkillSearchEngine {
     }
     // The remote half stays here: extracting a bundle is a download, so it
     // waits until the gate has decided what is actually going in.
-    return this.resolveHitRefs(hits.slice(0, this.topK), signal)
+    return this.resolvePlaceholders(await this.resolveHitRefs(hits.slice(0, this.topK), signal))
   }
 
   private diagnose(diagnostic: SourceDiagnostic): void {
@@ -293,6 +311,24 @@ export class SkillSearchEngine {
       const { body } = resolveRefs(current.content, skillDir)
       return body === current.content ? current : { ...current, content: body }
     }))
+  }
+
+  /**
+   * Fill PathGuard placeholders (`{{SKILL_DIR}}`, `{{HOME}}`, …) per agent.
+   *
+   * Unlike `resolveLocalRefs` / `resolveHitRefs` this never touches the
+   * filesystem and is not gated by `resolveRefs`: a placeholder already names
+   * its target, and only the host knows it. It runs last, once every surviving
+   * hit has its `skillDir` settled.
+   */
+  private resolvePlaceholders(hits: RouterHit[]): RouterHit[] {
+    return hits.map((hit) => {
+      const content = hit.content
+      if (!content || !content.includes('{{')) return hit
+      const skillDir = typeof hit.meta.skillDir === 'string' ? hit.meta.skillDir : undefined
+      const body = resolvePlaceholders(content, skillDir, this.runtime)
+      return body === content ? hit : { ...hit, content: body }
+    })
   }
 
   /** Fill in bodies for hits a source returned as metadata only. */

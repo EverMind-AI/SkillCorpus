@@ -187,6 +187,19 @@ class SearchConfig:
     cache_dir: str = ""
     """Where downloaded bundles are extracted. Defaults under ``workspace``."""
 
+    output_dir: str = ""
+    """The agent's writable output directory, for ``{{OUTPUT_DIR}}``.
+    Empty resolves to ``workspace`` at substitution time."""
+
+    home_dir: str = ""
+    """The agent's home directory, for ``{{HOME}}``. Empty falls back to
+    ``output_dir`` (then ``workspace``) at substitution time."""
+
+    state_dir: str = ""
+    """The agent's own config/state root, for ``{{AGENT_STATE_DIR}}``
+    (``~/.openclaw``, ``~/.hermes`` …). Empty means this agent has no such
+    concept, and the placeholder falls back to ``output_dir``."""
+
     def gate_enabled(self) -> bool:
         """Whether to build the gate, resolving the ``None`` default."""
         has_remote = bool(self.hub_endpoint or self.clawhub_endpoint or self.skillhub_cn_endpoint)

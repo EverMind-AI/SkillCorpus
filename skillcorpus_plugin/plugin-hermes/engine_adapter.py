@@ -153,6 +153,11 @@ def load_config(hermes_home: str) -> SearchConfig:
     raw.setdefault("skills_dir", str(Path(hermes_home) / "skills"))
     raw.setdefault("clawhub_endpoint", "https://clawhub.ai")
     raw.setdefault("skillhub_cn_endpoint", "https://api.skillhub.cn")
+    # PathGuard placeholders' per-agent facts. Hermes's own config/state root
+    # is `$HERMES_HOME` (the workspace here), and its home is the process home.
+    raw.setdefault("output_dir", hermes_home)
+    raw.setdefault("home_dir", str(Path.home()))
+    raw.setdefault("state_dir", hermes_home)
     return SearchConfig.from_mapping(raw)
 
 

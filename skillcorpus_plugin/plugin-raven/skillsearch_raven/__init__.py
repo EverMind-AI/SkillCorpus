@@ -119,6 +119,12 @@ def make_segment(ctx: Any) -> Any | None:
     cfg_map.setdefault("agent_id", getattr(services, "agent_id", "") or "")
     cfg_map.setdefault("clawhub_endpoint", "https://clawhub.ai")
     cfg_map.setdefault("skillhub_cn_endpoint", "https://api.skillhub.cn")
+    # PathGuard placeholders' per-agent facts. Raven has no persistent
+    # config/state root of its own, and the agent's writable home is the
+    # workspace, so both {{HOME}} and {{AGENT_STATE_DIR}} collapse there.
+    cfg_map.setdefault("output_dir", workspace)
+    cfg_map.setdefault("home_dir", workspace)
+    cfg_map.setdefault("state_dir", "")
     config = SearchConfig.from_mapping(cfg_map)
 
     # Raven passes live objects through the config slice under private

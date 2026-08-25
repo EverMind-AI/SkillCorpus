@@ -131,7 +131,15 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
         }
         : {}),
     },
-    { topK: config.topK, gatePool: config.gatePool },
+    {
+      topK: config.topK,
+      gatePool: config.gatePool,
+      // PathGuard placeholders' per-agent facts. OpenClaw's own config root is
+      // ~/.openclaw; the agent's writable output is its working directory.
+      outputDir: process.cwd(),
+      homeDir: homedir(),
+      stateDir: join(homedir(), '.openclaw'),
+    },
   )
 }
 

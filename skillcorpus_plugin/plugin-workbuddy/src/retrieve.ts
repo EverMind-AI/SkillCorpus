@@ -131,7 +131,16 @@ export function buildEngine(
         }
         : {}),
     },
-    { topK: config.topK, gatePool: config.gatePool, rrfK: config.rrfK },
+    {
+      topK: config.topK,
+      gatePool: config.gatePool,
+      rrfK: config.rrfK,
+      // PathGuard placeholders' per-agent facts. WorkBuddy's own config root
+      // is ~/.workbuddy-ai; the agent's writable output is its working dir.
+      outputDir: process.cwd(),
+      homeDir: homedir(),
+      stateDir: join(homedir(), '.workbuddy-ai'),
+    },
   )
 }
 
