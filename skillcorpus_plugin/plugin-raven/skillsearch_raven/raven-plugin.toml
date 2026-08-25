@@ -45,4 +45,5 @@ gate_timeout_s = { type = "number",  default = 20.0 }
 
 # Output.
 resolve_refs = { type = "boolean", default = true }
+resolve_placeholders = { type = "boolean", default = false }
 heading      = { type = "string",  default = "# Skills" }

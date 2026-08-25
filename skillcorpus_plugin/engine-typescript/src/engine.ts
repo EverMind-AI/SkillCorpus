@@ -45,6 +45,14 @@ export interface EngineOptions {
    */
   readonly resolveRefs?: boolean
   /**
+   * Expand PathGuard placeholders (`{{SKILL_DIR}}`, `{{HOME}}`, …) in skill
+   * bodies to real host paths. Off by default: it maps a machine-agnostic
+   * placeholder onto this host's filesystem, so it should only be turned on
+   * for a corpus that a trusted PathGuard pass produced — never for arbitrary
+   * third-party skills.
+   */
+  readonly resolvePlaceholders?: boolean
+  /**
    * The agent's writable output directory, for `{{OUTPUT_DIR}}`. Empty
    * resolves to `workspace` at substitution time.
    */
@@ -137,6 +145,7 @@ export class SkillSearchEngine {
   private readonly dedupBy: 'name' | 'qualifiedId'
   private readonly heading: string
   private readonly refs: boolean
+  private readonly placeholders: boolean
   private readonly runtime: PlaceholderRuntime
 
   constructor(parts: EngineParts, options: EngineOptions = {}) {
@@ -154,6 +163,7 @@ export class SkillSearchEngine {
     this.dedupBy = options.dedupBy ?? 'qualifiedId'
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
+    this.placeholders = options.resolvePlaceholders ?? false
     this.runtime = {
       outputDir: options.outputDir,
       homeDir: options.homeDir,
@@ -322,6 +332,7 @@ export class SkillSearchEngine {
    * hit has its `skillDir` settled.
    */
   private resolvePlaceholders(hits: RouterHit[]): RouterHit[] {
+    if (!this.placeholders) return hits
     return hits.map((hit) => {
       const content = hit.content
       if (!content || !content.includes('{{')) return hit

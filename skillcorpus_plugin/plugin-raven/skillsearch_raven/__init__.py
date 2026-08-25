@@ -125,6 +125,9 @@ def make_segment(ctx: Any) -> Any | None:
     cfg_map.setdefault("output_dir", workspace)
     cfg_map.setdefault("home_dir", workspace)
     cfg_map.setdefault("state_dir", "")
+    # Off by default: only a corpus produced by a trusted PathGuard pass may
+    # expand placeholders onto this host's real filesystem paths.
+    cfg_map.setdefault("resolve_placeholders", False)
     config = SearchConfig.from_mapping(cfg_map)
 
     # Raven passes live objects through the config slice under private

@@ -6,6 +6,16 @@
 
 - **Default multi-source retrieval** now searches local skills, EverMind when configured, ClawHub, and skillhub.cn concurrently. Each source contributes at most two candidates; suspicious or malicious entries are rejected, bundles are safely cached, source failures are isolated, and the final gate still selects 0–2 skills. ClawHub and skillhub.cn can each be disabled with an empty endpoint.
 
+- **PathGuard placeholder resolution** — both engines resolve
+  `{{SKILL_DIR}}`, `{{SKILL_DIR:<name>}}`, `{{AGENT_STATE_DIR}}`,
+  `{{HOME}}` and `{{OUTPUT_DIR}}` in skill bodies to real host paths, for
+  corpora produced by a PathGuard pass. Gated behind `resolve_placeholders`
+  (Python) / `resolvePlaceholders` (TypeScript), **off by default** so
+  arbitrary third-party skills never get a machine-agnostic placeholder
+  expanded onto this host's filesystem; each host plugin exposes the switch
+  and supplies its own `output_dir` / `home_dir` / `state_dir` (OpenClaw and
+  WorkBuddy take the per-turn workspace from the hook payload).
+
 - **A fifth host: WorkBuddy** ([`plugin-workbuddy/`](plugin-workbuddy)), where
   the seam is a process — a `UserPromptSubmit` hook spawned per turn, reading
   the turn from stdin and answering with `additionalContext` on stdout. Ships

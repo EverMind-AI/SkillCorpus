@@ -507,15 +507,19 @@ class SkillSearch:
     def _resolve_placeholders(self, hits: list[RouterHit]) -> list[RouterHit]:
         """Fill PathGuard placeholders ({{SKILL_DIR}}, {{HOME}}, …) per agent.
 
-        Unlike :meth:`_resolve_local_refs` / :meth:`_hydrate_refs` this never
-        touches the filesystem and is not gated by ``resolve_refs``: a
-        placeholder already names its target, and only the host knows it. It
-        runs last, once every surviving hit has its ``skill_dir`` settled, so
-        both local and remote bodies pass through the same pass.
+        Gated by ``resolve_placeholders`` (off by default): a placeholder maps
+        machine-agnostic text onto this host's real filesystem, so it must only
+        run for a corpus a trusted PathGuard pass produced, not for arbitrary
+        third-party skills. Unlike :meth:`_resolve_local_refs` /
+        :meth:`_hydrate_refs` this never touches the filesystem; it runs last,
+        once every surviving hit has its ``skill_dir`` settled.
         """
+        cfg = self._cfg
+        if not cfg.resolve_placeholders:
+            return hits
+
         from skillsearch.refs import resolve_placeholders
 
-        cfg = self._cfg
         output_dir = cfg.output_dir or cfg.workspace
         out: list[RouterHit] = []
         for hit in hits:

@@ -158,6 +158,8 @@ def load_config(hermes_home: str) -> SearchConfig:
     raw.setdefault("output_dir", hermes_home)
     raw.setdefault("home_dir", str(Path.home()))
     raw.setdefault("state_dir", hermes_home)
+    # Off by default: only a trusted PathGuard corpus may expand placeholders.
+    raw.setdefault("resolve_placeholders", False)
     return SearchConfig.from_mapping(raw)
 
 

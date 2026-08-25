@@ -92,7 +92,7 @@ def resolve_refs(body: str, skill_dir: Path | str | None) -> tuple[str, bool]:
     return body, any_resolved
 
 
-_PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_]+)(?::([^}]+))?\}\}")
+_PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}")
 
 
 def resolve_placeholders(
@@ -112,9 +112,9 @@ def resolve_placeholders(
     in per agent, next to :func:`resolve_refs`.
 
     - ``{{SKILL_DIR}}`` → this skill's bundle directory; ``{{SKILL_DIR:<n>}}``
-      → a sibling bundle under the same parent. Without a directory on disk
-      the prefix is stripped to a bare relative path, the same policy
-      ``resolve_refs`` applies to ``{baseDir}``.
+      → a sibling bundle under the same parent. ``<n>`` is restricted to a safe
+      slug (``[A-Za-z0-9._-]+``), so a traversal like ``../../x`` or an absolute
+      path does not match and stays literal.
     - ``{{AGENT_STATE_DIR}}`` → the agent's own config/state root, falling back
       to ``output_dir`` when this agent has none.
     - ``{{HOME}}`` → the agent's home, falling back to ``output_dir`` when unset.
@@ -129,18 +129,18 @@ def resolve_placeholders(
 
     sd = str(skill_dir) if skill_dir else None
 
-    # Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so a
-    # missing directory does not leave a leading "/scripts/x.py".
+    # Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so the
+    # directory is written once. Without a directory on disk the placeholder is
+    # left literal, not stripped: a bare `scripts/x.py` would tell the model the
+    # bundle is present when it never downloaded.
     if sd:
         body = body.replace("{{SKILL_DIR}}/", sd.rstrip("/") + "/")
         body = body.replace("{{SKILL_DIR}}", sd)
-    else:
-        body = body.replace("{{SKILL_DIR}}/", "").replace("{{SKILL_DIR}}", "")
 
     def _sub(m: re.Match[str]) -> str:
         name, arg = m.group(1), m.group(2)
-        if name == "SKILL_DIR":  # {{SKILL_DIR:<name>}}
-            return str(Path(sd).parent / arg) if sd else m.group(0)
+        if name == "SKILL_DIR":  # {{SKILL_DIR:<name>}} — arg is a safe slug
+            return str(Path(sd).parent / arg) if sd and arg else m.group(0)
         if name == "AGENT_STATE_DIR":
             return state_dir or output_dir or m.group(0)
         if name == "HOME":
@@ -152,4 +152,4 @@ def resolve_placeholders(
     return _PLACEHOLDER_RE.sub(_sub, body)
 
 
-__all__ = ["resolve_refs", "resolve_placeholders"]
+__all__ = ["resolve_placeholders", "resolve_refs"]

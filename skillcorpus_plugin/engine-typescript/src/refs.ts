@@ -112,7 +112,7 @@ function firstIndexOfAny(text: string, needles: readonly string[]): number {
   return found.length === 0 ? -1 : Math.min(...found)
 }
 
-const PLACEHOLDER_RE = /\{\{([A-Z_]+)(?::([^}]+))?\}\}/g
+const PLACEHOLDER_RE = /\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}/g
 
 /** Per-agent facts that fill the PathGuard placeholders. */
 export interface PlaceholderRuntime {
@@ -134,8 +134,9 @@ export interface PlaceholderRuntime {
  * next to {@link resolveRefs}.
  *
  * - `{{SKILL_DIR}}` → this skill's bundle directory; `{{SKILL_DIR:<n>}}` → a
- *   sibling bundle under the same parent. Without a directory on disk the
- *   prefix is stripped to a bare relative path, matching `resolveRefs`.
+ *   sibling bundle under the same parent. `<n>` is restricted to a safe slug
+ *   (`[A-Za-z0-9._-]+`), so `../../x` or an absolute path does not match and
+ *   stays literal.
  * - `{{AGENT_STATE_DIR}}` → `stateDir`, else `outputDir`.
  * - `{{HOME}}` → `homeDir`, else `outputDir`.
  * - `{{OUTPUT_DIR}}` → `outputDir`.
@@ -152,14 +153,13 @@ export function resolvePlaceholders(
 
   const sd = skillDir || undefined
 
-  // Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so a
-  // missing directory does not leave a leading "/scripts/x.py".
+  // Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so the
+  // directory is written once. Without a directory on disk the placeholder is
+  // left literal, not stripped: a bare `scripts/x.py` would tell the model the
+  // bundle is present when it never downloaded.
   if (sd) {
     body = body.replaceAll('{{SKILL_DIR}}/', `${sd.replace(/\/+$/, '')}/`)
     body = body.replaceAll('{{SKILL_DIR}}', sd)
-  } else {
-    body = body.replaceAll('{{SKILL_DIR}}/', '')
-    body = body.replaceAll('{{SKILL_DIR}}', '')
   }
 
   return body.replace(PLACEHOLDER_RE, (match, name: string, arg?: string) => {

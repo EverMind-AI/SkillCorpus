@@ -36,9 +36,21 @@ def test_state_and_home_fall_back_to_output_dir() -> None:
     assert out == "cat ./auth/x > ./.cache/y"
 
 
-def test_missing_skill_dir_strips_prefix() -> None:
+def test_missing_skill_dir_keeps_placeholder() -> None:
+    # A bundle that did not download must not become a bare relative path —
+    # that would tell the model the files exist.
     out = resolve_placeholders("python {{SKILL_DIR}}/scripts/x.py", None)
-    assert out == "python scripts/x.py"
+    assert out == "python {{SKILL_DIR}}/scripts/x.py"
+
+
+def test_traversal_name_kept_literal() -> None:
+    out = resolve_placeholders("see {{SKILL_DIR:../../secret}}", "/skills/foo")
+    assert out == "see {{SKILL_DIR:../../secret}}"
+
+
+def test_absolute_name_kept_literal() -> None:
+    out = resolve_placeholders("see {{SKILL_DIR:/etc/passwd}}", "/skills/foo")
+    assert out == "see {{SKILL_DIR:/etc/passwd}}"
 
 
 def test_unknown_placeholder_untouched() -> None:

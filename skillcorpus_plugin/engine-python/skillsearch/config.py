@@ -180,6 +180,13 @@ class SearchConfig:
     paths. Requires the host and the skills to share a filesystem; turn it
     off when serving retrieval over HTTP."""
 
+    resolve_placeholders: bool = False
+    """Expand PathGuard placeholders (``{{SKILL_DIR}}``, ``{{HOME}}`` …) in
+    skill bodies to real host paths. Off by default: it maps a
+    machine-agnostic placeholder onto this host's filesystem, so it should
+    only be turned on for a corpus that a trusted PathGuard pass produced —
+    never for arbitrary third-party skills."""
+
     heading: str = "# Skills"
 
     # ── Host-provided, not user-facing ───────────────────────────────
