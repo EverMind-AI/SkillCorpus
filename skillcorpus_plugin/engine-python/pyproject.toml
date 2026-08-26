@@ -18,14 +18,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# No required dependencies. The local pipeline — scan, BM25, fusion,
-# gate, render — runs on the standard library alone; ``httpx`` is
-# imported only when a remote catalog is configured, so it installs only
-# with the extra that needs it.
-dependencies = []
+# Host adapters enable public marketplace sources by default, so the HTTP
+# client is a runtime dependency rather than an optional surprise at startup.
+dependencies = ["httpx>=0.27"]
 
 [project.optional-dependencies]
-hub = ["httpx>=0.27"]
+hub = []
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.6"]
 
 [project.urls]
