@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Per-turn skill retrieval. Every turn, this searches local directories and an optional remote catalog — such as [SkillHub](https://evermind.ai/skillhub), the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted skills — against what the user just wrote, and puts the matching skill bodies in front of the model before it is called.
+Per-turn skill retrieval. Every turn, this searches local directories and the configured remote sources — EverMind SkillHub, ClawHub, and skillhub.cn are enabled by default — against what the user just wrote, and puts the matching skill bodies in front of the model before it is called.
 
 `dsh-tool-skill` solves the same problem the other way: it publishes a catalog of every skill and lets the model load one by name. The two are alternatives — running both publishes the same skills twice, once as a tool schema and once as injected text. A deployment mounting this plugin disables `dsh-tool-skill` (and any other plugin that publishes the same skill catalog).
 

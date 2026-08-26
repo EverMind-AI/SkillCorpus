@@ -32,8 +32,9 @@ several pass, ask the user.
 | DeepSeek Harness | the workspace you are in has a `cordis.yml` and a `packages/` tree |
 | Raven | `~/.raven/` exists, or `raven` CLI is present |
 
-Also note where this repository is checked out (clone it if the user gave
-you only the URL): every path below is relative to the repository root.
+Note where this repository is checked out (clone it if the user gave you only
+the URL), then change into its `skillcorpus_plugin/` directory. Every relative
+path and command below starts there.
 
 ## WorkBuddy
 

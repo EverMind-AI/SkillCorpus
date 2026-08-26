@@ -1,7 +1,7 @@
 # skillsearch for OpenClaw
 
 Skill retrieval on `before_prompt_build`. Every turn, this searches a local
-skills directory and an optional remote catalog against what the user just
+skills directory and the configured remote sources against what the user just
 wrote, narrows the result with a model, and returns the matching skill
 bodies for the host to prepend.
 

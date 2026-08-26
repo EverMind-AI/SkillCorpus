@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh.md)
 
-**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** SkillCorpus Plugins watches what the user just asked, retrieves the matching `SKILL.md` skills from a local directory and an optional remote catalog, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
+**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** SkillCorpus Plugins watches what the user just asked, retrieves matching `SKILL.md` skills from local directories and three remote sources enabled by default, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
 
 A real turn, on WorkBuddy: ask *“帮我生成一个二维码，内容是 https://evermind.ai，存到桌面”*. No QR skill exists on the machine — but the catalog has one, so before the model answers, its context gains:
 
@@ -19,7 +19,7 @@ this directory — use the absolute form for read_file / exec.
 
 The skill's bundled script is already extracted next to it; the model runs it and the QR code lands on the desktop. Without retrieval, the model improvises — `pip install qrcode` and hope.
 
-Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 114,190 vetted, permissively-licensed skills, where that QR skill came from — or both fused into one ranking.
+Works with your own skill directories and with EverMind SkillHub, ClawHub, and skillhub.cn, fused into one ranking. The QR skill above came from [SkillHub](https://evermind.ai/skillhub), the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus).
 
 ## Install — paste this to your agent
 

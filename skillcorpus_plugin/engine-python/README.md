@@ -6,8 +6,8 @@ An agent host wants to answer one question before every turn: *given what
 the user just said, which skills should the model see?* This package
 answers it — searching a local skills directory, a remote catalog such as
 [SkillHub](https://evermind.ai/skillhub) (the hosted endpoint over
-[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 96,401 vetted
-skills), and the agent's own accumulated skills, fusing the results,
+[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)), and the agent's
+own accumulated skills, fusing the results,
 narrowing them with a model, and returning the text to inject.
 
 ```python
@@ -87,9 +87,8 @@ without filtering it first.
 `GET /openapi/v1/skills?q=`, `/skills/{id}`, `/skills/{id}/download`, each
 answering `{error, requestId, status, result}` with `status == 0` for
 success. [SkillHub](https://evermind.ai/skillhub) is a public one, serving
-the [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) corpus —
-96,401 skills, each carrying its upstream license, retrieval quality
-measured in the [corpus paper](https://arxiv.org/abs/2607.15557) — or run
+the [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) corpus. Each
+skill carries its upstream license, with retrieval quality measured in the [corpus paper](https://arxiv.org/abs/2607.15557) — or run
 your own. Leave it unset and everything else works against a local
 directory.
 

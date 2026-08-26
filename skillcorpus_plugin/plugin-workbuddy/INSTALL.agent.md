@@ -35,7 +35,8 @@ The repository-root `INSTALL.agent.md` routes WorkBuddy installs here.
 | WorkBuddy | `~/.workbuddy-ai/settings.json` exists, or `WorkBuddy AI.app` is installed, or your own hook payloads carry `"client": "WorkBuddy"` |
 
 Note where this repository is checked out (clone it if the user gave you only
-the URL): every path below is relative to the repository root.
+the URL), then change into its `skillcorpus_plugin/` directory. Every relative
+path and command below starts there.
 
 ## WorkBuddy
 
@@ -66,11 +67,9 @@ report.
 
 Then, with the user's go-ahead, perform the file-level install. `<version>`
 is `version` from `plugin-workbuddy/.codebuddy-plugin/plugin.json`.
-`<market>` is the marketplace name: when the source is a packaged
-marketplace (a git repo whose root carries
-`.codebuddy-plugin/marketplace.json`), read its `name` field; when
-installing straight from this repository checkout, ask the user what to
-call it. Read these values, never invent them.
+`<market>` is the marketplace name from the repository root
+`../.codebuddy-plugin/marketplace.json`; for this repository it is
+`skillcorpus`. Read these values, never invent them.
 
 1. **Back up** `~/.workbuddy-ai/settings.json`,
    `~/.workbuddy-ai/plugins/installed_plugins.json` and

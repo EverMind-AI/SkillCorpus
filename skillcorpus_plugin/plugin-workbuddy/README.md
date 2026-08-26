@@ -72,23 +72,6 @@ cache and read the selected two lazily (−20ms), give the fingerprint a
 few-second TTL so most turns skip the walk (−34ms), and cache the tokenised
 corpus alongside the scan (−15ms).
 
-## Known limitation: CJK ranking
-
-The engine tokenises CJK per ideograph. On this host — a Chinese product with
-Chinese skill descriptions — that ranks long documents with common characters
-above short relevant ones. Measured over the same 46 skills:
-
-| query | unigram (engine) | bigram |
-| --- | --- | --- |
-| 做个 PPT 讲下季度进展 | stock-research-report-expert | **ardot-slides** |
-| 把这个设计稿转成前端代码 | ardot-design-to-code | ardot-design-to-code |
-
-`季度` matching any document containing 季 or 度 separately is the mechanism.
-Bigrams fix it, and the fix belongs in both engines and their parity tests
-rather than in this adapter — an adapter that quietly tokenises differently
-from `engine-python` would break the one property the two implementations
-promise.
-
 ## Configuration
 
 No host document reaches a hook, so configuration is a file the plugin owns,
@@ -113,9 +96,10 @@ within one, and the fused list degenerates into whole-source blocks), and
 `localWeight 1.0 / hubWeight 0.85` seats the local directory first — tried
 the other way round on 2026-08-18, and the catalog's top two for a poster
 task both depended on infrastructure this machine lacked while the local
-skill that runs here sat unread in seat three. EverMind SkillHub (`hubEndpoint`, `https://skillhub.evermind.ai`), ClawHub
-(`clawhubEndpoint`), and skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public API
-URLs; set either endpoint to an empty string to disable that source.
+skill that runs here sat unread in seat three. EverMind SkillHub
+(`hubEndpoint`, `https://skillhub.evermind.ai`), ClawHub (`clawhubEndpoint`),
+and skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public
+API URLs; set any endpoint to an empty string to disable that source.
 
 ## Install — paste this to WorkBuddy
 
@@ -127,7 +111,7 @@ does well. Paste this into a WorkBuddy session (fill in the plugin source):
 >
 > 插件源（git 地址或本地打包目录）：`<源地址>`
 >
-> 严格按照源里 `plugin-workbuddy/INSTALL.agent.md` 的步骤执行：每做完一步
+> 严格按照源里 `skillcorpus_plugin/plugin-workbuddy/INSTALL.agent.md` 的步骤执行：每做完一步
 > 简短汇报结果；任何一步失败就停下来告诉我，不要跳过，也不要自己想办法
 > 绕过；改任何配置文件之前，先做带时间戳的备份，并把要做的改动展示给我；
 > 市场名和版本号从文件里读，不要自己编。装完后按剧本的自检清单逐项验证，

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-逐轮技能检索。每一轮，本插件用用户刚写下的内容去检索本地目录和可选的远程目录服务——例如 [SkillHub](https://evermind.ai/skillhub)，即 [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)（96,401 条经审核、许可宽松的技能）的托管端点——并在模型被调用之前把匹配到的技能正文放到它面前。
+逐轮技能检索。每一轮，本插件用用户刚写下的内容检索本地目录和已配置的远程来源；EverMind SkillHub、ClawHub 与 skillhub.cn 默认开启。匹配到的技能正文会在模型调用之前进入上下文。
 
 `dsh-tool-skill` 用相反的方式解决同一问题：它发布一份包含全部技能的目录，让模型按名称加载。二者是替代关系——同时运行会把同一批技能发布两次，一次作为工具 schema，一次作为注入文本。挂载本插件的部署应禁用 `dsh-tool-skill`（以及任何发布同一技能目录的其他插件）。
 
