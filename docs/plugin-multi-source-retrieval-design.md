@@ -1,367 +1,341 @@
-# SkillCorpus 插件多来源 Skill 检索方案
+# SkillCorpus 插件多来源检索：当前实现流程
 
-## 1. 目标
+> 本文描述当前代码已经实现的行为，不把规划中的能力写成已完成。
+> 当前最终结果上限是 2；0、1、2 条都属于正常结果。
 
-插件同时检索用户本地 Skill、EverMind SkillHub、ClawHub 和
-skillhub.cn，在保证本地 Skill 优先、远程来源可控和响应时间稳定的前提下，
-每次最多向 Agent 提供 2 个真正相关的 Skill。
+## 1. 当前接入的来源
 
-Top 2 是上限，不是必须凑满的数量。没有候选达到要求时返回 0 个。
+| 来源 | 标识 | 默认权重 | 单来源上限 | 默认启用方式 |
+|---|---|---:|---:|---|
+| 用户本地 Skill | `local` | 1.00 | 2 | 存在有效目录时启用 |
+| EverMind SkillHub | `hub` | 0.85 | 2 | 配置 `hubEndpoint` / `hub_endpoint` 后启用 |
+| ClawHub | `clawhub` | 0.75 | 2 | OpenClaw、WorkBuddy 默认启用；Python engine 由宿主配置 |
+| skillhub.cn | `skillhub_cn` | 0.75 | 2 | OpenClaw、WorkBuddy 默认启用；Python engine 由宿主配置 |
 
-## 2. 来源与候选数量
+所有远程来源都接收原始查询。插件不自行把自然语言压缩成关键词。
 
-| 来源 | 每次保留数量 | 默认状态 |
-|---|---:|---|
-| 用户本地 Skill | 0～2 | 开启 |
-| EverMind SkillHub | 0～2 | 开启 |
-| ClawHub | 0～2 | 默认开启 |
-| skillhub.cn | 0～2 | 默认开启 |
-
-四个来源最多产生 8 个候选，再统一排序并输出最多 2 个。
-
-第三方来源默认开启，用户可以在配置中单独关闭。安装或首次启用插件时，应明确提示
-搜索内容会发送给已开启的对应服务商。
-
-skills.sh 暂时继续作为离线数据发现来源，不进入第一版插件的在线检索。
-
-## 3. 总体流程
+## 2. 完整运行流程
 
 ```text
-用户问题
-  → 并行查询所有已开启来源
-  → 各来源执行自己的准入规则
-  → EverMind 结果执行关键词相关性过滤
-  → 每个来源保留 0～2 个候选
-  → 转换为统一候选格式
-  → 按来源身份去重
-  → 获取远程 Skill 正文
-  → 统一相关性排序和最低相关性过滤
-  → 按正文内容再次去重
-  → 本地 Skill 优先规则
-  → 最多返回 2 个 Skill
+用户当前问题（original query）
+        │
+        ├─ [可选] Query Rewriter
+        │      仅在配置了模型且 rewrite=true 时存在
+        │      成功：产生 search query
+        │      失败/超时：退回 original query
+        │
+        ▼
+并行搜索所有已启用来源
+        │
+        ├─ local
+        │    扫描/读取本地 SKILL.md 索引
+        │    BM25 排序
+        │    默认索引 name + name + description
+        │
+        ├─ EverMind SkillHub
+        │    使用 search query 请求远端 Top K
+        │    quality_score >= 0.45（字段存在时）
+        │    score_safety >= 0.70（字段存在时）
+        │    再用 original/search query 对
+        │    name + description + tags 做关键词相关性过滤
+        │    最多保留 2 条
+        │
+        ├─ ClawHub
+        │    原样发送 search query
+        │    请求 nonSuspiciousOnly=true
+        │    拒绝 suspicious / blocked / 不可安装结果
+        │    最多保留 2 条
+        │
+        └─ skillhub.cn
+             原样发送 search query
+             拒绝安全报告为 malicious / suspicious 的结果
+             最多保留 2 条
+        │
+        ▼
+单来源失败隔离
+        任一来源超时、HTTP 错误或解析失败 → 该来源按空列表处理
+        其他来源继续，不能阻断用户回合
+        │
+        ▼
+Weighted RRF 融合
+        只使用“来源内排名”，不横向比较各平台原始 score
+        contribution = source_weight / (rrf_k + rank)
+        默认按 name 去重（可配置 qualifiedId）
+        同名项累加多个来源贡献
+        │
+        ├─ 有 LLM gate：先保留 gatePool（默认 10，实际最多 8）
+        └─ 无 LLM gate：直接保留 topK（默认 2）
+        │
+        ▼
+Hydrate 正文
+        ├─ local：搜索结果已经包含正文
+        ├─ EverMind：获取详情/正文；此时通常不下载附件包
+        └─ ClawHub / skillhub.cn：下载 ZIP、校验并解压，读取 SKILL.md
+             Marketplace 正文在 ZIP 内，因此必须在 gate 前取得
+        │
+        ├─ Marketplace 无正文/安装失败 → 淘汰该候选
+        └─ 其他来源 hydrate 失败 → 保留已有信息或降级为空
+        │
+        ▼
+解析本地文件引用
+        对已经在磁盘上的 Skill 解析 {baseDir}、scripts/、references/ 等引用
+        │
+        ▼
+[可选] LLM Gate
+        仅在配置了模型且 gate 启用时存在
+        使用 original query，而不是改写后的 query
+        同时可读取宿主声明的 availableTools
+        选择 0～2 条；失败时按 gate 自身的 fail-open 策略保留头部候选
+        │
+        ▼
+截断到 topK（默认 2）
+        │
+        ▼
+Materialise 最终远程 Skill
+        ├─ EverMind：只为最终入选项下载/解压 bundle
+        └─ Marketplace：复用 hydrate 阶段已经安装的 bundle
+        │
+        ▼
+解析最终文件路径
+        把相对脚本、references、assets 路径解析到实际 skill_dir
+        PathGuard {{...}} 占位符属于独立 PR；默认关闭
+        │
+        ▼
+渲染 # Skills 块
+        每项包含 name、qualifiedId、正文；有目录时附 skill directory
+        │
+        ▼
+宿主注入
+        OpenClaw：before_prompt_build
+        WorkBuddy：UserPromptSubmit stdout.additionalContext
+        Hermes / Raven：各自的上下文适配层
 ```
 
-某个来源超时或失败时，只跳过该来源，不得影响整个 Agent 回合。
+## 3. 候选数量到底是多少
 
-## 4. 统一候选格式
+每个来源最多返回 2 条，四个来源理论上最多产生 8 条原始候选。
 
-每个来源适配器把自己的响应转换为统一结构：
-
-```typescript
-interface SkillCandidate {
-  source: "local" | "evermind" | "clawhub" | "skillhub_cn"
-  sourceId: string
-  sourceRank: number
-  sourceScore?: number
-
-  name: string
-  description: string
-  body?: string
-  version?: string
-  author?: string
-
-  canonicalUrl?: string
-  upstreamUrl?: string
-  upstreamCommit?: string
-  upstreamPath?: string
-  downloadUrl?: string
-  contentHash?: string
-
-  qualityScore?: number
-  safetyScore?: number
-  license?: string
-  verified?: boolean
-  suspicious?: boolean
-  localPath?: string
-}
-```
-
-不同平台的原始分数量纲不同，只能用于该平台内部筛选，不能直接横向比较。
-
-## 5. 各来源准入规则
-
-各来源先执行自己的准入规则，再保留最多 2 个。达不到要求时可以返回
-1 个或 0 个，不能为了凑数量放入低质量结果。
-
-### 5.1 用户本地 Skill
-
-准入条件：
-
-- `SKILL.md` 可以正常解析；
-- 未被用户禁用；
-- 本地搜索结果达到该本地库的最低要求；
-- 最多保留前 2 个。
-
-本地检索分数受用户 Skill 数量和内容影响，阈值应可配置，并通过实际运行数据校准。
-
-### 5.2 EverMind SkillHub
-
-初始配置：
-
-```yaml
-max_candidates: 2
-min_quality: 0.45
-min_safety: 0.70
-```
-
-质量分只用于过滤语料质量，不能代替查询相关性判断。被下架、被阻止或安全分不足的
-Skill 直接拒绝。
-
-当前公开搜索接口会返回固定数量的 Top K，并且不返回相关性分数。即使查询完全无关，
-也可能返回最接近但实际不适用的候选。因此插件先增加一个轻量关键词匹配函数：
-
-```typescript
-function checkEverMindRelevance(query: string, skill: SkillCandidate): {
-  passed: boolean
-  matchedTerms: string[]
-  requiredMatched: boolean
-  matchRatio: number
-}
-```
-
-处理规则：
-
-1. 对查询做小写化、去标点和空白归一化；
-2. 去掉中英文常见停用词；
-3. 规范化常见别名和词形，例如 `k8s → kubernetes`、`PR → pull request`、
-   `PPT → powerpoint`、`transcription → transcribe`；
-4. 把技术名词和任务对象作为核心词，例如 `postgresql`、`pdf`、`github`；
-5. 在候选的 `name + description + tags` 中匹配；
-6. 查询存在核心词时，至少命中一个核心词；
-7. 有效关键词不超过 3 个时至少命中 1 个，4 个及以上时至少命中 2 个；
-8. 未通过时淘汰，不用返回数量补齐。
-
-关键词过滤是公开接口提供相关性分数前的临时保护。后续接口若返回可信的相关性分数，
-可在保持函数接口不变的情况下替换内部判断。
-
-### 5.3 ClawHub
-
-初始配置：
-
-```yaml
-max_candidates: 2
-non_suspicious_only: true
-```
-
-明确标记为可疑、不可安装、不可见或被阻止的候选，无论分数多高都直接拒绝。
-
-ClawHub 对无意义查询会返回空结果，首版信任其搜索端的相关性过滤并直接取前 2 条，
-不再用原始 `score` 二次过滤。实测相关结果的原始分数可能低至约 2000，设置 5000
-会误删 PostgreSQL 优化等有效候选。
-
-### 5.4 skillhub.cn
-
-已经确认以下公开链路可以获取详情和 ZIP：
+但后续数量取决于是否存在 LLM gate：
 
 ```text
-GET https://api.skillhub.cn/api/skills
-GET https://api.skillhub.cn/api/v1/skills/{slug}
-GET https://api.skillhub.cn/api/v1/download?slug={slug}
+无模型 / 无 gate：
+  最多 8 条来源候选 → RRF 立即裁成 2 条 → hydrate → 最终 0～2 条
+
+有模型且 gate 开启：
+  最多 8 条来源候选 → RRF 保留最多 8 条 → hydrate → gate → 最终 0～2 条
 ```
 
-已确认正式搜索参数为：
+因此“每个来源 Top 2”不等于插件必然下载 8 条，也不等于最终每个来源都占一个位置。
+来源权重、来源内排名、同名去重和 gate 会共同决定最终结果。
+
+## 4. 各来源的实际准入规则
+
+### 4.1 Local
+
+- 只搜索可读取的本地 `SKILL.md`；
+- 默认使用 `name + name + description` 建索引；
+- `indexBody=true` 时才把截断后的正文加入索引；
+- BM25 负责来源内部排序；
+- 本地权重默认最高（1.0），但不是硬性保送；
+- 最多贡献 2 条。
+
+### 4.2 EverMind
+
+- 远端接口可能固定返回 Top K，因此客户端必须再过滤；
+- `quality_score` 存在且低于 0.45时拒绝；
+- `score_safety` 存在且低于 0.70 时拒绝；
+- 使用查询在 `name + description + tags` 中做轻量关键词匹配；
+- 小于 4 个有效词时至少命中 1 个，4 个及以上至少命中 2 个；
+- 有核心词时必须至少命中一个核心词；
+- 最多保留 2 条。
+
+这层是对 EverMind 固定 Top K 的客户端保护，不修改发送给 Hub 的查询。
+
+### 4.3 ClawHub
+
+- 原始查询直接传给 ClawHub；
+- 请求 `nonSuspiciousOnly=true`；
+- visibility/installability 为 blocked 时拒绝；
+- `isSuspicious=true` 时拒绝；
+- 不把 ClawHub score 与其他来源 score 比较；
+- 最多保留 2 条。
+
+### 4.4 skillhub.cn
+
+- 原始查询作为 `keyword` 发送；
+- 使用 `sortBy=score&order=desc&page=1&pageSize=2`；
+- 任一安全报告为 `malicious` 或 `suspicious` 时拒绝；
+- 不把平台 score 当成跨来源相关性阈值；
+- 最多保留 2 条。
+
+## 5. 当前排序与去重
+
+当前实现有两层不调用模型的确定性去重：
+
+1. RRF 默认按 `qualifiedId` 融合；仍可显式配置按 `name` 融合，但不再默认把同名、不同内容的 Skill 误认为同一条；
+2. hydrate 获得正文后，统一换行、移除行尾空白并 trim，再计算完整 body 的 SHA-256。哈希完全一致才合并，跨来源重复时优先保留本地副本。
+
+空正文不参与内容去重；只要正文有实际字符差异就不会合并，因此这不是语义或模糊去重。去重发生在 RRF 候选池之后，重复项被移除时暂不从池外回填。
+
+当前没有实现：
+
+- upstream repo + path 身份去重；
+- 跨来源语义近重复去重；
+- `local_tie_margin`；
+- 自动合并多个平台的许可证、热度和版本元数据。
+
+这些能力如需加入，应单独设计和测试，不能把它们当作当前运行行为。
+
+## 6. Gate 与“阈值”
+
+当前没有一个跨来源统一数值阈值。原因是 BM25、平台热度、质量分和平台搜索分数
+量纲不同，不能直接比较。
+
+实际精度控制来自：
+
+1. 各来源自身准入；
+2. EverMind 客户端关键词过滤；
+3. Weighted RRF；
+4. 可选 LLM gate；
+5. 最终 `topK=2`。
+
+没有配置模型时不会调用 LLM gate。此时 RRF 头部结果直接进入 hydrate，最终仍可能是
+0、1 或 2 条。
+
+## 7. 正文、bundle 与缓存
+
+### EverMind
+
+- 搜索先返回元数据；
+- gate 前获取正文详情；
+- 最终入选后再安装 bundle（若需要）；
+- 避免为未入选项下载完整附件包。
+
+### ClawHub / skillhub.cn
+
+Marketplace 搜索结果不带完整 `SKILL.md`，所以 hydrate 时会：
 
 ```text
-GET https://api.skillhub.cn/api/skills?keyword={query}&sortBy=score&order=desc&page=1&pageSize=2
+下载 ZIP
+  → 安全解压到 staging
+  → 原子 rename 到缓存目录
+  → 定位 bundle root
+  → 读取 SKILL.md
+  → 去掉 frontmatter，保留正文
 ```
 
-skillhub.cn 对无意义查询返回空结果。首版信任其搜索端的相关性过滤，直接取前 2 条，
-不再用原始 `score` 二次过滤。该分数同时受到热度等因素影响，不能作为统一的相关性
-阈值，也不能与其他来源的分数横向比较。
-
-接入必须通过以下测试：
-
-- PDF 查询返回 PDF 相关 Skill；
-- Kubernetes 查询返回 Kubernetes 相关 Skill；
-- 无意义查询返回空结果或低于阈值的结果；
-- 公开详情和下载无需登录；
-- 明确为恶意的安全报告会被拒绝。
-
-默认配置：
-
-```yaml
-enabled: true
-max_candidates: 2
-reject_malicious: true
-```
-
-## 6. 去重规则
-
-去重分为两个阶段。
-
-### 6.1 获取正文前的来源身份去重
-
-按照以下优先级生成身份键：
-
-1. 上游仓库地址和仓库内 Skill 路径；
-2. GitHub `owner/repo` 和 Skill slug；
-3. 平台提供的 canonical 或 external reference；
-4. `source + sourceId` 作为兜底。
-
-同一 Skill 被多个远程平台返回时，只从一个来源获取正文，其他平台的质量、安全、
-热度和版本信息合并到同一个候选中。
-
-### 6.2 获取正文后的内容去重
-
-对规范化后的 `SKILL.md` 计算 SHA-256。存在附件时，可以把排序后的附件路径和附件
-哈希一起计入。
-
-以下动态内容不参与哈希：
-
-- 平台生成的元数据文件；
-- 下载或安装时间；
-- 当前机器的绝对路径；
-- 平台统计数字。
-
-内容哈希相同的候选合并为一个。第一版不根据语义相似直接删除 Skill，避免错误合并
-功能相近但用途不同的 Skill。
-
-## 7. 统一排序与最终阈值
-
-来源初筛后的最多 8 个候选进入统一排序。统一排序只比较候选与当前用户问题的相关性，
-不直接比较各平台的原始分数。
-
-排序后应用统一最低相关性阈值：
+TypeScript 适配器会给错误增加阶段前缀：
 
 ```text
-达到阈值 → 保留
-低于阈值 → 淘汰
+download failed: ...
+extract failed: ...
+read skill failed: ...
 ```
 
-最终返回：
+如果缓存目录存在但缺少可读的 `SKILL.md`，TypeScript 适配器会删除该无效缓存，
+下一回合重新下载。Python 适配器当前使用同样的原子 staging 解压，但错误文本和无效缓存
+恢复尚未完全对齐 TypeScript。
+
+缓存键当前是：
 
 ```text
-通过 2 个 → 返回 2 个
-通过 1 个 → 返回 1 个
-全部未通过 → 返回 0 个
+source + owner（如果有）+ slug + version
 ```
 
-统一阈值必须可配置，并根据真实查询与用户是否实际采用 Skill 的数据持续校准。
+## 8. 下载安全
 
-## 8. 本地 Skill 优先规则
+当前 bundle 解压包含：
 
-本地 Skill 与远程 Skill 候选数量相同，但在最终选择时拥有执行优先权。
-
-规则如下：
-
-1. 本地与远程属于同一身份或内容哈希时，使用本地正文和附件；
-2. 本地与远程最终分数差不超过 `local_tie_margin` 时，优先本地；
-3. 远程候选明显更相关时，允许远程候选胜出；
-4. 检索过程中不得自动覆盖或更新用户本地 Skill；
-5. 发现远程新版本时只记录 `updateAvailable`，由用户决定是否更新。
-
-初始配置：
-
-```yaml
-local_tie_margin: 0.05
-```
-
-## 9. 正文获取与缓存
-
-只有通过来源准入的候选才获取正文。每次最多获取 6 个远程正文。
-
-缓存键：
-
-```text
-source + sourceId + version/contentHash
-```
-
-缓存命中时不重复下载和解压。平台提供版本号、ETag、Last-Modified 或内容哈希时，
-优先用于缓存失效判断。
-
-## 10. 下载安全
-
-所有远程包必须执行：
-
-- 请求超时和正文大小限制；
-- 压缩包大小、解压后大小和文件数量限制；
+- staging 目录和原子 rename，避免半成品被当作缓存命中；
 - 拒绝绝对路径和 `..` 路径穿越；
-- 拒绝不安全软链接、设备文件和特殊文件；
-- 解压后必须存在有效 `SKILL.md`；
-- 拒绝平台明确标记为恶意或被阻止的包；
-- 不自动执行下载包中的脚本。
+- 单文件上限 8 MiB；
+- 解压总量上限 64 MiB；
+- 只写允许后缀的普通文件；
+- 不自动执行下载包中的脚本；
+- 缺少有效 `SKILL.md` 时该候选不能进入最终结果。
 
-第三方平台的安全报告只能作为输入，不能替代插件自己的包安全检查。
+## 9. 失败与超时
 
-## 11. 初始配置
+失败策略始终是 fail-open：丢失 Skill，不丢失用户回合。
 
-```yaml
-retrieval:
-  max_results: 2
-  per_source_max_candidates: 2
-  source_timeout_ms: 5000
-  body_timeout_ms: 30000
-  local_tie_margin: 0.05
-  unified_relevance_threshold: null
-
-sources:
-  - type: local
-    enabled: true
-
-  - type: evermind
-    enabled: true
-    endpoint: https://skillhub.evermind.ai
-    min_quality: 0.45
-    min_safety: 0.70
-
-  - type: clawhub
-    enabled: true
-    endpoint: https://clawhub.ai
-    non_suspicious_only: true
-
-  - type: skillhub_cn
-    enabled: true
-    endpoint: https://api.skillhub.cn
-    reject_malicious: true
-```
-
-原有单一 `hub_endpoint` 配置继续兼容，并在内部转换为一个 EverMind source。
-
-## 12. 运行统计
-
-每轮记录以下统计，但默认不记录完整用户问题和 Skill 正文：
+### WorkBuddy
 
 ```text
-各来源是否成功、失败或超时
-各来源原始返回数和阈值过滤数
-各来源最终候选数
-身份去重数和内容去重数
-远程正文下载数和缓存命中数
-统一相关性过滤数
-最终结果数量和来源分布
-本地优先规则触发次数
-各阶段耗时
+宿主 hook 硬超时：10s
+插件全局 timeoutMs：默认/最大 8s
+Marketplace 搜索 timeout：最多 6.5s
+bundle 下载：同时受下载超时和 8s 全局 AbortSignal 约束
 ```
 
-这些数据用于调整各来源阈值、统一相关性阈值和超时时间。
+### 其他宿主
 
-## 13. 实施状态（已完成）
+- Python 默认 Marketplace 搜索 5s、下载 30s；
+- Python 默认 EverMind 搜索 2s、bundle 下载 30s；
+- OpenClaw 使用自身配置的 hub timeout；
+- 单来源失败只贡献空列表。
 
-### 核心能力
+## 10. WorkBuddy 可观测性
 
-- 统一候选结构；
-- 保持本地和 EverMind 现有功能；
-- 增加 ClawHub 适配器；
-- 实现每来源 `0～2` 准入；
-- 实现身份去重、内容去重和缓存；
-- 实现本地优先和运行统计。
+WorkBuddy 每轮向 `skillsearch.log` 写一条 JSONL，包含：
 
-### 第三方来源与宿主接入
+- 截断后的 prompt；
+- 模型和 agent 类型；
+- 实际注入的 Skill；
+- 注入字符数；
+- 总耗时；
+- 每来源诊断；
+- 顶层 hook 错误。
 
-- 接入并验证 skillhub.cn 搜索协议；
-- 增加 skillhub.cn 适配器；
-- 根据真实数据校准各来源阈值；
-- 在四个宿主插件中加入默认开启的第三方来源、独立关闭开关和查询共享提示。
+每来源诊断结构：
 
-## 14. 验收标准
+```typescript
+interface SourceDiagnostic {
+  source: string
+  stage: "search" | "hydrate" | "materialise"
+  elapsedMs: number
+  hitCount?: number      // 仅 search
+  succeeded?: boolean    // hydrate / materialise
+  error?: string
+}
+```
 
-- 每个开启的来源每轮贡献 0～2 个候选；
-- 统一排序的候选总数不超过 8 个，LLM gate 最终选择 0～2 个；
-- 某个来源超时不会导致整个回合失败；
-- 无意义查询可以返回 0 个 Skill；
-- 同一个 Skill 的多个平台副本只获取一次正文；
-- 已安装的本地副本优先于相同远程副本；
-- 本地与远程近似同分时选择本地；
-- 明显更相关的远程 Skill 可以胜过无关本地 Skill；
-- 被阻止、可疑、格式错误或压缩包不安全的 Skill 不得进入最终结果；
-- 检索过程不得静默修改用户本地 Skill。
+Marketplace hydrate 错误的 `error` 前缀可进一步区分下载、解压和读取失败。
+诊断回调自身失败不会影响检索。
+
+## 11. Python 与 TypeScript 当前差异
+
+| 项目 | Python engine | TypeScript engine |
+|---|---|---|
+| 并行多来源搜索 | 已实现 | 已实现 |
+| Weighted RRF | 已实现 | 已实现 |
+| 每来源最多 2 条 | 已实现 | 已实现 |
+| EverMind 质量/安全/关键词过滤 | 已实现 | 已实现 |
+| ClawHub / skillhub.cn | 已实现 | 已实现 |
+| 原始 query 透传 | 已实现 | 已实现 |
+| 结构化 source diagnostics | 日志为主 | 已实现，WorkBuddy 写 JSONL |
+| 无效 Marketplace 缓存自动恢复 | 尚未完全对齐 | 已实现 |
+| PathGuard 占位符 | 独立 PR | 独立 PR |
+
+## 12. 当前没有实现的规划项
+
+以下内容不属于当前发布行为：
+
+- 内容哈希去重；
+- 语义近重复去重；
+- 跨平台 canonical identity 合并；
+- 一个统一的数值相关性阈值；
+- 自动覆盖或更新用户本地 Skill；
+- 将多个平台元数据合并为一条完整 provenance；
+- skills.sh 在线检索；
+- 对所有宿主统一输出结构化诊断。
+
+## 13. 当前验收结果
+
+在当前分支上：
+
+- TypeScript engine：43/43；
+- WorkBuddy：28/28；
+- OpenClaw：27/27；
+- WorkBuddy、OpenClaw 类型检查与构建通过；
+- 两个 npm 发布 tarball 校验通过；
+- 构建不再引用仓库外不存在的 `tsconfig.base.json`。
