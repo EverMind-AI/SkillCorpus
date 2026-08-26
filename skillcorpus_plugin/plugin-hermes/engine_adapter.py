@@ -148,9 +148,10 @@ def load_config(hermes_home: str) -> SearchConfig:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception as e:
             log.warning("skillsearch: cannot read %s (%s); using defaults", path, e)
-            raw = {"clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
+            raw = {"hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
     raw.setdefault("workspace", hermes_home)
     raw.setdefault("skills_dir", str(Path(hermes_home) / "skills"))
+    raw.setdefault("hub_endpoint", "https://skillhub.evermind.ai")
     raw.setdefault("clawhub_endpoint", "https://clawhub.ai")
     raw.setdefault("skillhub_cn_endpoint", "https://api.skillhub.cn")
     return SearchConfig.from_mapping(raw)

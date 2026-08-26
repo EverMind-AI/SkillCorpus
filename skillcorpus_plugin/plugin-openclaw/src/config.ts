@@ -55,7 +55,7 @@ export interface SkillSearchConfig {
 
 export const DEFAULTS: SkillSearchConfig = {
   skillsDirs: ['~/.openclaw/skills'],
-  hubEndpoint: '',
+  hubEndpoint: 'https://skillhub.evermind.ai',
   hubApiKey: '',
   clawhubEndpoint: 'https://clawhub.ai',
   skillhubCnEndpoint: 'https://api.skillhub.cn',
@@ -162,7 +162,7 @@ export function loadConfig(
 
   return {
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
-    hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
+    hubEndpoint: asEndpoint(pick('hubEndpoint'), DEFAULTS.hubEndpoint),
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
     clawhubEndpoint: asEndpoint(pick('clawhubEndpoint'), DEFAULTS.clawhubEndpoint),
     skillhubCnEndpoint: asEndpoint(pick('skillhubCnEndpoint'), DEFAULTS.skillhubCnEndpoint),

@@ -141,7 +141,7 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   skillsDirs: z.array(z.string()).default(['.dsh/skills']),
-  hubEndpoint: z.string().default(''),
+  hubEndpoint: z.string().default('https://skillhub.evermind.ai'),
   hubApiKey: z.string().default(''),
   clawhubEndpoint: z.string().default('https://clawhub.ai'),
   skillhubCnEndpoint: z.string().default('https://api.skillhub.cn'),

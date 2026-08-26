@@ -140,16 +140,16 @@ report this state and move to verification only for the import check:
 python -c "import skillsearch, skillsearch_raven; print('import ok')"
 ```
 
-## Optional capabilities — ask, don't assume
+## Network and optional model configuration
 
 - **A model for the rewriter and gate**: better selection, two small model
   calls per retrieving turn. Ask the user which model/route to use; leave
   empty if they don't care.
-- **The remote catalog** (`hub_endpoint` / `hubEndpoint`, e.g.
-  `https://skillhub.evermind.ai`): gives the agent 96k community skills, but
-  **sends the retrieval query to that service on every retrieving turn and
-  downloads third-party skill content to disk**. State this plainly and let
-  the user opt in; never enable it silently.
+- **Remote sources are enabled by default**: EverMind SkillHub
+  (`https://skillhub.evermind.ai`), ClawHub, and skillhub.cn each receive the
+  retrieval query and may download candidate skill content to disk. State this
+  plainly during installation. The user can set any endpoint to an empty
+  string to disable that source, or clear all three for local-only operation.
 
 ## Verification — definition of done
 

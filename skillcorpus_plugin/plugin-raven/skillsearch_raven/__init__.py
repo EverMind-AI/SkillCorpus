@@ -117,6 +117,7 @@ def make_segment(ctx: Any) -> Any | None:
     workspace = str(getattr(services, "workspace", ".") or ".")
     cfg_map.setdefault("workspace", workspace)
     cfg_map.setdefault("agent_id", getattr(services, "agent_id", "") or "")
+    cfg_map.setdefault("hub_endpoint", "https://skillhub.evermind.ai")
     cfg_map.setdefault("clawhub_endpoint", "https://clawhub.ai")
     cfg_map.setdefault("skillhub_cn_endpoint", "https://api.skillhub.cn")
     config = SearchConfig.from_mapping(cfg_map)

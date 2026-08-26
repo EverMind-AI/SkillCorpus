@@ -54,7 +54,7 @@ which wins so a credential never has to be copied into a file.
 | Key | Env | Default | Purpose |
 |---|---|---|---|
 | `skillsDirs` | `SKILLSEARCH_SKILLS_DIRS` | `["~/.openclaw/skills"]` | Directories scanned for `SKILL.md` |
-| `hubEndpoint` | `SKILLSEARCH_HUB_ENDPOINT` | - | EverMind-compatible catalog; empty disables this source only |
+| `hubEndpoint` | `SKILLSEARCH_HUB_ENDPOINT` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables this source only |
 | `clawhubEndpoint` | `SKILLSEARCH_CLAWHUB_ENDPOINT` | `https://clawhub.ai` | ClawHub API; empty disables it |
 | `skillhubCnEndpoint` | `SKILLSEARCH_SKILLHUB_CN_ENDPOINT` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `hubApiKey` | `SKILLSEARCH_HUB_API_KEY` | — | Bearer token for that catalog |

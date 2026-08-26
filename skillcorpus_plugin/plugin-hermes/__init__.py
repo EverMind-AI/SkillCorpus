@@ -41,7 +41,7 @@ CONFIG_FILENAME = "skillsearch.json"
 
 DEFAULTS: dict[str, Any] = {
     "skills_dir": "~/.hermes/skills",
-    "hub_endpoint": "",
+    "hub_endpoint": "https://skillhub.evermind.ai",
     "clawhub_endpoint": "https://clawhub.ai",
     "skillhub_cn_endpoint": "https://api.skillhub.cn",
     "model": "",
