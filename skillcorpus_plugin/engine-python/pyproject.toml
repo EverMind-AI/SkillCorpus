@@ -1,7 +1,7 @@
 [project]
 name = "skillsearch"
 version = "0.2.0"
-description = "Skill retrieval for agent hosts — one engine, three adapters."
+description = "Skill retrieval for agent hosts — one engine, five host adapters."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
@@ -27,9 +27,9 @@ hub = []
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.6"]
 
 [project.urls]
-Homepage = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
-Source = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
-Issues = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins/-/issues"
+Homepage = "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin"
+Source = "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin"
+Issues = "https://github.com/EverMind-AI/SkillCorpus/issues"
 
 [project.scripts]
 skillsearch-serve = "skillsearch.adapters.http_server:main"

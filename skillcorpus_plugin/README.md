@@ -27,8 +27,8 @@ Every supported host *is* an agent, so the fastest install is to let it install 
 
 > Install SkillCorpus Plugins (plugin id: skillsearch) for the agent host
 > you are running in.
-> Clone https://gitlab.com/npc-work/aic/ai/skillsearch_plugins and follow
-> `INSTALL.agent.md` at its root: detect the host first, back up any config
+> Clone https://github.com/EverMind-AI/SkillCorpus and follow
+> `skillcorpus_plugin/INSTALL.agent.md`: detect the host first, back up any config
 > file before editing and show me the diff before applying, and finish by
 > verifying that a test query produces a `# Skills` block. Then report what
 > you changed and the verification result.

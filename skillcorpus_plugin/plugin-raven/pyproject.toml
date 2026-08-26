@@ -24,7 +24,7 @@ dependencies = ["skillsearch"]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 
 [project.urls]
-Homepage = "https://gitlab.com/npc-work/aic/ai/skillsearch_plugins"
+Homepage = "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin"
 
 # Raven finds pip-installed plugins through this group, then reads
 # raven-plugin.toml from inside the named package. A copy into Raven's

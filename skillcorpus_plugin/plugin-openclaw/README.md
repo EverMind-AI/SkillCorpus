@@ -5,7 +5,7 @@ skills directory and an optional remote catalog against what the user just
 wrote, narrows the result with a model, and returns the matching skill
 bodies for the host to prepend.
 
-The engine is the TypeScript implementation in [`../typescript`](../typescript),
+The engine is the TypeScript implementation in [`../engine-typescript`](../engine-typescript),
 bundled into `dist/index.js` at build time. One engine, two TypeScript hosts:
 this one and the DeepSeek Harness plugin.
 
