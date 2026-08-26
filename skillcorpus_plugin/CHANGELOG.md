@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Default multi-source retrieval** now searches local skills, EverMind when configured, ClawHub, and skillhub.cn concurrently. Each source contributes at most two candidates; suspicious or malicious entries are rejected, bundles are safely cached, source failures are isolated, and the final gate still selects 0–2 skills. ClawHub and skillhub.cn can each be disabled with an empty endpoint.
+
 - **A fifth host: WorkBuddy** ([`plugin-workbuddy/`](plugin-workbuddy)), where
   the seam is a process — a `UserPromptSubmit` hook spawned per turn, reading
   the turn from stdin and answering with `additionalContext` on stdout. Ships

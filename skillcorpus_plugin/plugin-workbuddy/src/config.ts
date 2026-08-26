@@ -19,6 +19,8 @@ export interface SkillSearchConfig {
   readonly skillsDirs: string[]
   readonly hubEndpoint: string
   readonly hubApiKey: string
+  readonly clawhubEndpoint: string
+  readonly skillhubCnEndpoint: string
   readonly bundleCacheDir: string
   readonly model: string
   readonly modelBaseUrl: string
@@ -58,28 +60,50 @@ export interface SkillSearchConfig {
 
 /** Where a marketplace-installed hook lives, which is where its name is. */
 const CACHE_PATH_RE = /[/\\]plugins[/\\]cache[/\\]([^/\\]+)[/\\]/
+const MARKETPLACE_RE = /^[A-Za-z0-9._-]+$/
+const FALLBACK_MARKETPLACE = 'skillcorpus-marketplace'
+
+function validMarketplace(value: string): boolean {
+  return MARKETPLACE_RE.test(value) && value !== '.' && value !== '..'
+}
 
 /**
  * The marketplace this copy was installed from.
  *
  * The host allots one data directory per marketplace, `skillsearch-<market>`,
  * and nothing hands the name to a hook — but the hook's own path carries it:
- * `…/plugins/cache/<market>/skillsearch/<version>/dist/hook.mjs`. Reading it
- * from there is what lets a copy installed from any marketplace find the
- * `config.json` a user wrote where the host said to.
- *
- * @param argv1 - the running script's path; defaults to this process's.
- * @returns the marketplace name, or the historical default when the path is
- *   not a marketplace install (a dev checkout run directly, say).
+ * `…/plugins/cache/<market>/skillsearch/<version>/dist/hook.mjs`. An explicit
+ * `SKILLSEARCH_MARKETPLACE` wins for non-standard launchers. A neutral stable
+ * fallback keeps source-checkout development deterministic without borrowing
+ * another product's namespace.
  */
-export function marketplaceName(argv1: string = process.argv[1] ?? ''): string {
-  return CACHE_PATH_RE.exec(argv1)?.[1] ?? 'memmy-marketplace'
+export function marketplaceName(
+  argv1: string = process.argv[1] ?? '',
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const override = env.SKILLSEARCH_MARKETPLACE?.trim()
+  if (override && validMarketplace(override)) return override
+  const parsed = CACHE_PATH_RE.exec(argv1)?.[1]
+  return parsed && validMarketplace(parsed) ? parsed : FALLBACK_MARKETPLACE
+}
+
+/** Resolve the plugin state directory, with an explicit deployment override. */
+export function dataDirectory(
+  argv1: string = process.argv[1] ?? '',
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): string {
+  const override = env.SKILLSEARCH_DATA_DIR?.trim()
+  if (override) {
+    if (override === '~') return home
+    if (override.startsWith('~/') || override.startsWith('~\\')) return join(home, override.slice(2))
+    return override
+  }
+  return join(home, '.workbuddy-ai', 'plugins', 'data', `skillsearch-${marketplaceName(argv1, env)}`)
 }
 
 /** The directory WorkBuddy gives this plugin for its own state. */
-export const DATA_DIR = join(
-  homedir(), '.workbuddy-ai', 'plugins', 'data', `skillsearch-${marketplaceName()}`,
-)
+export const DATA_DIR = dataDirectory()
 
 /**
  * Ceiling on `timeoutMs`, below the `timeout: 10` seconds `hooks.json` gives
@@ -94,11 +118,13 @@ export const DEFAULTS: SkillSearchConfig = {
   skillsDirs: ['~/.workbuddy-ai/skills', '~/.workbuddy-ai/plugins/cache'],
   hubEndpoint: '',
   hubApiKey: '',
+  clawhubEndpoint: 'https://clawhub.ai',
+  skillhubCnEndpoint: 'https://api.skillhub.cn',
   bundleCacheDir: '',
   model: '',
   modelBaseUrl: 'https://api.openai.com/v1',
   modelApiKey: '',
-  topK: 3,
+  topK: 2,
   gatePool: 10,
   maxSelect: 2,
   indexBody: false,
@@ -107,9 +133,10 @@ export const DEFAULTS: SkillSearchConfig = {
   // has no way to show that it is working.
   rewrite: false,
   gate: undefined,
-  // 8s is the shared default. Here it would be 8s of visible silence, so the
-  // deadline is set to what a person will not notice losing.
-  timeoutMs: 2500,
+  // ClawHub measured about 4s through the supported proxy. Keep enough room for
+  // search plus one cached-or-downloaded body, while staying below the host’s
+  // own 10s hook timeout so the hook can fail open first.
+  timeoutMs: 8000,
   availableTools: [],
   // Local first, catalog third. Tried the other way on 2026-08-18: the
   // catalog's top two for a poster task both depended on infrastructure this
@@ -129,6 +156,8 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   skillsDirs: 'SKILLSEARCH_SKILLS_DIRS',
   hubEndpoint: 'SKILLSEARCH_HUB_ENDPOINT',
   hubApiKey: 'SKILLSEARCH_HUB_API_KEY',
+  clawhubEndpoint: 'SKILLSEARCH_CLAWHUB_ENDPOINT',
+  skillhubCnEndpoint: 'SKILLSEARCH_SKILLHUB_CN_ENDPOINT',
   bundleCacheDir: 'SKILLSEARCH_BUNDLE_CACHE_DIR',
   model: 'SKILLSEARCH_MODEL',
   modelBaseUrl: 'SKILLSEARCH_MODEL_BASE_URL',
@@ -171,6 +200,10 @@ function asBoolean(value: unknown): boolean | undefined {
     if (['false', '0', 'no', 'off'].includes(text)) return false
   }
   return undefined
+}
+
+function asEndpoint(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value.trim() : fallback
 }
 
 function asText(value: unknown): string | undefined {
@@ -222,6 +255,8 @@ export function loadConfig(
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
     hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
+    clawhubEndpoint: asEndpoint(pick('clawhubEndpoint'), DEFAULTS.clawhubEndpoint),
+    skillhubCnEndpoint: asEndpoint(pick('skillhubCnEndpoint'), DEFAULTS.skillhubCnEndpoint),
     bundleCacheDir: asText(pick('bundleCacheDir')) ?? DEFAULTS.bundleCacheDir,
     model: asText(pick('model')) ?? DEFAULTS.model,
     modelBaseUrl: asText(pick('modelBaseUrl')) ?? DEFAULTS.modelBaseUrl,

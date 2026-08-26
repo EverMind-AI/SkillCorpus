@@ -1,6 +1,6 @@
 [plugin]
 id                 = "skillsearch"
-version            = "0.1.0"
+version            = "0.2.0"
 display_name       = "Skill retrieval"
 raven              = ">=0.1"
 bundled            = false
@@ -31,7 +31,7 @@ agent_id       = { type = "string",  default = "" }
 weight_local  = { type = "number",  default = 1.0 }
 weight_hub    = { type = "number",  default = 0.85 }
 over_fetch    = { type = "integer", default = 2 }
-dedup_by      = { type = "string",  enum = ["name", "qualified_id"], default = "name" }
+dedup_by      = { type = "string",  enum = ["name", "qualified_id"], default = "qualified_id" }
 top_k         = { type = "integer", default = 5 }
 
 # Narrowing. Both the rewriter and the gate need a model; leaving `model`

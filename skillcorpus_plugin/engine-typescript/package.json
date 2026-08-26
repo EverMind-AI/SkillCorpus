@@ -1,14 +1,11 @@
 {
-  "name": "@deepseek-ai/dsh-skill-search",
+  "name": "@evermind-ai/dsh-skill-search",
   "description": "Per-turn skill retrieval for the DeepSeek Harness: fuse local and remote sources, gate by relevance, inject what fits",
-  "version": "0.1.0-rc.5",
-  "publishConfig": {
-    "access": "public"
-  },
+  "version": "0.2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/skill/skill-search"
+    "url": "git+https://github.com/EverMind-AI/SkillCorpus.git",
+    "directory": "skillcorpus_plugin/engine-typescript"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -30,7 +27,7 @@
     "lib/invariant.js",
     "lib/types/**/*.d.ts"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
@@ -51,5 +48,6 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-skill": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^"
-  }
+  },
+  "private": true
 }

@@ -1,5 +1,5 @@
 name: skillsearch
-version: "0.1.0"
+version: "0.2.0"
 manifest_version: 1
 description: "Skill retrieval — a local directory, a remote catalog, and a model that drops what this agent cannot run."
 hooks:

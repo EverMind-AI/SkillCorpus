@@ -18,6 +18,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
+import { checkKeywordRelevance } from './relevance.js'
 
 /** Success markers a catalog may send beside `status: 0`. */
 const OK_TOKENS = new Set(['ok', 'success'])
@@ -198,54 +199,44 @@ export class SkillHubClient {
   }
 }
 
-/** The remote catalog as a fusion source, ranked by its own quality score. */
+/** The EverMind catalog as a fusion source with a lexical relevance guard. */
 export class HubSkillSource implements SkillSource {
   readonly name = 'hub'
   weight: number
-
   private readonly client: SkillHubClient
   private readonly minSafety: number
+  private readonly minQuality: number
+  private readonly maxCandidates: number
 
-  constructor(
-    client: SkillHubClient,
-    options: { weight?: number; minSafety?: number } = {},
-  ) {
+  constructor(client: SkillHubClient, options: { weight?: number; minSafety?: number; minQuality?: number; maxCandidates?: number } = {}) {
     this.client = client
     this.weight = options.weight ?? 0.85
     this.minSafety = options.minSafety ?? 0.7
+    this.minQuality = options.minQuality ?? 0.45
+    this.maxCandidates = options.maxCandidates ?? 2
   }
 
-  /**
-   * Rank by the catalog's own quality score, carrying no bodies.
-   *
-   * Entries missing an id or a name are skipped: without both, a hit cannot be
-   * fetched later or shown to the model now.
-   */
   async search(query: string, options: SearchOptions, k: number): Promise<RouterHit[]> {
-    const items = await this.client.search(query, options.signal, k)
+    const limit = Math.min(k, this.maxCandidates)
+    if (limit <= 0) return []
+    const items = await this.client.search(query, options.signal, Math.max(limit * 4, limit))
     const hits: RouterHit[] = []
-    for (const item of items.slice(0, k)) {
+    for (const item of items) {
       const id = item.id
       const name = item.name
       if (!id || !name) continue
-      // Per-skill safety lives in the detail response, so this only bites on
-      // deployments whose catalog includes it.
       if (item.score_safety !== undefined && item.score_safety < this.minSafety) continue
-      hits.push({
-        qualifiedId: `hub/${id}`,
-        name,
-        content: '',
-        score: item.quality_score ?? 0,
-        meta: {
-          source: 'hub',
-          id,
-          skillId: item.skill_id,
-          description: item.description,
-          category: item.category,
-          qualityScore: item.quality_score,
-          installCount: item.install_count,
-        },
-      })
+      if (item.quality_score !== undefined && item.quality_score < this.minQuality) continue
+      const candidate: RouterHit = {
+        qualifiedId: `hub/${id}`, name, content: '', score: item.quality_score ?? 0,
+        meta: { source: 'hub', id, skillId: item.skill_id, description: item.description,
+          category: item.category, qualityScore: item.quality_score,
+          installCount: item.install_count, tags: item.tags },
+      }
+      const relevance = checkKeywordRelevance(query, candidate)
+      if (!relevance.passed) continue
+      hits.push({ ...candidate, meta: { ...candidate.meta, keywordRelevance: relevance } })
+      if (hits.length >= limit) break
     }
     return hits
   }

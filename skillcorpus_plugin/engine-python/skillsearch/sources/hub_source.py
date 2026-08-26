@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from skillsearch.relevance import check_keyword_relevance
 from skillsearch.types import RouterHit
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class HubSkillSource:
-    """SkillSource backed by the remote Skill Hub OpenAPI."""
+    """SkillSource backed by EverMind, guarded against forced unrelated Top K."""
 
     name: str = "hub"
     weight: float = 0.85
@@ -40,56 +41,59 @@ class HubSkillSource:
         *,
         weight: float = 0.85,
         min_safety: float = 0.7,
+        min_quality: float = 0.45,
+        max_candidates: int = 2,
     ) -> None:
         self._client = client
         self.weight = weight
         self._min_safety = min_safety
+        self._min_quality = min_quality
+        self._max_candidates = max(0, max_candidates)
 
-    async def search(
-        self,
-        query: str,
-        history: list[dict[str, Any]],
-        k: int,
-    ) -> list[RouterHit]:
-        del history  # Hub search takes only the query + limit.
-        items = await self._client.search(query, limit=max(1, k))
+    async def search(self, query: str, history: list[dict[str, Any]], k: int) -> list[RouterHit]:
+        del history
+        limit = min(max(0, k), self._max_candidates)
+        if limit == 0:
+            return []
+        items = await self._client.search(query, limit=max(limit * 4, limit))
         hits: list[RouterHit] = []
-        for it in items:
-            # Field names follow the Hub OpenAPI catalog payload: ``id``
-            # (UUID), ``skill_id`` (readable path), ``quality_score``,
-            # ``tags``. The UUID is the stable, slash-free native id used
-            # in the qualified id; the readable ``skill_id`` rides in meta.
-            sid = it.get("id")
-            name = it.get("name")
+        for item in items:
+            sid, name = item.get("id"), item.get("name")
             if not sid or not name:
-                logger.warning("hub hit missing id/name; skipping: %r", it)
+                logger.warning("hub hit missing id/name; skipping: %r", item)
                 continue
-            # The catalog payload omits per-skill safety (it lives in the
-            # skill *detail* response only), so this guard no-ops on the
-            # standard search path and only bites when a deployment
-            # includes a catalog-level ``score_safety``.
-            safety = it.get("score_safety")
+            safety, quality = item.get("score_safety"), item.get("quality_score")
             if safety is not None and float(safety) < self._min_safety:
+                continue
+            if quality is not None and float(quality) < self._min_quality:
+                continue
+            relevance = check_keyword_relevance(
+                query, name=str(name), description=str(item.get("description") or ""), tags=item.get("tags")
+            )
+            if not relevance["passed"]:
                 continue
             hits.append(
                 RouterHit(
                     qualified_id=f"hub/{sid}",
-                    name=name,
-                    content="",  # Tier 0: metadata only; body via pre-gate hydrate
-                    score=float(it.get("quality_score") or 0.0),
+                    name=str(name),
+                    content="",
+                    score=float(quality or 0.0),
                     meta={
                         "source": "hub",
                         "id": sid,
-                        "skill_id": it.get("skill_id"),
-                        "description": it.get("description"),
-                        "tags": it.get("tags"),
-                        "category": it.get("category"),
-                        "quality_score": it.get("quality_score"),
-                        "install_count": it.get("install_count"),
+                        "skill_id": item.get("skill_id"),
+                        "description": item.get("description"),
+                        "tags": item.get("tags"),
+                        "category": item.get("category"),
+                        "quality_score": quality,
+                        "install_count": item.get("install_count"),
                         "score_safety": safety,
+                        "keyword_relevance": relevance,
                     },
                 )
             )
+            if len(hits) >= limit:
+                break
         return hits
 
 

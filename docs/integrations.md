@@ -109,7 +109,7 @@ skillForge:
     enabled: true
     top_k: 5
     weights: { local: 1.0, everos: 0.9, hub: 0.85 }
-    dedup_by: name
+    dedup_by: qualified_id
     over_fetch_factor: 2
     hub:
       endpoint: https://skillhub.evermind.ai

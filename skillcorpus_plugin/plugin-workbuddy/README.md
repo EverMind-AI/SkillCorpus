@@ -39,7 +39,9 @@ everything, so the process always writes a usable document and exits 0.
 **The injected block never lands in the transcript.** The core deletes it from
 the pending buffer once the model has seen it, so the session `.jsonl` has no
 record of what was injected. `skillsearch.log` in the plugin's data directory is
-the only one.
+the only one. Each turn also records per-source `search`, `hydrate`, and
+`materialise` timings, search hit counts, hydrate/materialise success, and fail-open errors,
+so an empty result can be distinguished from a timeout or bundle failure.
 
 **Instructions get rejected as prompt injection.** Testing the channel with an
 imperative ("output CANARY-7739") produced a refusal, in the model's own words:
@@ -94,16 +96,26 @@ with the environment winning (set it per-command in `hooks.json`):
 
 `~/.workbuddy-ai/plugins/data/skillsearch-<marketplace>/config.json`
 
+The marketplace name is read from the installed hook path. Source-checkout or
+non-standard launchers use the neutral `skillcorpus-marketplace` fallback.
+`SKILLSEARCH_MARKETPLACE` explicitly overrides the name, while
+`SKILLSEARCH_DATA_DIR` overrides the complete state directory. Existing
+installs keep their current directory because their marketplace remains present
+in the cache path.
+
 Defaults differ from the other hosts in four places. Two because this seam is
 visible silence between the user pressing enter and the reply starting:
-`rewrite` is off, and `timeoutMs` is 2500 rather than 8000. Two because a
-topK of 3 turns fusion into a seating order: `rrfK` is 10 rather than the
+`rewrite` is off, while `timeoutMs` remains 8000 so the measured public hubs
+can finish below the host's 10-second hook limit. The other two concern fusion:
+a small `topK` turns fusion into a seating order: `rrfK` is 10 rather than the
 paper's 60 (at 60 the weight gap between sources exceeds every rank gap
 within one, and the fused list degenerates into whole-source blocks), and
 `localWeight 1.0 / hubWeight 0.85` seats the local directory first — tried
 the other way round on 2026-08-18, and the catalog's top two for a poster
 task both depended on infrastructure this machine lacked while the local
-skill that runs here sat unread in seat three.
+skill that runs here sat unread in seat three. ClawHub (`clawhubEndpoint`) and
+skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public API
+URLs; set either endpoint to an empty string to disable that source.
 
 ## Install — paste this to WorkBuddy
 

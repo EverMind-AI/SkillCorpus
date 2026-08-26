@@ -14,8 +14,8 @@ export interface RouterHit {
    */
   readonly qualifiedId: string
   /**
-   * Display name, and the cross-source dedup key: two hits sharing a name are
-   * one logical skill however many sources surfaced it.
+   * Display name. It can be selected as a legacy fusion key, but the engine
+   * defaults to qualified identity and deduplicates exact hydrated bodies.
    */
   readonly name: string
   /**

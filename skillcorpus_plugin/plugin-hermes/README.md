@@ -28,12 +28,14 @@ be active.
 | Key | Default | Purpose |
 |---|---|---|
 | `skills_dir` | `~/.hermes/skills` | Directory scanned for `SKILL.md` files |
-| `hub_endpoint` | — | Remote catalog base URL; empty means local only |
+| `hub_endpoint` | - | EverMind-compatible catalog; empty disables this source only |
+| `clawhub_endpoint` | `https://clawhub.ai` | ClawHub API; empty disables it |
+| `skillhub_cn_endpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `hub_api_key` | — | Bearer token for that catalog |
 | `model` | — | Model for the rewriter and the gate |
 | `model_base_url` | `https://api.openai.com/v1` | OpenAI-compatible endpoint for it |
 | `model_api_key` | — | Credential for that endpoint |
-| `top_k` | `5` | Upper bound on skills injected per turn |
+| `top_k` | `2` | Upper bound on skills injected per turn |
 | `max_select` | `2` | Upper bound on what the gate keeps |
 | `timeout_s` | `8.0` | Deadline for one retrieval |
 

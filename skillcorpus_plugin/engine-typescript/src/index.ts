@@ -31,6 +31,7 @@ import type { SkillSource } from './types.js'
 import { LLMGateFilter } from './gate.js'
 import { HubSkillSource, SkillHubClient } from './hub-source.js'
 import { LocalSkillSource } from './local-source.js'
+import { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
 import { QueryRewriter } from './rewriter.js'
 
 export const name = 'skill-search'
@@ -38,10 +39,16 @@ export const inject = ['agents', 'llm']
 
 export * from './types.js'
 export { SkillSearchEngine } from './engine.js'
+export type {
+  EngineOptions, EngineParts, RetrieveOptions, SourceDiagnostic, SourceDiagnosticStage,
+} from './engine.js'
 export { LLMGateFilter } from './gate.js'
 export { HubSkillSource, SkillHubClient } from './hub-source.js'
 export { LocalSkillSource } from './local-source.js'
+export { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
+export type { MarketplaceItem, MarketplaceKind } from './marketplace-source.js'
 export { QueryRewriter } from './rewriter.js'
+export { checkKeywordRelevance, queryTerms } from './relevance.js'
 export { BM25Okapi, tokenize } from './bm25.js'
 export { RRF_K, rrfMergeWeighted } from './fusion.js'
 export { resolveRefs } from './refs.js'
@@ -54,6 +61,10 @@ export interface Config {
   hubEndpoint?: string
   /** Bearer token the catalog requires, if any. */
   hubApiKey?: string
+  /** ClawHub API base URL. Empty disables this source. */
+  clawhubEndpoint?: string
+  /** skillhub.cn API base URL. Empty disables this source. */
+  skillhubCnEndpoint?: string
   /**
    * Where extracted bundles live. Outside every scanned skills directory,
    * or a downloaded skill reappears as a local one on the next scan.
@@ -132,15 +143,17 @@ export const Config: z<Config> = z.object({
   skillsDirs: z.array(z.string()).default(['.dsh/skills']),
   hubEndpoint: z.string().default(''),
   hubApiKey: z.string().default(''),
+  clawhubEndpoint: z.string().default('https://clawhub.ai'),
+  skillhubCnEndpoint: z.string().default('https://api.skillhub.cn'),
   bundleCacheDir: z.string().default(''),
   indexBody: z.boolean().default(false),
   rewrite: z.boolean().default(true),
   gate: z.boolean(),
-  hubTimeoutMs: z.number().default(2000),
+  hubTimeoutMs: z.number().default(5000),
   hubMinSafety: z.number().default(0.7),
   weightLocal: z.number().default(1.0),
   weightHub: z.number().default(0.85),
-  topK: z.number().default(5),
+  topK: z.number().default(2),
   gatePool: z.number().default(10),
   maxSelect: z.number().default(2),
   provider: z.string().default(''),
@@ -223,7 +236,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   if (cfg.hubEndpoint) {
     client = new SkillHubClient(cfg.hubEndpoint, {
       ...(cfg.hubApiKey ? { apiKey: cfg.hubApiKey } : {}),
-      timeoutMs: cfg.hubTimeoutMs ?? 2000,
+      timeoutMs: cfg.hubTimeoutMs ?? 5000,
       // Beside the scanned directories, never inside one: an extracted
       // bundle under a skills directory would be rescanned as a local skill.
       cacheDir: cfg.bundleCacheDir || join(homedir(), '.dsh', 'skillsearch-bundles'),
@@ -236,6 +249,17 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
     )
   }
 
+  const marketplaceClients = new Map<string, MarketplaceClient>()
+  for (const [kind, endpoint] of [['clawhub', cfg.clawhubEndpoint], ['skillhub_cn', cfg.skillhubCnEndpoint]] as const) {
+    if (!endpoint) continue
+    const marketplace = new MarketplaceClient(kind, endpoint, {
+      cacheDir: cfg.bundleCacheDir || join(homedir(), '.dsh', 'skillsearch-bundles'),
+      timeoutMs: cfg.hubTimeoutMs ?? 5000,
+    })
+    marketplaceClients.set(kind, marketplace)
+    sources.push(new MarketplaceSkillSource(marketplace))
+  }
+
   const route = resolveRoute(cfg)
   const model = route ? modelBridge(ctx, route) : undefined
   // Two independent switches over one model, matching the Python config.
@@ -245,7 +269,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   // `undefined` means "on when a catalog is configured": the gate rejects
   // when unsure, which a curated local directory does not need and an
   // unvetted catalog does.
-  const wantsGate = cfg.gate ?? Boolean(cfg.hubEndpoint)
+  const wantsGate = cfg.gate ?? (Boolean(cfg.hubEndpoint) || marketplaceClients.size > 0)
   return new SkillSearchEngine(
     {
       sources,
@@ -264,7 +288,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
           }),
         }
         : {}),
-      ...(client
+      ...((client || marketplaceClients.size > 0)
         ? {
           // The engine calls both for any hit without a skill directory,
           // which is every hit a third-party source contributes too. Without
@@ -272,7 +296,12 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
           // fetch `/skills/undefined` from the catalog, so an extra source
           // costs a 404 per hit.
           fetchBody: async (hit, signal) => {
-            if (hit.meta.source !== 'hub') return undefined
+            const marketplace = marketplaceClients.get(String(hit.meta.source))
+            if (marketplace) {
+              const installed = await marketplace.install(hit, signal)
+              return { body: installed.body, record: { _installed: installed } }
+            }
+            if (hit.meta.source !== 'hub' || !client) return undefined
             const record = await client.get(String(hit.meta.id), signal)
             // The record rides along so `materialise` can skip re-fetching
             // the same detail — one request per selected skill otherwise.
@@ -282,7 +311,13 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
             }
           },
           materialise: async (hit, signal) => {
-            if (hit.meta.source !== 'hub') return undefined
+            const marketplace = marketplaceClients.get(String(hit.meta.source))
+            if (marketplace) {
+              const fetched = hit.meta._fetched as { _installed?: { dir: string; body: string } } | undefined
+              const installed = fetched?._installed ?? await marketplace.install(hit, signal)
+              return { dir: installed.dir, body: installed.body }
+            }
+            if (hit.meta.source !== 'hub' || !client) return undefined
             const fetched = hit.meta._fetched as Record<string, unknown> | undefined
             const installed = await client.install(String(hit.meta.id), fetched, signal)
             return { dir: installed.dir, body: installed.skillMd }
@@ -291,7 +326,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
         : {}),
     },
     {
-      topK: cfg.topK ?? 5,
+      topK: cfg.topK ?? 2,
       gatePool: cfg.gatePool ?? 10,
       resolveRefs: cfg.resolveRefs ?? true,
     },

@@ -23,6 +23,10 @@ import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
+import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
+import { SkillSearchEngine } from '../src/engine.ts'
+import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
+import type { SkillSource } from '../src/types.ts'
 import type { RouterHit } from '../src/types.ts'
 
 function hit(qualifiedId: string, name: string, score: number, content = ''): RouterHit {
@@ -339,4 +343,143 @@ test('a lone ideograph stands alone, as in Python', () => {
 test('a Latin run under two characters is still dropped', () => {
   assert.deepEqual(tokenize('a'), [])
   assert.deepEqual(tokenize('ab'), ['ab'])
+})
+
+test('default fusion keeps same-named skills with different bodies', async () => {
+  const first: SkillSource = {
+    name: 'first', weight: 1,
+    async search() { return [{ ...hit('first/shared', 'shared', 1, 'first body'), meta: { source: 'first' } }] },
+  }
+  const second: SkillSource = {
+    name: 'second', weight: 1,
+    async search() { return [{ ...hit('second/shared', 'shared', 1, 'second body'), meta: { source: 'second' } }] },
+  }
+  const hits = await new SkillSearchEngine({ sources: [first, second] }, { topK: 2 }).hits('shared')
+  assert.deepEqual(hits.map(item => item.content), ['first body', 'second body'])
+})
+
+test('exact normalized-body dedup keeps the local copy without fuzzy matching', async () => {
+  const remote: SkillSource = {
+    name: 'remote', weight: 1,
+    async search() {
+      return [
+        { ...hit('remote/copy', 'remote copy', 1, 'same body  \r\n'), meta: { source: 'remote' } },
+        { ...hit('remote/near', 'near copy', 0.9, 'same body!'), meta: { source: 'remote' } },
+      ]
+    },
+  }
+  const local: SkillSource = {
+    name: 'local', weight: 1,
+    async search() { return [{ ...hit('local/copy', 'local copy', 1, 'same body\n'), meta: { source: 'local' } }] },
+  }
+  const hits = await new SkillSearchEngine({ sources: [remote, local] }, { topK: 3 }).hits('body')
+  assert.deepEqual(hits.map(item => item.qualifiedId), ['local/copy', 'remote/near'])
+})
+
+test('source diagnostics distinguish empty results from failures', async () => {
+  const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
+  const empty: SkillSource = {
+    name: 'empty', weight: 1,
+    async search() { return [] },
+  }
+  const broken: SkillSource = {
+    name: 'broken', weight: 1,
+    async search() { throw new Error('catalog unavailable') },
+  }
+  await new SkillSearchEngine({
+    sources: [empty, broken],
+    onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+  }).hits('pdf')
+
+  assert.equal(diagnostics.find(item => item.source === 'empty')?.hitCount, 0)
+  assert.equal(diagnostics.find(item => item.source === 'empty')?.error, undefined)
+  assert.equal(diagnostics.find(item => item.source === 'broken')?.error, 'catalog unavailable')
+})
+
+test('a diagnostic callback failure never changes retrieval', async () => {
+  const source: SkillSource = {
+    name: 'healthy', weight: 1,
+    async search() { return [hit('healthy/pdf', 'pdf', 1, 'body')] },
+  }
+  const hits = await new SkillSearchEngine({
+    sources: [source],
+    onDiagnostic: () => { throw new Error('logger unavailable') },
+  }).hits('pdf')
+  assert.deepEqual(hits.map(item => item.name), ['pdf'])
+})
+
+test('source diagnostics cover hydrate and materialise stages', async () => {
+  const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
+  const remote: SkillSource = {
+    name: 'remote', weight: 1,
+    async search() {
+      const found = hit('remote/pdf', 'pdf', 1)
+      found.meta.source = 'remote'
+      return [found]
+    },
+  }
+  await new SkillSearchEngine({
+    sources: [remote],
+    fetchBody: async () => 'run scripts/x.js',
+    materialise: async () => ({ dir: '/skills/pdf' }),
+    onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+  }).hits('pdf')
+
+  assert.deepEqual(diagnostics.map(item => item.stage), ['search', 'hydrate', 'materialise'])
+  assert.equal(diagnostics[0]?.hitCount, 1)
+  assert.deepEqual(diagnostics.slice(1).map(item => item.succeeded), [true, true])
+})
+
+test('EverMind lexical guard rejects forced unrelated Top K results', () => {
+  const unrelated = hit('hub/task', 'get-task', 0.9)
+  unrelated.meta.description = 'Get details of a task by ID or name'
+  const check = checkKeywordRelevance('zqxjkv no such task 93847', unrelated)
+  assert.equal(check.passed, false)
+})
+
+test('EverMind lexical guard accepts aliases and core object matches', () => {
+  const candidate = hit('hub/kubernetes', 'Kubernetes deployment', 0.8)
+  candidate.meta.description = 'Deploy workloads and services to a Kubernetes cluster'
+  assert.deepEqual(queryTerms('Please deploy this to K8s'), ['deploy', 'kubernetes'])
+  assert.equal(checkKeywordRelevance('Please deploy this to K8s', candidate).passed, true)
+})
+
+test('the engine requests at most two hits from every source', async () => {
+  const requested: number[] = []
+  const source: SkillSource = {
+    name: 'probe', weight: 1,
+    async search(_query, _options, k) { requested.push(k); return [] },
+  }
+  await new SkillSearchEngine({ sources: [source] }, { topK: 5, gatePool: 10 }).hits('pdf')
+  assert.deepEqual(requested, [2])
+})
+
+
+test('EverMind source filters forced hits and returns at most two relevant skills', async () => {
+  const client = {
+    async search() {
+      return [
+        { id: 'bad', name: 'get-task', description: 'Get a task by ID', quality_score: 0.9 },
+        { id: 'one', name: 'PDF table extractor', description: 'Extract tables from PDF files', quality_score: 0.8 },
+        { id: 'two', name: 'PDF parser', description: 'Parse and extract PDF table data', quality_score: 0.7 },
+        { id: 'three', name: 'PDF OCR', description: 'OCR scanned PDF documents', quality_score: 0.7 },
+      ]
+    },
+  } as unknown as SkillHubClient
+  const source = new HubSkillSource(client)
+  const hits = await source.search('pdf table extraction', {}, 10)
+  assert.deepEqual(hits.map(item => item.qualifiedId), ['hub/one', 'hub/two'])
+})
+
+test('Chinese queries are segmented and matched without a rewriter', () => {
+  const candidate = hit('hub/pdf', 'PDF 表格提取', 0.8)
+  candidate.meta.description = '从 PDF 文档中提取表格数据'
+  assert.equal(checkKeywordRelevance('帮我提取PDF表格', candidate).passed, true)
+})
+
+test('Kubernetes is not mangled by plural normalization', () => {
+  const candidate = hit('hub/kubernetes', 'Kubernetes', 0.8)
+  candidate.meta.description = 'Manage Kubernetes deployments'
+  assert.deepEqual(queryTerms('kubernetes deployment'), ['kubernetes', 'deployment'])
+  assert.equal(checkKeywordRelevance('kubernetes deployment', candidate).passed, true)
 })

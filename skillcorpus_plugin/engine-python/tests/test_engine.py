@@ -72,6 +72,18 @@ class TestRetrieval:
         assert hits and hits[0].name == "pdf-tables"
 
 
+def test_exact_normalized_body_dedup_prefers_local_and_keeps_near_duplicates() -> None:
+    from skillsearch.engine import _dedup_exact_bodies
+    from skillsearch.types import RouterHit
+
+    remote = RouterHit("remote/copy", "remote copy", "same body  \r\n", 1, {"source": "remote"})
+    local = RouterHit("local/copy", "local copy", "same body\n", 1, {"source": "local"})
+    near = RouterHit("remote/near", "near copy", "same body!", 1, {"source": "remote"})
+
+    result = _dedup_exact_bodies([remote, local, near])
+    assert [hit.qualified_id for hit in result] == ["local/copy", "remote/near"]
+
+
 class TestLocalStore:
     def test_frontmatter_is_parsed(self, tmp_path: Path) -> None:
         from skillsearch.local_store import DirectorySkillStore
@@ -140,7 +152,7 @@ def _three_overlapping_skills(root: Path) -> None:
         d = root / "skills" / name
         d.mkdir(parents=True)
         (d / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: {desc}\n---\n\nextract data documents\n",
+            f"---\nname: {name}\ndescription: {desc}\n---\n\nextract data documents with {name}\n",
         )
 
 
@@ -154,7 +166,7 @@ class TestGate:
         base = {"skills_dir": "skills", "workspace": str(tmp_path), "top_k": 5}
 
         ungated = await SkillSearch(SearchConfig(**base)).retrieve("extract data from documents")
-        assert len(_names(ungated)) == 3
+        assert len(_names(ungated)) == 2
 
         model = _ScriptedModel(keep="pdf")
         gated = await SkillSearch(

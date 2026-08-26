@@ -37,10 +37,9 @@ class RouterHit:
     slashes)."""
 
     name: str
-    """Skill display name. Used as the cross-source dedup key inside
-    :func:`rrf_merge_weighted`: two hits with the same
-    ``name`` are collapsed to one with summed RRF score, regardless of
-    which source they came from."""
+    """Skill display name. Fusion may use it as a legacy configurable
+    deduplication key, but the engine defaults to ``qualified_id`` and applies
+    exact normalized-body deduplication after remote bodies are hydrated."""
 
     content: str
     """Pre-rendered SKILL.md body (frontmatter already stripped) that

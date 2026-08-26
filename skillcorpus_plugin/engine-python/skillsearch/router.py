@@ -36,8 +36,9 @@ class SkillForgeRouter:
         sources: list[SkillSource],
         *,
         over_fetch_factor: int = 2,
-        dedup_by: str = "name",
+        dedup_by: str = "qualified_id",
         rrf_k: int = RRF_K,
+        per_source_max: int = 2,
     ) -> None:
         # The list is captured by reference; callers should pass an
         # already-frozen tuple if they want to forbid mutation. We
@@ -48,6 +49,7 @@ class SkillForgeRouter:
         self._over_fetch_factor = max(1, over_fetch_factor)
         self._dedup_by = dedup_by
         self._rrf_k = rrf_k
+        self._per_source_max = max(0, per_source_max)
 
     async def select(
         self,
@@ -56,7 +58,7 @@ class SkillForgeRouter:
         k: int = 5,
     ) -> list[RouterHit]:
         """Fan out to every source concurrently, fuse to top-K."""
-        per_source_k = k * self._over_fetch_factor
+        per_source_k = min(self._per_source_max, k * self._over_fetch_factor)
         per_source = await asyncio.gather(*[self._safe_search(s, query, history, per_source_k) for s in self._sources])
         return rrf_merge_weighted(
             [(s.name, s.weight, hits) for s, hits in zip(self._sources, per_source, strict=True)],

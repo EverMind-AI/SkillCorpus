@@ -98,7 +98,11 @@ call it. Read these values, never invent them.
 
 Configuration lives in
 `~/.workbuddy-ai/plugins/data/skillsearch-<market>/config.json` (the
-environment, set per-command in `hooks.json`, wins over it).
+environment, set per-command in `hooks.json`, wins over it). The hook normally
+reads `<market>` from its installed cache path; non-standard launchers may set
+`SKILLSEARCH_MARKETPLACE`, or set `SKILLSEARCH_DATA_DIR` to override the whole
+state directory. Existing marketplace installs continue using the name parsed
+from their current path.
 
 - **A model for the rewriter and gate**: better selection, two small model
   calls per retrieving turn — spent inside the silence between the user

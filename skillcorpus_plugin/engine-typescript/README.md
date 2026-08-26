@@ -35,13 +35,15 @@ Retrieval never throws. A failed source, an unparseable gate reply, or a slow ca
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `skillsDirs` | `['.dsh/skills']` | Directories scanned for `SKILL.md`, up to 5 levels deep. Relative paths resolve against cwd. |
-| `hubEndpoint` | `''` | Remote catalog base URL — e.g. `https://skillhub.evermind.ai`, or a service of your own speaking the same API. Empty disables the remote source. |
+| `hubEndpoint` | `''` | EverMind-compatible catalog; empty disables this source only. |
+| `clawhubEndpoint` | `https://clawhub.ai` | ClawHub API; empty disables it. |
+| `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it. |
 | `hubApiKey` | `''` | Bearer token for the catalog. |
-| `hubTimeoutMs` | `2000` | Per-request deadline for the catalog. |
+| `hubTimeoutMs` | `5000` | Per-request deadline for the catalog. |
 | `hubMinSafety` | `0.7` | Drop catalog entries whose safety score falls below this; only bites on catalogs that put per-skill safety in the search payload. |
 | `weightLocal` | `1.0` | Fusion weight for local skills. |
 | `weightHub` | `0.85` | Fusion weight for catalog skills — local skills are curated, so they outrank. |
-| `topK` | `5` | Upper bound on skills injected per turn. |
+| `topK` | `2` | Upper bound on skills injected per turn. |
 | `gatePool` | `10` | Candidates the gate judges. Larger gives it more to reject. |
 | `maxSelect` | `2` | Upper bound on what the gate keeps. |
 | `provider` / `model` | `''` | Route for the rewriter and the gate. Configure both or neither; one alone fails at load. |

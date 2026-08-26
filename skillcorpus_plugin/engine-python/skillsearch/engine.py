@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
 from collections.abc import Sequence
 from dataclasses import replace
@@ -86,6 +87,7 @@ class SkillSearch:
         self._injected_hub = hub_client
         self._local_pool = None
         self._hub_client = None
+        self._marketplace_clients: dict[str, Any] = {}
         self._router = self._build_router(store, extra_sources)
         self._rewriter, self._gate = self._build_narrowing()
 
@@ -165,8 +167,29 @@ class SkillSearch:
                     self._hub_client,
                     weight=cfg.weight_hub,
                     min_safety=cfg.hub_min_safety,
+                    max_candidates=cfg.per_source_max,
                 ),
             )
+
+        marketplaces = (
+            ("clawhub", cfg.clawhub_endpoint, cfg.weight_clawhub),
+            ("skillhub_cn", cfg.skillhub_cn_endpoint, cfg.weight_skillhub_cn),
+        )
+        if any(endpoint for _, endpoint, _ in marketplaces):
+            from skillsearch.sources.marketplace_source import MarketplaceClient, MarketplaceSkillSource
+
+            for kind, endpoint, weight in marketplaces:
+                if not endpoint:
+                    continue
+                marketplace = MarketplaceClient(
+                    kind,
+                    endpoint,
+                    cache_dir=cfg.resolved_cache_dir(),
+                    timeout_s=cfg.marketplace_timeout_s,
+                    download_timeout_s=cfg.marketplace_download_timeout_s,
+                )
+                self._marketplace_clients[kind] = marketplace
+                sources.append(MarketplaceSkillSource(marketplace, weight=weight))
 
         sources.extend(extra_sources)
 
@@ -183,6 +206,7 @@ class SkillSearch:
             over_fetch_factor=cfg.over_fetch,
             dedup_by=cfg.dedup_by,
             rrf_k=cfg.rrf_k,
+            per_source_max=cfg.per_source_max,
         )
 
     def _build_local_source(self, store: SkillStore | None):
@@ -312,6 +336,10 @@ class SkillSearch:
             return []
 
         hits = await self._hydrate_bodies(hits)
+        hits = [hit for hit in hits if hit.meta.get("source") not in self._marketplace_clients or bool(hit.content)]
+        hits = _dedup_exact_bodies(hits)
+        if not hits:
+            return []
 
         # Before the gate, and only for skills already on disk. The gate is
         # told to reject a skill whose files it cannot see, and an
@@ -387,29 +415,38 @@ class SkillSearch:
             return hits[: self._cfg.max_select]
 
     async def _hydrate_bodies(self, hits: list[RouterHit]) -> list[RouterHit]:
-        """Fetch bodies for hits that arrived as catalog metadata only."""
-        if self._hub_client is None:
-            return hits
-        targets = [(i, h) for i, h in enumerate(hits) if h.meta.get("source") == "hub" and not h.content]
+        """Fetch bodies for all remote metadata hits before the gate."""
+        targets = [
+            (index, hit)
+            for index, hit in enumerate(hits)
+            if not hit.content
+            and (hit.meta.get("source") == "hub" or hit.meta.get("source") in self._marketplace_clients)
+        ]
         if not targets:
             return hits
 
         async def _one(hit: RouterHit) -> dict[str, Any] | None:
             try:
-                return await self._hub_client.get(hit.meta["id"])
-            except Exception as e:
-                log.warning("skillsearch: body fetch failed for %s: %s", hit.meta.get("id"), e)
-                return None
+                source = hit.meta.get("source")
+                if source == "hub" and self._hub_client is not None:
+                    return await self._hub_client.get(hit.meta["id"])
+                client = self._marketplace_clients.get(str(source))
+                if client is not None:
+                    installed = await client.install(hit)
+                    return {"skill_md": installed["skill_md"], "_installed": installed}
+            except Exception as error:
+                log.warning("skillsearch: body fetch failed for %s: %s", hit.meta.get("id"), error)
+            return None
 
-        metas = await asyncio.gather(*(_one(h) for _, h in targets))
-        out = list(hits)
-        for (i, hit), meta in zip(targets, metas, strict=True):
+        metas = await asyncio.gather(*(_one(hit) for _, hit in targets))
+        output = list(hits)
+        for (index, hit), meta in zip(targets, metas, strict=True):
             if meta is None:
                 continue
             new_meta = dict(hit.meta)
             new_meta["_fetched"] = meta
-            out[i] = replace(hit, content=meta.get("skill_md", "") or "", meta=new_meta)
-        return out
+            output[index] = replace(hit, content=meta.get("skill_md", "") or "", meta=new_meta)
+        return output
 
     async def _hydrate_refs(self, hits: list[RouterHit]) -> list[RouterHit]:
         """Put each selected skill's bundled files on disk and point at them.
@@ -443,6 +480,14 @@ class SkillSearch:
                         meta["id"],
                         prefetched_meta=meta.get("_fetched"),
                     )
+                    body = installed.get("skill_md", "") or hit.content
+                    resolved, _ = resolve_refs(body, installed.get("dir"))
+                    new_meta = dict(meta)
+                    new_meta["skill_dir"] = installed.get("dir")
+                    return replace(hit, content=resolved, meta=new_meta)
+                if source in self._marketplace_clients:
+                    fetched = meta.get("_fetched", {})
+                    installed = fetched.get("_installed") or await self._marketplace_clients[source].install(hit)
                     body = installed.get("skill_md", "") or hit.content
                     resolved, _ = resolve_refs(body, installed.get("dir"))
                     new_meta = dict(meta)
@@ -501,6 +546,9 @@ class SkillSearch:
         if self._injected_hub is None and self._hub_client is not None:
             with contextlib.suppress(Exception):
                 await self._hub_client.aclose()
+        for client in self._marketplace_clients.values():
+            with contextlib.suppress(Exception):
+                await client.aclose()
 
 
 def _tool_name(tool: Any) -> str:
@@ -514,6 +562,33 @@ def _tool_name(tool: Any) -> str:
         if tool.get("name"):
             return str(tool["name"])
     return str(getattr(tool, "name", "") or "")
+
+
+def _normalise_body(body: str) -> str:
+    return "\n".join(line.rstrip() for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+
+
+def _is_local_hit(hit: RouterHit) -> bool:
+    return hit.meta.get("source") == "local" or bool(hit.meta.get("skill_dir"))
+
+
+def _dedup_exact_bodies(hits: list[RouterHit]) -> list[RouterHit]:
+    """Collapse exact instruction copies without fuzzy or model-based matching."""
+    output: list[RouterHit] = []
+    positions: dict[str, int] = {}
+    for hit in hits:
+        body = _normalise_body(hit.content)
+        if not body:
+            output.append(hit)
+            continue
+        digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        existing = positions.get(digest)
+        if existing is None:
+            positions[digest] = len(output)
+            output.append(hit)
+        elif _is_local_hit(hit) and not _is_local_hit(output[existing]):
+            output[existing] = hit
+    return output
 
 
 __all__ = ["SkillSearch"]

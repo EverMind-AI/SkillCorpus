@@ -13,6 +13,8 @@
  * @module
  */
 
+import { createHash } from 'node:crypto'
+
 import { rrfMergeWeighted, type SourceResult } from './fusion.js'
 import { LLMGateFilter } from './gate.js'
 import { resolveRefs } from './refs.js'
@@ -27,6 +29,8 @@ export interface EngineOptions {
   readonly gatePool?: number
   /** Multiplier on what each source is asked for before fusion narrows. */
   readonly overFetch?: number
+  /** Hard upper bound requested from each source before fusion. */
+  readonly perSourceMax?: number
   /** Rank-damping offset for fusion. Defaults to the paper's 60. */
   readonly rrfK?: number
   /** Collapse key across sources. */
@@ -54,9 +58,25 @@ export interface RetrieveOptions {
   readonly availableTools?: readonly string[] | undefined
 }
 
+export type SourceDiagnosticStage = 'search' | 'hydrate' | 'materialise'
+
+/** One fail-open source operation, exposed for host diagnostics. */
+export interface SourceDiagnostic {
+  readonly source: string
+  readonly stage: SourceDiagnosticStage
+  readonly elapsedMs: number
+  /** Number of candidates returned by a search operation. */
+  readonly hitCount?: number
+  /** Whether one hydrate/materialise operation produced its expected output. */
+  readonly succeeded?: boolean
+  readonly error?: string
+}
+
 /** The pieces the pipeline runs on. Only `sources` is required. */
 export interface EngineParts {
   readonly sources: readonly SkillSource[]
+  /** Receives best-effort source timings and failures; callback errors are ignored. */
+  readonly onDiagnostic?: (diagnostic: SourceDiagnostic) => void
   readonly rewriter?: QueryRewriter
   readonly gate?: LLMGateFilter
   /** Loads a remote body once the gate has kept its hit. */
@@ -96,10 +116,12 @@ export class SkillSearchEngine {
   private readonly gate: LLMGateFilter | undefined
   private readonly fetchBody: EngineParts['fetchBody'] | undefined
   private readonly materialise: EngineParts['materialise'] | undefined
+  private readonly onDiagnostic: EngineParts['onDiagnostic'] | undefined
   private readonly topK: number
   private readonly rrfK: number | undefined
   private readonly gatePool: number
   private readonly overFetch: number
+  private readonly perSourceMax: number
   private readonly dedupBy: 'name' | 'qualifiedId'
   private readonly heading: string
   private readonly refs: boolean
@@ -110,11 +132,13 @@ export class SkillSearchEngine {
     this.gate = parts.gate
     this.fetchBody = parts.fetchBody
     this.materialise = parts.materialise
-    this.topK = options.topK ?? 5
+    this.onDiagnostic = parts.onDiagnostic
+    this.topK = options.topK ?? 2
     this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
-    this.dedupBy = options.dedupBy ?? 'name'
+    this.perSourceMax = options.perSourceMax ?? 2
+    this.dedupBy = options.dedupBy ?? 'qualifiedId'
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
   }
@@ -162,14 +186,23 @@ export class SkillSearchEngine {
     }
 
     const poolSize = this.gate ? this.gatePool : this.topK
-    const perSource = poolSize * this.overFetch
+    const perSource = Math.min(this.perSourceMax, poolSize * this.overFetch)
     const results = await Promise.all(
       this.sources.map(async (source): Promise<SourceResult> => {
+        const startedAt = Date.now()
         try {
           const hits = await source.search(searchQuery, signal ? { signal } : {}, perSource)
+          this.diagnose({
+            source: source.name, stage: 'search', elapsedMs: Date.now() - startedAt,
+            hitCount: hits.length,
+          })
           return { name: source.name, weight: source.weight, hits }
-        } catch {
+        } catch (error) {
           // One source being down leaves the others usable.
+          this.diagnose({
+            source: source.name, stage: 'search', elapsedMs: Date.now() - startedAt,
+            hitCount: 0, error: errorMessage(error),
+          })
           return { name: source.name, weight: source.weight, hits: [] }
         }
       }),
@@ -181,6 +214,9 @@ export class SkillSearchEngine {
     if (hits.length === 0) return []
 
     hits = await this.hydrateBodies(hits, signal)
+    hits = hits.filter(hit => !['clawhub', 'skillhub_cn'].includes(String(hit.meta.source)) || Boolean(hit.content))
+    hits = dedupExactBodies(hits)
+    if (hits.length === 0) return []
 
     // Before the gate, and only for skills already on disk. The gate is
     // told to reject a skill whose files it cannot see, and an unresolved
@@ -195,6 +231,14 @@ export class SkillSearchEngine {
     // The remote half stays here: extracting a bundle is a download, so it
     // waits until the gate has decided what is actually going in.
     return this.resolveHitRefs(hits.slice(0, this.topK), signal)
+  }
+
+  private diagnose(diagnostic: SourceDiagnostic): void {
+    try {
+      this.onDiagnostic?.(diagnostic)
+    } catch {
+      // Observability must never affect retrieval.
+    }
   }
 
   /** Rewrite refs for hits that already know their directory. */
@@ -220,8 +264,14 @@ export class SkillSearchEngine {
     return Promise.all(hits.map(async (hit) => {
       let current = hit
       if (typeof current.meta.skillDir !== 'string' && this.materialise) {
+        const startedAt = Date.now()
+        const source = sourceName(current)
         try {
           const installed = await this.materialise(current, signal)
+          this.diagnose({
+            source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
+            succeeded: Boolean(installed),
+          })
           if (installed) {
             current = {
               ...current,
@@ -229,8 +279,12 @@ export class SkillSearchEngine {
               meta: { ...current.meta, skillDir: installed.dir },
             }
           }
-        } catch {
+        } catch (error) {
           // Unresolved paths, not a lost skill. The body still instructs.
+          this.diagnose({
+            source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
+            succeeded: false, error: errorMessage(error),
+          })
           return current
         }
       }
@@ -248,8 +302,14 @@ export class SkillSearchEngine {
     return Promise.all(
       hits.map(async (hit) => {
         if (hit.content) return hit
+        const startedAt = Date.now()
+        const source = sourceName(hit)
         try {
           const out = await fetchBody(hit, signal)
+          this.diagnose({
+            source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
+            succeeded: Boolean(out && (typeof out === 'string' || out.body)),
+          })
           if (!out) return hit
           if (typeof out === 'string') return { ...hit, content: out }
           // The record rides in meta so `materialise` can hand it to the
@@ -259,7 +319,11 @@ export class SkillSearchEngine {
           if (out.body) next.content = out.body
           if (out.record) next.meta = { ...hit.meta, _fetched: out.record }
           return next
-        } catch {
+        } catch (error) {
+          this.diagnose({
+            source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
+            succeeded: false, error: errorMessage(error),
+          })
           return hit
         }
       }),
@@ -294,4 +358,42 @@ export class SkillSearchEngine {
     const body = parts.join('\n\n')
     return body ? `${this.heading}\n\n${body}` : ''
   }
+}
+/** Collapse exact instruction copies after harmless whitespace normalisation. */
+function dedupExactBodies(hits: RouterHit[]): RouterHit[] {
+  const output: RouterHit[] = []
+  const positions = new Map<string, number>()
+  for (const hit of hits) {
+    const body = normaliseBody(hit.content)
+    if (!body) {
+      output.push(hit)
+      continue
+    }
+    const digest = createHash('sha256').update(body).digest('hex')
+    const existing = positions.get(digest)
+    if (existing === undefined) {
+      positions.set(digest, output.length)
+      output.push(hit)
+    } else if (isLocal(hit) && !isLocal(output[existing]!)) {
+      output[existing] = hit
+    }
+  }
+  return output
+}
+
+function normaliseBody(body: string): string {
+  return body.replace(/\r\n?/g, '\n').split('\n').map(line => line.trimEnd()).join('\n').trim()
+}
+
+function isLocal(hit: RouterHit): boolean {
+  return String(hit.meta.source) === 'local' || (typeof hit.meta.skillDir === 'string' && Boolean(hit.meta.skillDir))
+}
+
+function sourceName(hit: RouterHit): string {
+  const source = hit.meta.source
+  return typeof source === 'string' && source ? source : hit.qualifiedId.split('/', 1)[0] || 'unknown'
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

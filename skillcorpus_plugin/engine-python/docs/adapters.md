@@ -96,7 +96,7 @@ Shipped inside the package; reproduced here for reference:
 ```toml
 [plugin]
 id                 = "skillsearch"
-version            = "0.1.0"
+version            = "0.2.0"
 bundled            = false
 enabled_by_default = true
 
@@ -109,7 +109,7 @@ replaces = "skills"
 skills_dir   = { type = "string",  default = "skills" }
 hub_endpoint = { type = "string",  default = "" }
 model        = { type = "string",  default = "" }
-top_k        = { type = "integer", default = 5 }
+top_k        = { type = "integer", default = 2 }
 max_select   = { type = "integer", default = 2 }
 ```
 
@@ -139,7 +139,7 @@ value the runtime injects into that turn.
 
 ```yaml
 name: skillsearch
-version: "0.1.0"
+version: "0.2.0"
 manifest_version: 1
 description: "Skill retrieval — local, remote catalog, and the agent's own."
 ```

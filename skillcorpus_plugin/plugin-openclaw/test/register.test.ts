@@ -40,7 +40,7 @@ function fakeApi(pluginConfig?: Record<string, unknown>): {
   const api: OpenClawPluginApi = {
     id: 'skillsearch',
     name: 'Skill Search',
-    ...(pluginConfig ? { pluginConfig } : {}),
+    pluginConfig: { clawhubEndpoint: '', skillhubCnEndpoint: '', ...(pluginConfig ?? {}) },
     logger: {
       info: () => {},
       warn: (message: string) => { warnings.push(message) },
@@ -220,5 +220,5 @@ test('the last user message is found past assistant and tool turns', () => {
 })
 
 test('an engine with no sources reports itself disabled', async () => {
-  assert.equal(buildEngine(loadConfig({ skillsDirs: [] }, {} as NodeJS.ProcessEnv)).enabled, false)
+  assert.equal(buildEngine(loadConfig({ skillsDirs: [], clawhubEndpoint: '', skillhubCnEndpoint: '' }, {} as NodeJS.ProcessEnv)).enabled, false)
 })
