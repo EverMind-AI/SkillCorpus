@@ -18,7 +18,7 @@ from skillsearch.engine import SkillSearch
 from skillsearch.ports import ChatModel, SkillStore
 from skillsearch.types import RouterHit
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ChatModel",

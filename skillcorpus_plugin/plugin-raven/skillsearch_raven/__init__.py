@@ -7,7 +7,7 @@ Ship alongside a ``raven-plugin.toml``::
 
     [plugin]
     id                 = "skillsearch"
-    version            = "0.1.0"
+    version            = "0.2.0"
     bundled            = false
     enabled_by_default = true
 
