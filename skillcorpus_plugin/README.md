@@ -133,11 +133,12 @@ Nothing is added to durable history — the injection is rebuilt per turn and di
 Honest accounting, because retrieval runs on your conversation:
 
 - **Local-only setup (after explicitly disabling the three remote endpoints)** — nothing. Scanning, ranking and injection are all in-process.
-- **Default installation** — ClawHub and skillhub.cn are enabled; the retrieval query is sent to both services. Set their endpoint fields to an empty string to disable either one.
+- **Default installation** — ClawHub and skillhub.cn are enabled; the retrieval query is sent to both services. Set their endpoint fields to an empty string to disable either one. With no `model`, no LLM gate runs: only the marketplaces’ own trust flags and the lexical relevance guard apply.
 - **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
+- **Marketplace body fetches** — up to two candidates per enabled marketplace are downloaded and safely extracted before the optional LLM gate, because those APIs expose the skill body through the bundle. A rejected candidate may therefore remain in the cache, but the plugin never executes it automatically.
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 
-Downloaded skills are third-party content that the model is instructed to follow. The gate exists to reject ones that assume tools or environments your agent lacks — that is why it defaults on when a catalog is configured.
+Downloaded skills are third-party content that the model is instructed to follow. ClawHub and skillhub.cn entries are not covered by SkillCorpus’s repository-license audit; review their upstream terms before redistribution. The gate can reject skills that assume unavailable tools or environments, but it only exists when a model is configured.
 
 ## Make your skills findable
 

@@ -109,11 +109,12 @@ EOF
 如实交代，因为检索跑在你的对话上：
 
 - **显式清空三个远程 endpoint 后的纯本地模式**——什么都不出去。扫描、排序、注入全在进程内。
-- **默认安装**——ClawHub 与 skillhub.cn 默认开启，检索查询会发送给这两个服务；将对应 endpoint 设为空字符串可分别关闭。
+- **默认安装**——ClawHub 与 skillhub.cn 默认开启，检索查询会发送给这两个服务；将对应 endpoint 设为空字符串可分别关闭。未配置 `model` 时不会运行 LLM gate，只依赖 marketplace 自带的信任标记和关键词相关性过滤。
 - **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
+- **Marketplace 正文获取**——每个启用的 marketplace 最多会有两个候选在可选 LLM gate 之前下载并安全解包，因为这两个 API 通过 bundle 提供技能正文。被 gate 拒绝的候选可能仍留在缓存里，但插件不会自动执行它。
 - **配了 `model`**——改写器看到你的消息（截断到 2,000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 
-下载的技能是第三方内容，模型会被指示遵循它。gate 存在的意义就是剔除那些假定了你的 agent 没有的工具或环境的技能——这也是配了目录服务时它默认开启的原因。
+下载的技能是第三方内容，模型会被指示遵循它。ClawHub 与 skillhub.cn 条目不在 SkillCorpus 的仓库许可证审计范围内，重新分发前应检查其上游条款。gate 能剔除依赖不可用工具或环境的技能，但只有配置了模型时才真正存在。
 
 ## 让你的技能可被搜到
 
