@@ -23,7 +23,7 @@ import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
-import { checkKeywordRelevance, compactCatalogQuery, queryTerms } from '../src/relevance.ts'
+import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
 import type { SkillSource } from '../src/types.ts'
@@ -346,16 +346,6 @@ test('a Latin run under two characters is still dropped', () => {
 })
 
 
-test('catalog queries compact conversational English and Chinese', () => {
-  assert.equal(
-    compactCatalogQuery('Please help me extract text from a PDF invoice'),
-    'text pdf invoice extract',
-  )
-  assert.equal(compactCatalogQuery('帮我从 PDF 发票里提取文字'), 'pdf 发票里提取文字')
-  assert.equal(compactCatalogQuery('c++ next.js'), 'c++ next.js')
-  assert.equal(compactCatalogQuery('please help me'), 'please help me')
-})
-
 test('source diagnostics distinguish empty results from failures', async () => {
   const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
   const empty: SkillSource = {
@@ -406,7 +396,8 @@ test('source diagnostics cover hydrate and materialise stages', async () => {
   }).hits('pdf')
 
   assert.deepEqual(diagnostics.map(item => item.stage), ['search', 'hydrate', 'materialise'])
-  assert.deepEqual(diagnostics.map(item => item.hitCount), [1, 1, 1])
+  assert.equal(diagnostics[0]?.hitCount, 1)
+  assert.deepEqual(diagnostics.slice(1).map(item => item.succeeded), [true, true])
 })
 
 test('EverMind lexical guard rejects forced unrelated Top K results', () => {

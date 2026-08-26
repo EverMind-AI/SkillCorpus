@@ -40,8 +40,8 @@ everything, so the process always writes a usable document and exits 0.
 the pending buffer once the model has seen it, so the session `.jsonl` has no
 record of what was injected. `skillsearch.log` in the plugin's data directory is
 the only one. Each turn also records per-source `search`, `hydrate`, and
-`materialise` timings, hit counts, and fail-open errors, so an empty result can
-be distinguished from a timeout or bundle failure.
+`materialise` timings, search hit counts, hydrate/materialise success, and fail-open errors,
+so an empty result can be distinguished from a timeout or bundle failure.
 
 **Instructions get rejected as prompt injection.** Testing the channel with an
 imperative ("output CANARY-7739") produced a refusal, in the model's own words:

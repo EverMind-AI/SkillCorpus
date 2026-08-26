@@ -41,24 +41,6 @@ export function queryTerms(query: string): string[] {
   return terms
 }
 
-/** Compact a conversational request for catalog APIs that expect keywords. */
-export function compactCatalogQuery(query: string, maxTerms = 4): string {
-  const limit = Math.max(1, maxTerms)
-  if (/\p{Script=Han}/u.test(query)) {
-    const cleaned = query.toLowerCase().replace(
-      /帮我|请问|请|我想要?|我需要|能不能|可以|如何|怎么|一下|使用/gu,
-      ' ',
-    )
-    const chunks = cleaned.match(/[a-z0-9+#.-]+|[\p{Script=Han}]{2,}/gu) ?? []
-    return chunks.slice(0, limit).join(' ') || query.trim()
-  }
-  const terms = queryTerms(query)
-  if (terms.length === 0) return query.trim()
-  const specific = terms.filter(term => !GENERIC.has(term))
-  const generic = terms.filter(term => GENERIC.has(term))
-  return [...specific, ...generic].slice(0, limit).join(' ')
-}
-
 export function checkKeywordRelevance(
   query: string,
   hit: Pick<RouterHit, 'name' | 'meta'>,

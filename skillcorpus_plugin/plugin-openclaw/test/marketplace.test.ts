@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { access, mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
@@ -24,7 +24,10 @@ test('ClawHub maps trusted search results and caps one source at two', async () 
   )
   assert.equal(hits.length, 2)
   assert.equal(hits[0]?.qualifiedId, 'clawhub/1')
-  assert.equal(new URL(seen).searchParams.get('q'), 'text pdf invoice extract')
+  assert.equal(
+    new URL(seen).searchParams.get('q'),
+    'Please help me extract text from a PDF invoice',
+  )
   assert.match(seen, /nonSuspiciousOnly=true/)
   assert.match(seen, /limit=2/)
 })
@@ -55,4 +58,45 @@ test('a pre-aborted turn reaches fetch already cancelled', async () => {
   const client = new MarketplaceClient('clawhub', 'https://clawhub.test', { cacheDir: await mkdtemp(join(tmpdir(), 'market-')) })
   await assert.rejects(() => client.search('design', controller.signal), /aborted/)
   assert.equal(called, true)
+})
+
+test('Marketplace install identifies download failures', async () => {
+  globalThis.fetch = async () => new Response('down', { status: 503 })
+  const cacheDir = await mkdtemp(join(tmpdir(), 'market-'))
+  const client = new MarketplaceClient('clawhub', 'https://clawhub.test', { cacheDir })
+  await assert.rejects(
+    () => client.install({
+      qualifiedId: 'clawhub/one', name: 'One', content: '', score: 1,
+      meta: { id: 'one', slug: 'one', version: 'v0' },
+    }),
+    /download failed: clawhub returned HTTP 503/,
+  )
+})
+
+test('Marketplace install identifies invalid archives as extraction failures', async () => {
+  globalThis.fetch = async () => new Response('not a zip', { status: 200 })
+  const cacheDir = await mkdtemp(join(tmpdir(), 'market-'))
+  const client = new MarketplaceClient('clawhub', 'https://clawhub.test', { cacheDir })
+  await assert.rejects(
+    () => client.install({
+      qualifiedId: 'clawhub/one', name: 'One', content: '', score: 1,
+      meta: { id: 'one', slug: 'one', version: 'v0' },
+    }),
+    /extract failed:/,
+  )
+})
+
+test('a cached bundle without SKILL.md is removed for a future retry', async () => {
+  const cacheDir = await mkdtemp(join(tmpdir(), 'market-'))
+  const destination = join(cacheDir, 'clawhub-one@v0')
+  await mkdir(destination)
+  const client = new MarketplaceClient('clawhub', 'https://clawhub.test', { cacheDir })
+  await assert.rejects(
+    () => client.install({
+      qualifiedId: 'clawhub/one', name: 'One', content: '', score: 1,
+      meta: { id: 'one', slug: 'one', version: 'v0' },
+    }),
+    /read skill failed:/,
+  )
+  await assert.rejects(() => access(destination))
 })

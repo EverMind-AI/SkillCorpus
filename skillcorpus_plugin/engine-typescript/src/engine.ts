@@ -63,7 +63,10 @@ export interface SourceDiagnostic {
   readonly source: string
   readonly stage: SourceDiagnosticStage
   readonly elapsedMs: number
+  /** Number of candidates returned by a search operation. */
   readonly hitCount?: number
+  /** Whether one hydrate/materialise operation produced its expected output. */
+  readonly succeeded?: boolean
   readonly error?: string
 }
 
@@ -264,7 +267,7 @@ export class SkillSearchEngine {
           const installed = await this.materialise(current, signal)
           this.diagnose({
             source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
-            hitCount: installed ? 1 : 0,
+            succeeded: Boolean(installed),
           })
           if (installed) {
             current = {
@@ -277,7 +280,7 @@ export class SkillSearchEngine {
           // Unresolved paths, not a lost skill. The body still instructs.
           this.diagnose({
             source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
-            hitCount: 0, error: errorMessage(error),
+            succeeded: false, error: errorMessage(error),
           })
           return current
         }
@@ -302,7 +305,7 @@ export class SkillSearchEngine {
           const out = await fetchBody(hit, signal)
           this.diagnose({
             source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
-            hitCount: out && (typeof out === 'string' || out.body) ? 1 : 0,
+            succeeded: Boolean(out && (typeof out === 'string' || out.body)),
           })
           if (!out) return hit
           if (typeof out === 'string') return { ...hit, content: out }
@@ -316,7 +319,7 @@ export class SkillSearchEngine {
         } catch (error) {
           this.diagnose({
             source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
-            hitCount: 0, error: errorMessage(error),
+            succeeded: false, error: errorMessage(error),
           })
           return hit
         }

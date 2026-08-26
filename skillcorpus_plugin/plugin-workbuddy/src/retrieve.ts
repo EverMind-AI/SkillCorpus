@@ -73,7 +73,14 @@ export function buildEngine(
     ['skillhub_cn', config.skillhubCnEndpoint],
   ] as const) {
     if (!endpoint) continue
-    const marketplace = new MarketplaceClient(kind, endpoint, { cacheDir: expandHome(config.bundleCacheDir) || join(homedir(), '.workbuddy-ai', 'skillsearch-bundles') })
+    const marketplace = new MarketplaceClient(kind, endpoint, {
+      cacheDir: expandHome(config.bundleCacheDir)
+        || join(homedir(), '.workbuddy-ai', 'skillsearch-bundles'),
+      // ClawHub measured 4–5s on the supported route. Give search headroom,
+      // but leave time under the hook's global deadline for body hydration.
+      timeoutMs: Math.max(1, Math.min(config.timeoutMs, 6500)),
+      downloadTimeoutMs: Math.max(1, config.timeoutMs),
+    })
     marketplaceClients.set(kind, marketplace)
     sources.push(new MarketplaceSkillSource(marketplace))
   }

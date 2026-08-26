@@ -1,9 +1,8 @@
 /** Public ClawHub and skillhub.cn search/download adapters. */
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { bundleRoot, extractBundle } from './bundle.js'
-import { compactCatalogQuery } from './relevance.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
 export type MarketplaceKind = 'clawhub' | 'skillhub_cn'
@@ -51,12 +50,28 @@ export class MarketplaceClient {
     const key = `${this.kind}-${owner ? `${owner}_` : ''}${slug}@${version}`.replace(/[^A-Za-z0-9_.@-]+/g, '_')
     const destination = join(this.cacheDir, key)
     if (!existsSync(destination)) {
-      const archive = await this.download(slug, owner, version, signal)
-      await extractBundle(archive, destination)
+      let archive: Buffer
+      try {
+        archive = await this.download(slug, owner, version, signal)
+      } catch (error) {
+        throw new Error(`download failed: ${errorMessage(error)}`, { cause: error })
+      }
+      try {
+        await extractBundle(archive, destination)
+      } catch (error) {
+        throw new Error(`extract failed: ${errorMessage(error)}`, { cause: error })
+      }
     }
-    const dir = await bundleRoot(destination)
-    const skillMd = await readFile(join(dir, 'SKILL.md'), 'utf8')
-    return { dir, body: stripFrontmatter(skillMd) }
+    try {
+      const dir = await bundleRoot(destination)
+      const skillMd = await readFile(join(dir, 'SKILL.md'), 'utf8')
+      return { dir, body: stripFrontmatter(skillMd) }
+    } catch (error) {
+      // A directory is a cache hit only when it contains a readable skill.
+      // Remove an incomplete/corrupt entry so the next turn can download it.
+      await rm(destination, { recursive: true, force: true }).catch(() => {})
+      throw new Error(`read skill failed: ${errorMessage(error)}`, { cause: error })
+    }
   }
 
   private async searchClawHub(query: string, signal: AbortSignal | undefined, limit: number) {
@@ -140,7 +155,7 @@ export class MarketplaceSkillSource implements SkillSource {
     this.weight = options.weight ?? 0.75
   }
   async search(query: string, options: SearchOptions, k: number): Promise<RouterHit[]> {
-    const items = await this.client.search(compactCatalogQuery(query), options.signal, Math.min(2, k))
+    const items = await this.client.search(query, options.signal, Math.min(2, k))
     return items.filter(item => !item.suspicious && item.installable !== false).slice(0, Math.min(2, k)).map(item => ({
       qualifiedId: `${this.name}/${item.id}`, name: item.name, content: '', score: item.score,
       meta: { source: this.name, id: item.id, slug: item.slug, owner: item.owner,
@@ -159,4 +174,8 @@ function stripFrontmatter(text: string): string {
   if (!text.startsWith('---')) return text
   const end = text.indexOf('\n---', 3)
   return end < 0 ? text : text.slice(end + 4).replace(/^\n+/, '')
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
