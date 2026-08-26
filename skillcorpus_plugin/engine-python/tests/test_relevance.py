@@ -18,8 +18,10 @@ def test_forced_unrelated_top_k_is_rejected() -> None:
 def test_alias_and_core_object_are_matched() -> None:
     assert query_terms("Please deploy this to K8s") == ["deploy", "kubernetes"]
     result = check_keyword_relevance(
-        "Please deploy this to K8s", name="Kubernetes deployment",
-        description="Deploy workloads to a Kubernetes cluster", tags=[]
+        "Please deploy this to K8s",
+        name="Kubernetes deployment",
+        description="Deploy workloads to a Kubernetes cluster",
+        tags=[],
     )
     assert result["passed"] is True
 
@@ -29,8 +31,12 @@ class Catalog:
         del query, limit
         return [
             {"id": "bad", "name": "get-task", "description": "Get a task by ID", "quality_score": 0.9},
-            {"id": "one", "name": "PDF table extractor",
-             "description": "Extract tables from PDF", "quality_score": 0.8},
+            {
+                "id": "one",
+                "name": "PDF table extractor",
+                "description": "Extract tables from PDF",
+                "quality_score": 0.8,
+            },
             {"id": "two", "name": "PDF parser", "description": "Parse PDF table data", "quality_score": 0.7},
             {"id": "three", "name": "PDF OCR", "description": "OCR scanned PDF", "quality_score": 0.7},
         ]

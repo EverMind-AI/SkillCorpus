@@ -181,7 +181,9 @@ class SkillSearch:
                 if not endpoint:
                     continue
                 marketplace = MarketplaceClient(
-                    kind, endpoint, cache_dir=cfg.resolved_cache_dir(),
+                    kind,
+                    endpoint,
+                    cache_dir=cfg.resolved_cache_dir(),
                     timeout_s=cfg.marketplace_timeout_s,
                     download_timeout_s=cfg.marketplace_download_timeout_s,
                 )
@@ -412,9 +414,12 @@ class SkillSearch:
 
     async def _hydrate_bodies(self, hits: list[RouterHit]) -> list[RouterHit]:
         """Fetch bodies for all remote metadata hits before the gate."""
-        targets = [(index, hit) for index, hit in enumerate(hits) if not hit.content and (
-            hit.meta.get("source") == "hub" or hit.meta.get("source") in self._marketplace_clients
-        )]
+        targets = [
+            (index, hit)
+            for index, hit in enumerate(hits)
+            if not hit.content
+            and (hit.meta.get("source") == "hub" or hit.meta.get("source") in self._marketplace_clients)
+        ]
         if not targets:
             return hits
 

@@ -31,11 +31,19 @@ logger = logging.getLogger(__name__)
 
 class HubSkillSource:
     """SkillSource backed by EverMind, guarded against forced unrelated Top K."""
+
     name: str = "hub"
     weight: float = 0.85
 
-    def __init__(self, client: SkillHubClient, *, weight: float = 0.85, min_safety: float = 0.7,
-                 min_quality: float = 0.45, max_candidates: int = 2) -> None:
+    def __init__(
+        self,
+        client: SkillHubClient,
+        *,
+        weight: float = 0.85,
+        min_safety: float = 0.7,
+        min_quality: float = 0.45,
+        max_candidates: int = 2,
+    ) -> None:
         self._client = client
         self.weight = weight
         self._min_safety = min_safety
@@ -59,18 +67,34 @@ class HubSkillSource:
                 continue
             if quality is not None and float(quality) < self._min_quality:
                 continue
-            relevance = check_keyword_relevance(query, name=str(name),
-                description=str(item.get("description") or ""), tags=item.get("tags"))
+            relevance = check_keyword_relevance(
+                query, name=str(name), description=str(item.get("description") or ""), tags=item.get("tags")
+            )
             if not relevance["passed"]:
                 continue
-            hits.append(RouterHit(qualified_id=f"hub/{sid}", name=str(name), content="",
-                score=float(quality or 0.0), meta={"source": "hub", "id": sid,
-                "skill_id": item.get("skill_id"), "description": item.get("description"),
-                "tags": item.get("tags"), "category": item.get("category"),
-                "quality_score": quality, "install_count": item.get("install_count"),
-                "score_safety": safety, "keyword_relevance": relevance}))
+            hits.append(
+                RouterHit(
+                    qualified_id=f"hub/{sid}",
+                    name=str(name),
+                    content="",
+                    score=float(quality or 0.0),
+                    meta={
+                        "source": "hub",
+                        "id": sid,
+                        "skill_id": item.get("skill_id"),
+                        "description": item.get("description"),
+                        "tags": item.get("tags"),
+                        "category": item.get("category"),
+                        "quality_score": quality,
+                        "install_count": item.get("install_count"),
+                        "score_safety": safety,
+                        "keyword_relevance": relevance,
+                    },
+                )
+            )
             if len(hits) >= limit:
                 break
         return hits
+
 
 __all__ = ["HubSkillSource"]

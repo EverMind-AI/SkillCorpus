@@ -1,22 +1,76 @@
 """Lightweight lexical guard for catalogs that always return Top K."""
+
 from __future__ import annotations
 
 import re
 from typing import Any
 
 STOP = {
-    "a", "an", "the", "to", "for", "with", "using", "use", "create", "make", "help", "please",
-    "and", "or", "of", "in", "on", "my", "me", "i", "want", "need", "how", "can",
-    "from", "this", "that", "these", "those", "such", "no",
-    "帮我", "请", "一个", "一下", "如何", "怎么", "使用", "需要", "想要", "进行",
+    "a",
+    "an",
+    "the",
+    "to",
+    "for",
+    "with",
+    "using",
+    "use",
+    "create",
+    "make",
+    "help",
+    "please",
+    "and",
+    "or",
+    "of",
+    "in",
+    "on",
+    "my",
+    "me",
+    "i",
+    "want",
+    "need",
+    "how",
+    "can",
+    "from",
+    "this",
+    "that",
+    "these",
+    "those",
+    "such",
+    "no",
+    "帮我",
+    "请",
+    "一个",
+    "一下",
+    "如何",
+    "怎么",
+    "使用",
+    "需要",
+    "想要",
+    "进行",
 }
 ALIASES = {
-    "k8s": ("kubernetes",), "pr": ("pull", "request"), "ppt": ("powerpoint",),
-    "pptx": ("powerpoint",), "postgres": ("postgresql",), "transcription": ("transcribe",),
+    "k8s": ("kubernetes",),
+    "pr": ("pull", "request"),
+    "ppt": ("powerpoint",),
+    "pptx": ("powerpoint",),
+    "postgres": ("postgresql",),
+    "transcription": ("transcribe",),
 }
 GENERIC = {
-    "extract", "review", "deploy", "deployment", "generate", "generator", "analysis",
-    "optimize", "optimization", "process", "processing", "data", "code", "task",
+    "extract",
+    "review",
+    "deploy",
+    "deployment",
+    "generate",
+    "generator",
+    "analysis",
+    "optimize",
+    "optimization",
+    "process",
+    "processing",
+    "data",
+    "code",
+    "task",
 }
 TOKEN = re.compile(r"[a-z0-9+#.-]+|[\u3400-\u4dbf\u4e00-\u9fff]+", re.I)
 
@@ -25,7 +79,7 @@ def query_terms(query: str) -> list[str]:
     raw: list[str] = []
     for chunk in TOKEN.findall(query.lower()):
         if re.fullmatch(r"[\u3400-\u4dbf\u4e00-\u9fff]+", chunk) and len(chunk) >= 2:
-            raw.extend(chunk[index:index + 2] for index in range(len(chunk) - 1))
+            raw.extend(chunk[index : index + 2] for index in range(len(chunk) - 1))
         else:
             raw.append(chunk)
     terms: list[str] = []
@@ -40,7 +94,11 @@ def query_terms(query: str) -> list[str]:
 
 
 def check_keyword_relevance(
-    query: str, *, name: str, description: str = "", tags: Any = None,
+    query: str,
+    *,
+    name: str,
+    description: str = "",
+    tags: Any = None,
 ) -> dict[str, Any]:
     terms = query_terms(query)
     if not terms:

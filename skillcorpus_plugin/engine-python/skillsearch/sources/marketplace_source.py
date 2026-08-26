@@ -1,4 +1,5 @@
 """Public ClawHub and skillhub.cn adapters with safe bundle caching."""
+
 from __future__ import annotations
 
 import os
@@ -18,9 +19,16 @@ MarketplaceKind = Literal["clawhub", "skillhub_cn"]
 
 
 class MarketplaceClient:
-    def __init__(self, kind: MarketplaceKind, endpoint: str, *, cache_dir: Path,
-                 timeout_s: float = 5.0, download_timeout_s: float = 30.0,
-                 client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        kind: MarketplaceKind,
+        endpoint: str,
+        *,
+        cache_dir: Path,
+        timeout_s: float = 5.0,
+        download_timeout_s: float = 30.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
         self.kind = kind
         self._base = endpoint.rstrip("/")
         self._cache_dir = cache_dir
@@ -33,8 +41,9 @@ class MarketplaceClient:
             await self._client.aclose()
 
     async def search(self, query: str, *, limit: int = 2) -> list[dict[str, Any]]:
-        return await (self._search_clawhub(query, limit) if self.kind == "clawhub"
-                      else self._search_skillhub_cn(query, limit))
+        return await (
+            self._search_clawhub(query, limit) if self.kind == "clawhub" else self._search_skillhub_cn(query, limit)
+        )
 
     async def install(self, hit: RouterHit) -> dict[str, str]:
         slug = str(hit.meta.get("slug") or hit.meta.get("id"))
@@ -61,30 +70,49 @@ class MarketplaceClient:
         return {"dir": str(root), "skill_md": body}
 
     async def _search_clawhub(self, query: str, limit: int) -> list[dict[str, Any]]:
-        response = await self._client.get(f"{self._base}/api/v1/search", params={
-            "q": query, "limit": limit, "nonSuspiciousOnly": "true",
-        })
+        response = await self._client.get(
+            f"{self._base}/api/v1/search",
+            params={
+                "q": query,
+                "limit": limit,
+                "nonSuspiciousOnly": "true",
+            },
+        )
         response.raise_for_status()
         output = []
         for raw in (response.json() or {}).get("results", []):
-            skill = ((raw.get("native") or {}).get("skill") or {})
+            skill = (raw.get("native") or {}).get("skill") or {}
             trust = raw.get("trust") or {}
             slug = str(raw.get("slug") or "")
             if not slug or skill.get("isSuspicious") or trust.get("visibility") == "blocked":
                 continue
             if trust.get("installability") not in (None, "installable"):
                 continue
-            output.append({"id": raw.get("id") or slug, "slug": slug,
-                "name": raw.get("displayName") or slug, "description": raw.get("summary") or skill.get("summary") or "",
-                "score": float(raw.get("score") or 0), "owner": raw.get("ownerHandle") or "",
-                "version": raw.get("version") or skill.get("latestVersionId") or "v0",
-                "tags": skill.get("topics") or []})
+            output.append(
+                {
+                    "id": raw.get("id") or slug,
+                    "slug": slug,
+                    "name": raw.get("displayName") or slug,
+                    "description": raw.get("summary") or skill.get("summary") or "",
+                    "score": float(raw.get("score") or 0),
+                    "owner": raw.get("ownerHandle") or "",
+                    "version": raw.get("version") or skill.get("latestVersionId") or "v0",
+                    "tags": skill.get("topics") or [],
+                }
+            )
         return output
 
     async def _search_skillhub_cn(self, query: str, limit: int) -> list[dict[str, Any]]:
-        response = await self._client.get(f"{self._base}/api/skills", params={
-            "keyword": query, "sortBy": "score", "order": "desc", "page": 1, "pageSize": limit,
-        })
+        response = await self._client.get(
+            f"{self._base}/api/skills",
+            params={
+                "keyword": query,
+                "sortBy": "score",
+                "order": "desc",
+                "page": 1,
+                "pageSize": limit,
+            },
+        )
         response.raise_for_status()
         payload = response.json() or {}
         if payload.get("code") != 0:
@@ -97,11 +125,18 @@ class MarketplaceClient:
             slug = str(raw.get("slug") or "")
             if not slug:
                 continue
-            output.append({"id": namespace.get("canonicalName") or slug, "slug": slug,
-                "name": raw.get("name") or slug,
-                "description": raw.get("description_zh") or raw.get("description") or "",
-                "score": float(raw.get("score") or 0), "owner": raw.get("ownerName") or namespace.get("handle") or "",
-                "version": raw.get("version") or "v0", "tags": []})
+            output.append(
+                {
+                    "id": namespace.get("canonicalName") or slug,
+                    "slug": slug,
+                    "name": raw.get("name") or slug,
+                    "description": raw.get("description_zh") or raw.get("description") or "",
+                    "score": float(raw.get("score") or 0),
+                    "owner": raw.get("ownerName") or namespace.get("handle") or "",
+                    "version": raw.get("version") or "v0",
+                    "tags": [],
+                }
+            )
         return output
 
     async def _download(self, slug: str, owner: str, version: str) -> bytes:
@@ -110,8 +145,12 @@ class MarketplaceClient:
             params["ownerHandle"] = owner
         if self.kind == "skillhub_cn" and version != "v0":
             params["version"] = version
-        response = await self._client.get(f"{self._base}/api/v1/download", params=params,
-                                          timeout=httpx.Timeout(self._download_timeout_s), follow_redirects=True)
+        response = await self._client.get(
+            f"{self._base}/api/v1/download",
+            params=params,
+            timeout=httpx.Timeout(self._download_timeout_s),
+            follow_redirects=True,
+        )
         response.raise_for_status()
         return response.content
 
@@ -125,9 +164,16 @@ class MarketplaceSkillSource:
     async def search(self, query: str, history: list[dict[str, Any]], k: int) -> list[RouterHit]:
         del history
         items = await self.client.search(query, limit=min(2, max(0, k)))
-        return [RouterHit(qualified_id=f"{self.name}/{item['id']}", name=str(item["name"]),
-            content="", score=float(item["score"]), meta={"source": self.name, **item})
-            for item in items[:min(2, max(0, k))]]
+        return [
+            RouterHit(
+                qualified_id=f"{self.name}/{item['id']}",
+                name=str(item["name"]),
+                content="",
+                score=float(item["score"]),
+                meta={"source": self.name, **item},
+            )
+            for item in items[: min(2, max(0, k))]
+        ]
 
 
 def _malicious(reports: Any) -> bool:
