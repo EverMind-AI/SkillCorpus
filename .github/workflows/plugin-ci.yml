@@ -1,0 +1,105 @@
+name: Plugin CI
+
+on:
+  pull_request:
+    paths:
+      - "skillcorpus_plugin/**"
+      - ".github/workflows/plugin-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skillcorpus_plugin/**"
+      - ".github/workflows/plugin-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-engine:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -e './skillcorpus_plugin/engine-python[dev]'
+      - run: ruff check skillsearch tests
+        working-directory: skillcorpus_plugin/engine-python
+      - run: ruff format --check skillsearch tests
+        working-directory: skillcorpus_plugin/engine-python
+      - run: pytest -q
+        working-directory: skillcorpus_plugin/engine-python
+
+  python-packages:
+    name: Python release artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install build twine
+      - run: python -m build skillcorpus_plugin/engine-python
+      - run: python -m build skillcorpus_plugin/plugin-raven
+      - run: twine check skillcorpus_plugin/engine-python/dist/* skillcorpus_plugin/plugin-raven/dist/*
+      - run: python skillcorpus_plugin/scripts/verify_release_versions.py
+
+  typescript-engine:
+    name: TypeScript engine parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npx --yes tsx --test tests/parity.test.ts
+        working-directory: skillcorpus_plugin/engine-typescript
+
+  npm-plugins:
+    name: ${{ matrix.name }} package
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: OpenClaw
+            directory: plugin-openclaw
+          - name: WorkBuddy
+            directory: plugin-workbuddy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: skillcorpus_plugin/${{ matrix.directory }}/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: skillcorpus_plugin/${{ matrix.directory }}
+      - run: npm run ci
+        working-directory: skillcorpus_plugin/${{ matrix.directory }}
+      - run: node ../scripts/verify_npm_package.mjs .
+        working-directory: skillcorpus_plugin/${{ matrix.directory }}
+
+  adapters:
+    name: Python host adapters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e './skillcorpus_plugin/engine-python[dev]' -e ./skillcorpus_plugin/plugin-raven
+      - run: git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
+      - run: PYTHONPATH=/tmp/hermes-agent pytest skillcorpus_plugin/plugin-hermes/tests -q
+      - run: ruff check skillcorpus_plugin/plugin-raven
+      - run: pytest skillcorpus_plugin/plugin-raven/tests -q
