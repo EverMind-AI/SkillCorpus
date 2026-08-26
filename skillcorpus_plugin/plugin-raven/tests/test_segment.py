@@ -59,9 +59,7 @@ class PluginContext:
 
 
 def segment_for(workspace: Path, **extra: Any) -> Any:
-    return make_segment(
-        PluginContext(workspace, {"skills_dir": str(workspace / "skills"), "top_k": 2, **extra})
-    )
+    return make_segment(PluginContext(workspace, {"skills_dir": str(workspace / "skills"), "top_k": 2, **extra}))
 
 
 # ── the protocol the assembler reads before building anything ────────────
@@ -88,9 +86,7 @@ def test_it_stays_in_the_parallel_phase() -> None:
 
 
 def test_the_manifest_points_at_a_factory_that_resolves() -> None:
-    module_path, _, attribute = MANIFEST["plugin"]["contributes"]["context_segments"][0][
-        "factory"
-    ].partition(":")
+    module_path, _, attribute = MANIFEST["plugin"]["contributes"]["context_segments"][0]["factory"].partition(":")
     import importlib
 
     assert callable(getattr(importlib.import_module(module_path), attribute))
@@ -110,9 +106,7 @@ def test_the_manifest_id_matches_the_entry_point() -> None:
 # drives the same path further — `RAVEN_ROOT=<checkout> python
 # verify-raven.py`, through the real `ContextAssembler`, to the assembled
 # prompt.
-needs_host = pytest.mark.skipif(
-    importlib.util.find_spec("raven") is None, reason="needs a Raven checkout on the path"
-)
+needs_host = pytest.mark.skipif(importlib.util.find_spec("raven") is None, reason="needs a Raven checkout on the path")
 
 
 @needs_host
@@ -135,7 +129,14 @@ def test_the_factory_declines_its_slot_when_nothing_is_configured(tmp_path: Path
     """No skills directory and no catalog: the host keeps no fallback, so
     declining is what turns retrieval off rather than injecting nothing."""
 
-    assert make_segment(PluginContext(tmp_path, {"skills_dir": str(tmp_path / "absent"), "clawhub_endpoint": "", "skillhub_cn_endpoint": ""})) is None
+    assert (
+        make_segment(
+            PluginContext(
+                tmp_path, {"skills_dir": str(tmp_path / "absent"), "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
+            )
+        )
+        is None
+    )
 
 
 @needs_host
