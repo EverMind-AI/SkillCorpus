@@ -4,7 +4,17 @@
 
 ### Added
 
-- **Default multi-source retrieval** now searches local skills, EverMind when configured, ClawHub, and skillhub.cn concurrently. Each source contributes at most two candidates; suspicious or malicious entries are rejected, bundles are safely cached, source failures are isolated, and the final gate still selects 0–2 skills. ClawHub and skillhub.cn can each be disabled with an empty endpoint.
+- **A root WorkBuddy marketplace manifest** lets WorkBuddy discover and install
+  Skill Search through its standard marketplace flow. The checked-in
+  `dist/hook.mjs` is part of that marketplace source so GitHub git/ZIP installs
+  contain the command declared by `hooks/hooks.json`. CI rebuilds the bundle
+  and fails if the checked-in runtime is stale.
+
+- **Default multi-source retrieval** now searches local skills, EverMind, ClawHub,
+  and skillhub.cn concurrently. Each source contributes at most two candidates;
+  suspicious or malicious entries are rejected, bundles are safely cached,
+  source failures are isolated, and the final gate still selects 0–2 skills.
+  EverMind, ClawHub, and skillhub.cn can each be disabled with an empty endpoint.
 
 - **PathGuard placeholder resolution** — both engines resolve
   `{{SKILL_DIR}}`, `{{SKILL_DIR:<name>}}`, `{{AGENT_STATE_DIR}}`,

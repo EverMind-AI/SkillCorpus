@@ -5,6 +5,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+!skillcorpus_plugin/plugin-workbuddy/dist/
+!skillcorpus_plugin/plugin-workbuddy/dist/hook.mjs
 
 # top-level inputs/artifacts (private / generated)
 configs/sources.full.yaml

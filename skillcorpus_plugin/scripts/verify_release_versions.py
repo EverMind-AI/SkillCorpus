@@ -38,6 +38,9 @@ source = (REPO_ROOT / entry["source"]).resolve()
 expected_source = (ROOT / "plugin-workbuddy").resolve()
 if source != expected_source:
     raise SystemExit(f"WorkBuddy marketplace source must resolve to {expected_source}, got {source}")
+for required in (source / "dist/hook.mjs", source / "hooks/hooks.json"):
+    if not required.is_file():
+        raise SystemExit(f"WorkBuddy marketplace is missing required runtime file: {required}")
 plugin_manifest = json.loads((source / ".codebuddy-plugin/plugin.json").read_text(encoding="utf-8"))
 if plugin_manifest.get("name") != entry["name"]:
     raise SystemExit("WorkBuddy marketplace and plugin manifest names disagree")
