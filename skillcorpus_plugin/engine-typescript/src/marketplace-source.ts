@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { bundleRoot, extractBundle } from './bundle.js'
+import { compactCatalogQuery } from './relevance.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
 export type MarketplaceKind = 'clawhub' | 'skillhub_cn'
@@ -139,7 +140,7 @@ export class MarketplaceSkillSource implements SkillSource {
     this.weight = options.weight ?? 0.75
   }
   async search(query: string, options: SearchOptions, k: number): Promise<RouterHit[]> {
-    const items = await this.client.search(query, options.signal, Math.min(2, k))
+    const items = await this.client.search(compactCatalogQuery(query), options.signal, Math.min(2, k))
     return items.filter(item => !item.suspicious && item.installable !== false).slice(0, Math.min(2, k)).map(item => ({
       qualifiedId: `${this.name}/${item.id}`, name: item.name, content: '', score: item.score,
       meta: { source: this.name, id: item.id, slug: item.slug, owner: item.owner,

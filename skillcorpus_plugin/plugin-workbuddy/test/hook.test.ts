@@ -100,6 +100,27 @@ test('every turn leaves one line behind, because the transcript keeps none', asy
   assert.equal(entry.injected_chars, '# Skills\n\nbody'.length)
 })
 
+test('source diagnostics are written with the turn log', async () => {
+  const resolved = await config()
+  await runTurn(JSON.stringify(REAL_PAYLOAD), {
+    config: resolved,
+    retrieveFn: async (_query, _config, _deps, onDiagnostic) => {
+      onDiagnostic?.({ source: 'clawhub', stage: 'search', elapsedMs: 42, hitCount: 0 })
+      onDiagnostic?.({
+        source: 'skillhub_cn', stage: 'search', elapsedMs: 51, hitCount: 0,
+        error: 'timed out',
+      })
+      return ''
+    },
+  })
+
+  const entry = JSON.parse(readFileSync(resolved.logPath, 'utf8').trim()) as Record<string, unknown>
+  assert.deepEqual(entry.sources, [
+    { source: 'clawhub', stage: 'search', elapsedMs: 42, hitCount: 0 },
+    { source: 'skillhub_cn', stage: 'search', elapsedMs: 51, hitCount: 0, error: 'timed out' },
+  ])
+})
+
 test('queryOf and resultFor hold the two ends of the contract', () => {
   assert.equal(queryOf({ prompt: '  x  ' }), 'x')
   assert.equal(queryOf({}), '')

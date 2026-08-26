@@ -56,9 +56,22 @@ export interface RetrieveOptions {
   readonly availableTools?: readonly string[] | undefined
 }
 
+export type SourceDiagnosticStage = 'search' | 'hydrate' | 'materialise'
+
+/** One fail-open source operation, exposed for host diagnostics. */
+export interface SourceDiagnostic {
+  readonly source: string
+  readonly stage: SourceDiagnosticStage
+  readonly elapsedMs: number
+  readonly hitCount?: number
+  readonly error?: string
+}
+
 /** The pieces the pipeline runs on. Only `sources` is required. */
 export interface EngineParts {
   readonly sources: readonly SkillSource[]
+  /** Receives best-effort source timings and failures; callback errors are ignored. */
+  readonly onDiagnostic?: (diagnostic: SourceDiagnostic) => void
   readonly rewriter?: QueryRewriter
   readonly gate?: LLMGateFilter
   /** Loads a remote body once the gate has kept its hit. */
@@ -98,6 +111,7 @@ export class SkillSearchEngine {
   private readonly gate: LLMGateFilter | undefined
   private readonly fetchBody: EngineParts['fetchBody'] | undefined
   private readonly materialise: EngineParts['materialise'] | undefined
+  private readonly onDiagnostic: EngineParts['onDiagnostic'] | undefined
   private readonly topK: number
   private readonly rrfK: number | undefined
   private readonly gatePool: number
@@ -113,6 +127,7 @@ export class SkillSearchEngine {
     this.gate = parts.gate
     this.fetchBody = parts.fetchBody
     this.materialise = parts.materialise
+    this.onDiagnostic = parts.onDiagnostic
     this.topK = options.topK ?? 2
     this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
@@ -169,11 +184,20 @@ export class SkillSearchEngine {
     const perSource = Math.min(this.perSourceMax, poolSize * this.overFetch)
     const results = await Promise.all(
       this.sources.map(async (source): Promise<SourceResult> => {
+        const startedAt = Date.now()
         try {
           const hits = await source.search(searchQuery, signal ? { signal } : {}, perSource)
+          this.diagnose({
+            source: source.name, stage: 'search', elapsedMs: Date.now() - startedAt,
+            hitCount: hits.length,
+          })
           return { name: source.name, weight: source.weight, hits }
-        } catch {
+        } catch (error) {
           // One source being down leaves the others usable.
+          this.diagnose({
+            source: source.name, stage: 'search', elapsedMs: Date.now() - startedAt,
+            hitCount: 0, error: errorMessage(error),
+          })
           return { name: source.name, weight: source.weight, hits: [] }
         }
       }),
@@ -203,6 +227,14 @@ export class SkillSearchEngine {
     return this.resolveHitRefs(hits.slice(0, this.topK), signal)
   }
 
+  private diagnose(diagnostic: SourceDiagnostic): void {
+    try {
+      this.onDiagnostic?.(diagnostic)
+    } catch {
+      // Observability must never affect retrieval.
+    }
+  }
+
   /** Rewrite refs for hits that already know their directory. */
   private resolveLocalRefs(hits: RouterHit[]): RouterHit[] {
     if (!this.refs) return hits
@@ -226,8 +258,14 @@ export class SkillSearchEngine {
     return Promise.all(hits.map(async (hit) => {
       let current = hit
       if (typeof current.meta.skillDir !== 'string' && this.materialise) {
+        const startedAt = Date.now()
+        const source = sourceName(current)
         try {
           const installed = await this.materialise(current, signal)
+          this.diagnose({
+            source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
+            hitCount: installed ? 1 : 0,
+          })
           if (installed) {
             current = {
               ...current,
@@ -235,8 +273,12 @@ export class SkillSearchEngine {
               meta: { ...current.meta, skillDir: installed.dir },
             }
           }
-        } catch {
+        } catch (error) {
           // Unresolved paths, not a lost skill. The body still instructs.
+          this.diagnose({
+            source, stage: 'materialise', elapsedMs: Date.now() - startedAt,
+            hitCount: 0, error: errorMessage(error),
+          })
           return current
         }
       }
@@ -254,8 +296,14 @@ export class SkillSearchEngine {
     return Promise.all(
       hits.map(async (hit) => {
         if (hit.content) return hit
+        const startedAt = Date.now()
+        const source = sourceName(hit)
         try {
           const out = await fetchBody(hit, signal)
+          this.diagnose({
+            source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
+            hitCount: out && (typeof out === 'string' || out.body) ? 1 : 0,
+          })
           if (!out) return hit
           if (typeof out === 'string') return { ...hit, content: out }
           // The record rides in meta so `materialise` can hand it to the
@@ -265,7 +313,11 @@ export class SkillSearchEngine {
           if (out.body) next.content = out.body
           if (out.record) next.meta = { ...hit.meta, _fetched: out.record }
           return next
-        } catch {
+        } catch (error) {
+          this.diagnose({
+            source, stage: 'hydrate', elapsedMs: Date.now() - startedAt,
+            hitCount: 0, error: errorMessage(error),
+          })
           return hit
         }
       }),
@@ -300,4 +352,12 @@ export class SkillSearchEngine {
     const body = parts.join('\n\n')
     return body ? `${this.heading}\n\n${body}` : ''
   }
+}
+function sourceName(hit: RouterHit): string {
+  const source = hit.meta.source
+  return typeof source === 'string' && source ? source : hit.qualifiedId.split('/', 1)[0] || 'unknown'
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

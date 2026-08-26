@@ -19,9 +19,12 @@ test('ClawHub maps trusted search results and caps one source at two', async () 
     ] }), { status: 200 })
   }
   const client = new MarketplaceClient('clawhub', 'https://clawhub.test', { cacheDir: await mkdtemp(join(tmpdir(), 'market-')) })
-  const hits = await new MarketplaceSkillSource(client).search('pdf forms', {}, 9)
+  const hits = await new MarketplaceSkillSource(client).search(
+    'Please help me extract text from a PDF invoice', {}, 9,
+  )
   assert.equal(hits.length, 2)
   assert.equal(hits[0]?.qualifiedId, 'clawhub/1')
+  assert.equal(new URL(seen).searchParams.get('q'), 'text pdf invoice extract')
   assert.match(seen, /nonSuspiciousOnly=true/)
   assert.match(seen, /limit=2/)
 })

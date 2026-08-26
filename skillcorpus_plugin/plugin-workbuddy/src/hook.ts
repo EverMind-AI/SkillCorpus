@@ -24,6 +24,7 @@
 
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import type { SourceDiagnostic } from '../../engine-typescript/src/engine.js'
 import { loadConfig, readConfigDocument, type SkillSearchConfig } from './config.js'
 import { retrieveForTurn } from './retrieve.js'
 import type { UserPromptSubmitPayload, UserPromptSubmitResult } from './workbuddy-types.js'
@@ -114,9 +115,12 @@ export async function runTurn(
   const query = queryOf(payload)
   let block = ''
   let failure: string | null = null
+  const sourceDiagnostics: SourceDiagnostic[] = []
   if (query) {
     try {
-      block = await (deps.retrieveFn ?? retrieveForTurn)(query, config)
+      block = await (deps.retrieveFn ?? retrieveForTurn)(
+        query, config, {}, diagnostic => { sourceDiagnostics.push(diagnostic) },
+      )
     } catch (error) {
       // `retrieveForTurn` already promises never to reject. This is the
       // guarantee held where it matters rather than where it is made: a
@@ -133,6 +137,7 @@ export async function runTurn(
     skills: selectedSkills(block),
     injected_chars: block.length,
     elapsed_ms: Date.now() - startedAt,
+    sources: sourceDiagnostics,
     error: failure,
   })
 

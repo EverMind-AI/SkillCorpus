@@ -39,13 +39,16 @@ export const inject = ['agents', 'llm']
 
 export * from './types.js'
 export { SkillSearchEngine } from './engine.js'
+export type {
+  EngineOptions, EngineParts, RetrieveOptions, SourceDiagnostic, SourceDiagnosticStage,
+} from './engine.js'
 export { LLMGateFilter } from './gate.js'
 export { HubSkillSource, SkillHubClient } from './hub-source.js'
 export { LocalSkillSource } from './local-source.js'
 export { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
 export type { MarketplaceItem, MarketplaceKind } from './marketplace-source.js'
 export { QueryRewriter } from './rewriter.js'
-export { checkKeywordRelevance, queryTerms } from './relevance.js'
+export { checkKeywordRelevance, compactCatalogQuery, queryTerms } from './relevance.js'
 export { BM25Okapi, tokenize } from './bm25.js'
 export { RRF_K, rrfMergeWeighted } from './fusion.js'
 export { resolveRefs } from './refs.js'

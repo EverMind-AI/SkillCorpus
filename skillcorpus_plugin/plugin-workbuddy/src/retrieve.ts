@@ -10,7 +10,7 @@
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { SkillSearchEngine } from '../../engine-typescript/src/engine.js'
+import { SkillSearchEngine, type SourceDiagnostic } from '../../engine-typescript/src/engine.js'
 import { LLMGateFilter } from '../../engine-typescript/src/gate.js'
 import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-source.js'
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
@@ -34,7 +34,10 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
-export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
+export function buildEngine(
+  config: SkillSearchConfig,
+  onDiagnostic?: (diagnostic: SourceDiagnostic) => void,
+): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(Boolean)
@@ -84,6 +87,7 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
   return new SkillSearchEngine(
     {
       sources,
+      ...(onDiagnostic ? { onDiagnostic } : {}),
       ...(model && config.rewrite ? { rewriter: new QueryRewriter(model) } : {}),
       ...(model && (config.gate ?? (Boolean(config.hubEndpoint) || marketplaceClients.size > 0))
         ? { gate: new LLMGateFilter(model, { maxSelect: config.maxSelect }) }
@@ -140,12 +144,13 @@ export async function retrieveForTurn(
   query: string,
   config: SkillSearchConfig,
   deps: { buildEngineFn?: typeof buildEngine } = {},
+  onDiagnostic?: (diagnostic: SourceDiagnostic) => void,
 ): Promise<string> {
   if (!query.trim()) return ''
 
   let engine: SkillSearchEngine
   try {
-    engine = (deps.buildEngineFn ?? buildEngine)(config)
+    engine = (deps.buildEngineFn ?? buildEngine)(config, onDiagnostic)
   } catch {
     return ''
   }

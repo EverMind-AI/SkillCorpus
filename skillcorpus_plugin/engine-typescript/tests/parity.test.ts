@@ -23,7 +23,7 @@ import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
-import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
+import { checkKeywordRelevance, compactCatalogQuery, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
 import type { SkillSource } from '../src/types.ts'
@@ -345,6 +345,69 @@ test('a Latin run under two characters is still dropped', () => {
   assert.deepEqual(tokenize('ab'), ['ab'])
 })
 
+
+test('catalog queries compact conversational English and Chinese', () => {
+  assert.equal(
+    compactCatalogQuery('Please help me extract text from a PDF invoice'),
+    'text pdf invoice extract',
+  )
+  assert.equal(compactCatalogQuery('帮我从 PDF 发票里提取文字'), 'pdf 发票里提取文字')
+  assert.equal(compactCatalogQuery('c++ next.js'), 'c++ next.js')
+  assert.equal(compactCatalogQuery('please help me'), 'please help me')
+})
+
+test('source diagnostics distinguish empty results from failures', async () => {
+  const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
+  const empty: SkillSource = {
+    name: 'empty', weight: 1,
+    async search() { return [] },
+  }
+  const broken: SkillSource = {
+    name: 'broken', weight: 1,
+    async search() { throw new Error('catalog unavailable') },
+  }
+  await new SkillSearchEngine({
+    sources: [empty, broken],
+    onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+  }).hits('pdf')
+
+  assert.equal(diagnostics.find(item => item.source === 'empty')?.hitCount, 0)
+  assert.equal(diagnostics.find(item => item.source === 'empty')?.error, undefined)
+  assert.equal(diagnostics.find(item => item.source === 'broken')?.error, 'catalog unavailable')
+})
+
+test('a diagnostic callback failure never changes retrieval', async () => {
+  const source: SkillSource = {
+    name: 'healthy', weight: 1,
+    async search() { return [hit('healthy/pdf', 'pdf', 1, 'body')] },
+  }
+  const hits = await new SkillSearchEngine({
+    sources: [source],
+    onDiagnostic: () => { throw new Error('logger unavailable') },
+  }).hits('pdf')
+  assert.deepEqual(hits.map(item => item.name), ['pdf'])
+})
+
+test('source diagnostics cover hydrate and materialise stages', async () => {
+  const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
+  const remote: SkillSource = {
+    name: 'remote', weight: 1,
+    async search() {
+      const found = hit('remote/pdf', 'pdf', 1)
+      found.meta.source = 'remote'
+      return [found]
+    },
+  }
+  await new SkillSearchEngine({
+    sources: [remote],
+    fetchBody: async () => 'run scripts/x.js',
+    materialise: async () => ({ dir: '/skills/pdf' }),
+    onDiagnostic: diagnostic => { diagnostics.push(diagnostic) },
+  }).hits('pdf')
+
+  assert.deepEqual(diagnostics.map(item => item.stage), ['search', 'hydrate', 'materialise'])
+  assert.deepEqual(diagnostics.map(item => item.hitCount), [1, 1, 1])
+})
 
 test('EverMind lexical guard rejects forced unrelated Top K results', () => {
   const unrelated = hit('hub/task', 'get-task', 0.9)

@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
-import { checkKeywordRelevance } from './relevance.js'
+import { checkKeywordRelevance, compactCatalogQuery } from './relevance.js'
 
 /** Success markers a catalog may send beside `status: 0`. */
 const OK_TOKENS = new Set(['ok', 'success'])
@@ -219,7 +219,7 @@ export class HubSkillSource implements SkillSource {
   async search(query: string, options: SearchOptions, k: number): Promise<RouterHit[]> {
     const limit = Math.min(k, this.maxCandidates)
     if (limit <= 0) return []
-    const items = await this.client.search(query, options.signal, Math.max(limit * 4, limit))
+    const items = await this.client.search(compactCatalogQuery(query), options.signal, Math.max(limit * 4, limit))
     const hits: RouterHit[] = []
     for (const item of items) {
       const id = item.id
