@@ -345,6 +345,36 @@ test('a Latin run under two characters is still dropped', () => {
   assert.deepEqual(tokenize('ab'), ['ab'])
 })
 
+test('default fusion keeps same-named skills with different bodies', async () => {
+  const first: SkillSource = {
+    name: 'first', weight: 1,
+    async search() { return [{ ...hit('first/shared', 'shared', 1, 'first body'), meta: { source: 'first' } }] },
+  }
+  const second: SkillSource = {
+    name: 'second', weight: 1,
+    async search() { return [{ ...hit('second/shared', 'shared', 1, 'second body'), meta: { source: 'second' } }] },
+  }
+  const hits = await new SkillSearchEngine({ sources: [first, second] }, { topK: 2 }).hits('shared')
+  assert.deepEqual(hits.map(item => item.content), ['first body', 'second body'])
+})
+
+test('exact normalized-body dedup keeps the local copy without fuzzy matching', async () => {
+  const remote: SkillSource = {
+    name: 'remote', weight: 1,
+    async search() {
+      return [
+        { ...hit('remote/copy', 'remote copy', 1, 'same body  \r\n'), meta: { source: 'remote' } },
+        { ...hit('remote/near', 'near copy', 0.9, 'same body!'), meta: { source: 'remote' } },
+      ]
+    },
+  }
+  const local: SkillSource = {
+    name: 'local', weight: 1,
+    async search() { return [{ ...hit('local/copy', 'local copy', 1, 'same body\n'), meta: { source: 'local' } }] },
+  }
+  const hits = await new SkillSearchEngine({ sources: [remote, local] }, { topK: 3 }).hits('body')
+  assert.deepEqual(hits.map(item => item.qualifiedId), ['local/copy', 'remote/near'])
+})
 
 test('source diagnostics distinguish empty results from failures', async () => {
   const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []

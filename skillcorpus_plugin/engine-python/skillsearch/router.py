@@ -36,7 +36,7 @@ class SkillForgeRouter:
         sources: list[SkillSource],
         *,
         over_fetch_factor: int = 2,
-        dedup_by: str = "name",
+        dedup_by: str = "qualified_id",
         rrf_k: int = RRF_K,
         per_source_max: int = 2,
     ) -> None:

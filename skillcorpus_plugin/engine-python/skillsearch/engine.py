@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
 from collections.abc import Sequence
 from dataclasses import replace
@@ -336,6 +337,7 @@ class SkillSearch:
 
         hits = await self._hydrate_bodies(hits)
         hits = [hit for hit in hits if hit.meta.get("source") not in self._marketplace_clients or bool(hit.content)]
+        hits = _dedup_exact_bodies(hits)
         if not hits:
             return []
 
@@ -560,6 +562,36 @@ def _tool_name(tool: Any) -> str:
         if tool.get("name"):
             return str(tool["name"])
     return str(getattr(tool, "name", "") or "")
+
+
+def _normalise_body(body: str) -> str:
+    return "\n".join(
+        line.rstrip()
+        for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    ).strip()
+
+
+def _is_local_hit(hit: RouterHit) -> bool:
+    return hit.meta.get("source") == "local" or bool(hit.meta.get("skill_dir"))
+
+
+def _dedup_exact_bodies(hits: list[RouterHit]) -> list[RouterHit]:
+    """Collapse exact instruction copies without fuzzy or model-based matching."""
+    output: list[RouterHit] = []
+    positions: dict[str, int] = {}
+    for hit in hits:
+        body = _normalise_body(hit.content)
+        if not body:
+            output.append(hit)
+            continue
+        digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        existing = positions.get(digest)
+        if existing is None:
+            positions[digest] = len(output)
+            output.append(hit)
+        elif _is_local_hit(hit) and not _is_local_hit(output[existing]):
+            output[existing] = hit
+    return output
 
 
 __all__ = ["SkillSearch"]

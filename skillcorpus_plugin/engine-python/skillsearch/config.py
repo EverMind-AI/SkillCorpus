@@ -129,7 +129,7 @@ class SearchConfig:
     per_source_max: int = 2
     """Hard upper bound contributed by each source before fusion."""
 
-    dedup_by: str = "name"
+    dedup_by: str = "qualified_id"
     top_k: int = 2
 
     # ── Narrowing ────────────────────────────────────────────────────

@@ -13,6 +13,8 @@
  * @module
  */
 
+import { createHash } from 'node:crypto'
+
 import { rrfMergeWeighted, type SourceResult } from './fusion.js'
 import { LLMGateFilter } from './gate.js'
 import { resolveRefs } from './refs.js'
@@ -136,7 +138,7 @@ export class SkillSearchEngine {
     this.gatePool = options.gatePool ?? 10
     this.overFetch = options.overFetch ?? 2
     this.perSourceMax = options.perSourceMax ?? 2
-    this.dedupBy = options.dedupBy ?? 'name'
+    this.dedupBy = options.dedupBy ?? 'qualifiedId'
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
   }
@@ -213,6 +215,7 @@ export class SkillSearchEngine {
 
     hits = await this.hydrateBodies(hits, signal)
     hits = hits.filter(hit => !['clawhub', 'skillhub_cn'].includes(String(hit.meta.source)) || Boolean(hit.content))
+    hits = dedupExactBodies(hits)
     if (hits.length === 0) return []
 
     // Before the gate, and only for skills already on disk. The gate is
@@ -356,6 +359,36 @@ export class SkillSearchEngine {
     return body ? `${this.heading}\n\n${body}` : ''
   }
 }
+/** Collapse exact instruction copies after harmless whitespace normalisation. */
+function dedupExactBodies(hits: RouterHit[]): RouterHit[] {
+  const output: RouterHit[] = []
+  const positions = new Map<string, number>()
+  for (const hit of hits) {
+    const body = normaliseBody(hit.content)
+    if (!body) {
+      output.push(hit)
+      continue
+    }
+    const digest = createHash('sha256').update(body).digest('hex')
+    const existing = positions.get(digest)
+    if (existing === undefined) {
+      positions.set(digest, output.length)
+      output.push(hit)
+    } else if (isLocal(hit) && !isLocal(output[existing]!)) {
+      output[existing] = hit
+    }
+  }
+  return output
+}
+
+function normaliseBody(body: string): string {
+  return body.replace(/\r\n?/g, '\n').split('\n').map(line => line.trimEnd()).join('\n').trim()
+}
+
+function isLocal(hit: RouterHit): boolean {
+  return String(hit.meta.source) === 'local' || (typeof hit.meta.skillDir === 'string' && Boolean(hit.meta.skillDir))
+}
+
 function sourceName(hit: RouterHit): string {
   const source = hit.meta.source
   return typeof source === 'string' && source ? source : hit.qualifiedId.split('/', 1)[0] || 'unknown'
