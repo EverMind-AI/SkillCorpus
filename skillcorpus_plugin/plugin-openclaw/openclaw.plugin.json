@@ -22,7 +22,7 @@
       },
       "hubEndpoint": {
         "type": "string",
-        "default": "",
+        "default": "https://skillhub.evermind.ai",
         "description": "Remote catalog base URL; empty disables the remote source"
       },
       "hubApiKey": {

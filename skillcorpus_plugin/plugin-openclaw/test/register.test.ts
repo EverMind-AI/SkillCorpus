@@ -221,6 +221,16 @@ test('an unset configuration resolves to the documented defaults', () => {
   assert.equal(config.skillhubCnEndpoint, 'https://api.skillhub.cn')
 })
 
+test('the host manifest and runtime agree on every remote-source default', async () => {
+  const manifest = JSON.parse(
+    await readFile(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'),
+  )
+  const properties = manifest.configSchema.properties
+  assert.equal(properties.hubEndpoint.default, DEFAULTS.hubEndpoint)
+  assert.equal(properties.clawhubEndpoint.default, DEFAULTS.clawhubEndpoint)
+  assert.equal(properties.skillhubCnEndpoint.default, DEFAULTS.skillhubCnEndpoint)
+})
+
 test('an explicitly empty endpoint disables each default remote source', () => {
   const config = loadConfig(
     { hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '' },

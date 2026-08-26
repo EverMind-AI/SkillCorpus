@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "skillcorpus_plugin/**"
+      - ".codebuddy-plugin/**"
       - ".github/workflows/plugin-ci.yml"
   push:
     branches: [main]
     paths:
       - "skillcorpus_plugin/**"
+      - ".codebuddy-plugin/**"
       - ".github/workflows/plugin-ci.yml"
 
 permissions:
