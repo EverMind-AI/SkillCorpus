@@ -293,3 +293,14 @@
   the corpus paper's citation; per-implementation READMEs document the new
   configuration keys, and the cross-implementation equality claim now
   points at the parity suite that enforces it.
+
+## 0.1.0 — 2026-08-25
+
+Initial public release of SkillCorpus Plugins.
+
+- Added the shared Python retrieval engine.
+- Added initial Hermes and Raven adapters.
+- Added TypeScript retrieval support for DeepSeek Harness.
+- Added OpenClaw and WorkBuddy plugin integrations.
+- Added local and SkillHub retrieval, ranking, model gating, and safe bundle
+  extraction.
