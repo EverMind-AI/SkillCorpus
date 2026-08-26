@@ -38,8 +38,8 @@ path and command below starts there.
 
 ## WorkBuddy
 
-WorkBuddy installs are file-level marketplace surgery with their own
-playbook: follow [`plugin-workbuddy/INSTALL.agent.md`](plugin-workbuddy/INSTALL.agent.md)
+WorkBuddy installs through its standard plugin marketplace. Its own playbook
+covers discovery and restart verification: follow [`plugin-workbuddy/INSTALL.agent.md`](plugin-workbuddy/INSTALL.agent.md)
 step by step — do not improvise a WorkBuddy install from this file. The
 same rules apply there, plus two stricter ones it states: report each step
 as you finish it, and never route around a failed step.

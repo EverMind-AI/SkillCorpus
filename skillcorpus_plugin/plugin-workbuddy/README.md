@@ -101,33 +101,34 @@ skill that runs here sat unread in seat three. EverMind SkillHub
 and skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public
 API URLs; set any endpoint to an empty string to disable that source.
 
-## Install — paste this to WorkBuddy
+## Install
 
-WorkBuddy is itself an agent, and this install is file-level work an agent
-does well. Paste this into a WorkBuddy session (fill in the plugin source):
+Use WorkBuddy's standard marketplace flow:
 
-> 帮我在 WorkBuddy 里安装 skillsearch 插件。它是一个 UserPromptSubmit hook，
-> 每轮对话前按我的提问检索本机与远端的 skill，把最相关的注入上下文。
->
-> 插件源（git 地址或本地打包目录）：`<源地址>`
->
-> 严格按照源里 `skillcorpus_plugin/plugin-workbuddy/INSTALL.agent.md` 的步骤执行：每做完一步
-> 简短汇报结果；任何一步失败就停下来告诉我，不要跳过，也不要自己想办法
-> 绕过；改任何配置文件之前，先做带时间戳的备份，并把要做的改动展示给我；
-> 市场名和版本号从文件里读，不要自己编。装完后按剧本的自检清单逐项验证，
-> 把结果和所有改动过的文件汇报给我。
+1. Open **Experts · Skills · Connectors → Skills → Plugin Marketplace**.
+2. Add `EverMind-AI/SkillCorpus` (or its git URL/release zip) as a marketplace
+   source. Do not use a local directory; it is not persistent across restart on
+   WorkBuddy 5.3.13.
+3. Confirm `CODEBUDDY_DISABLE_EXTENDED_PLUGIN_HOOKS` is not `1` in the
+   environment that launches WorkBuddy; that value disables every extended
+   plugin hook. Clear it from the launcher and fully restart before continuing.
+4. Open the `skillcorpus` marketplace and install and enable **Skill Search**.
+5. Fully quit and reopen WorkBuddy.
 
-The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — backup,
-marketplace registration, cache copy, install record, enablement, then a
-positive and a negative retrieval probe. The same prompt in English works;
-the playbook is English.
+Do not manually edit WorkBuddy's internal JSON files or copy the plugin into
+its cache. The root `.codebuddy-plugin/marketplace.json` is the discovery entry,
+and WorkBuddy owns the install records.
 
-### Packaging notes
+To delegate the installation to WorkBuddy, paste:
 
-The panel route (**Experts · Skills · Connectors → Skills → 插件市场**)
-accepts a local directory, `owner/repo`, a git URL or a zip — but **use git
-or zip, not a local directory**. A directory-sourced marketplace installs
-the plugin without writing an entry to `installed_plugins.json` or copying
-it into `plugins/cache/`, and after a restart its hooks stop loading until
-the plugin panel is opened again. Observed on 5.3.13 — and the reason the
-playbook writes the install records directly.
+> Install Skill Search from the `EverMind-AI/SkillCorpus` marketplace using
+> WorkBuddy's standard plugin marketplace. Do not manually edit
+> `settings.json`, `installed_plugins.json`, or `known_marketplaces.json`, and
+> do not copy files into the plugin cache. Fully restart WorkBuddy, then follow
+> `skillcorpus_plugin/plugin-workbuddy/INSTALL.agent.md` to verify the live
+> `.in_use/<pid>` marker and one real hook turn. Stop and report any discovery
+> failure instead of bypassing it.
+
+Installation is not complete until the restart and hook checks in
+[`INSTALL.agent.md`](INSTALL.agent.md) pass. A plugin card alone does not prove
+the host loaded its hook.

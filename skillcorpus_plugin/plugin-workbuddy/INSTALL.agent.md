@@ -40,58 +40,26 @@ path and command below starts there.
 
 ## WorkBuddy
 
-WorkBuddy loads plugins, not processes: the seam is a `UserPromptSubmit`
-hook the plugin declares, spawned once per turn. Three host behaviours are
-load-bearing, all established against 5.3.13 by experiment:
+WorkBuddy discovers this repository through the root
+`.codebuddy-plugin/marketplace.json`. Use the host's marketplace installer;
+do not edit `settings.json`, `installed_plugins.json`, or
+`known_marketplaces.json` by hand.
 
-- a failed hook **fails the whole turn** (`HookBlockedError`), so the shipped
-  entry never exits non-zero;
-- the injected block never reaches the transcript, so the plugin keeps its
-  own log;
-- the panel's directory-sourced marketplaces install without writing
-  `installed_plugins.json`, and such plugins **stop loading after a
-  restart** — which is why the steps below write the install records
-  directly instead of using the panel.
+1. Open **Experts · Skills · Connectors → Skills → Plugin Marketplace**.
+2. Add `EverMind-AI/SkillCorpus` as a marketplace source. A git URL or release
+   zip works; do not use a local directory, which is not persistent across a
+   restart on WorkBuddy 5.3.13.
+3. Before installation, confirm `CODEBUDDY_DISABLE_EXTENDED_PLUGIN_HOOKS` is not
+   `1` in the environment that launches WorkBuddy. If it is, extended plugin
+   hooks are disabled globally: clear it from that launcher and fully restart
+   WorkBuddy before continuing.
+4. In the `skillcorpus` marketplace, install and enable **Skill Search**
+   (`skillsearch`, version read from its plugin manifest).
+5. Fully quit and reopen WorkBuddy.
 
-Build first (the marketplace copy ships `dist/`; a source checkout must
-build it):
-
-```bash
-npm install --prefix plugin-workbuddy
-npm run --prefix plugin-workbuddy build     # produces dist/hook.mjs
-```
-
-Before going further, confirm `plugin-workbuddy/dist/hook.mjs` and
-`plugin-workbuddy/hooks/hooks.json` both exist — missing either, stop and
-report.
-
-Then, with the user's go-ahead, perform the file-level install. `<version>`
-is `version` from `plugin-workbuddy/.codebuddy-plugin/plugin.json`.
-`<market>` is the marketplace name from the repository root
-`../.codebuddy-plugin/marketplace.json`; for this repository it is
-`skillcorpus`. Read these values, never invent them.
-
-1. **Back up** `~/.workbuddy-ai/settings.json`,
-   `~/.workbuddy-ai/plugins/installed_plugins.json` and
-   `~/.workbuddy-ai/plugins/known_marketplaces.json`.
-2. **Register the marketplace** in `known_marketplaces.json`: add a key
-   `<market>` shaped like the existing `workbuddy-builtin` entry, with
-   `type` `"git"`, `source` shaped
-   `{"source": "git", "url": "<source url or path>", "path": "<same>"}`,
-   and `installLocation` naming the checkout's absolute path. Update an
-   existing key rather than duplicating it; touch no other key.
-3. **Copy into the cache**: the `plugin-workbuddy/` directory (at minimum
-   `.codebuddy-plugin/`, `hooks/`, `dist/`) to
-   `~/.workbuddy-ai/plugins/cache/<market>/skillsearch/<version>/`.
-4. **Record the install** in `installed_plugins.json` under
-   `"skillsearch@<market>"`: an array holding one object shaped like the
-   existing entries — `scope` `"user"`, `installPath` (the step-3
-   directory), `version`, `installedAt`, `lastUpdated` (ISO 8601, now).
-5. **Enable** in `settings.json`: add `"skillsearch@<market>": true` to
-   `enabledPlugins`. Touch nothing else in that file — not `sandbox`, not
-   a `hooks` key (the plugin declares its own hook), not other plugins'
-   entries.
-6. Tell the user to quit and reopen WorkBuddy.
+If the marketplace or plugin is not discovered, stop and report the exact UI
+error and host logs. Do not route around discovery by copying files into the
+cache or editing WorkBuddy's internal JSON records.
 
 ## Network and optional model configuration
 
@@ -115,43 +83,29 @@ from their current path.
 
 ## Verification — definition of done
 
-1. **Plugin discovered**: after the restart, the install directory gains an
-   `.in_use/<pid>` marker written by the host, and the plugin appears in
-   the panel as installed and enabled.
-2. **Create a test skill**:
+Installation is complete only after these checks pass:
 
-```bash
-mkdir -p ~/.workbuddy-ai/skills/pdf-tables
-printf -- '---\nname: pdf-tables\ndescription: Extract tables from PDF documents, scanned or native, into CSV.\n---\nUse camelot for native PDFs.\n' > ~/.workbuddy-ai/skills/pdf-tables/SKILL.md
-```
+1. **Discovered after restart:** the plugin still appears installed and enabled,
+   and its install directory contains a live `.in_use/<pid>` marker.
+2. **Hook runs:** create a fresh task and ask a skill-related question. Confirm
+   the new line in
+   `~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/skillsearch.log`
+   records the turn and its selected skills/source diagnostics.
+3. **No-match stays empty:** ask `zxqv-7319，请只原样回复这段字符串` and confirm
+   the log records `injected_chars: 0`. Do not use a weather question: the
+   public marketplaces contain real weather skills.
 
-3. **Positive probe**: in a fresh WorkBuddy task ask *"扫描版 PDF 发票里的
-   表格怎么提取？"* — then confirm the turn's line in
-   `~/.workbuddy-ai/plugins/data/skillsearch-<market>/skillsearch.log`
-   names `pdf-tables[local]`.
-4. **Negative probe**: ask *"今天天气怎么样？"* — confirm that turn's line
-   shows `injected_chars: 0`.
-5. **Report**: list every file you created or edited (with the diffs), the
-   probe results, and how to undo everything (the section below).
-
-If step 3 fails: confirm the restart actually happened (stale `.in_use`
-pids from before the restart mean it did not); confirm the skill landed
-under a scanned directory (`skillsDirs` defaults to
-`~/.workbuddy-ai/skills` and `~/.workbuddy-ai/plugins/cache`); then read
-the log's `error` field for the turn. Report what you find rather than
-retrying blindly.
+If a check fails, report the failed step, the log entry, and the marketplace
+and plugin versions. Do not invoke `hook.mjs` by hand; that tests the bundle,
+not whether WorkBuddy loaded it.
 
 ## Uninstall
 
-When the user asks to remove skillsearch:
-
-1. Remove the `"skillsearch@<market>"` keys from `enabledPlugins` in
-   `settings.json` and from `installed_plugins.json`, the `<market>` entry
-   from `known_marketplaces.json`, and the cache directory
-   `~/.workbuddy-ai/plugins/cache/<market>/skillsearch/`.
-2. Offer to delete the plugin's data directory
-   (`~/.workbuddy-ai/plugins/data/skillsearch-<market>/` — config, log,
-   index cache) and the bundle cache
-   (`~/.workbuddy-ai/skillsearch-bundles/`).
-3. Restore or delete the `.bak-skillsearch` backups per the user's call.
-4. Show the diffs, same rule as installing.
+1. Uninstall **Skill Search** from the `skillcorpus` marketplace in WorkBuddy.
+2. Remove the marketplace source if no other SkillCorpus plugin uses it.
+3. Fully quit and reopen WorkBuddy, then confirm the plugin no longer has a
+   live `.in_use/<pid>` marker.
+4. Offer to delete its state directory
+   (`~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/`) and bundle cache
+   (`~/.workbuddy-ai/skillsearch-bundles/`). These contain only plugin cache,
+   configuration, and logs; leave them in place unless the user asks.

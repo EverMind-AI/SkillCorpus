@@ -33,7 +33,7 @@ this directory — use the absolute form for read_file / exec.
 
 | 你的宿主 | 操作 | 详情 |
 | --- | --- | --- |
-| **WorkBuddy** | 构建 `plugin-workbuddy`、注册为 marketplace、启用——文件级步骤，agent 干最合适：把它 README 里的 prompt 粘给 WorkBuddy | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install--paste-this-to-workbuddy) |
+| **WorkBuddy** | 在标准插件市场添加 `EverMind-AI/SkillCorpus`，安装 **Skill Search**，然后重启 | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-hermes/README.md#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
 | **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-typescript/README.md#where-this-goes) |

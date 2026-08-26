@@ -39,7 +39,7 @@ The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — human-read
 
 | Your host | Do this | Details |
 | --- | --- | --- |
-| **WorkBuddy** | build `plugin-workbuddy`, register it as a marketplace, enable — file-level steps an agent does well: paste the prompt in its README | [plugin-workbuddy](plugin-workbuddy#install--paste-this-to-workbuddy) |
+| **WorkBuddy** | add `EverMind-AI/SkillCorpus` in the standard plugin marketplace, install **Skill Search**, then restart | [plugin-workbuddy](plugin-workbuddy#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`, then two keys in `openclaw.json` | [plugin-openclaw](plugin-openclaw#install) |
 | **DeepSeek Harness** | copy `engine-typescript/` to `packages/skill/skill-search/`, add a `cordis.yml` row | [engine-typescript](engine-typescript#where-this-goes) |
