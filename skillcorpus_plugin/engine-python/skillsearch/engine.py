@@ -565,10 +565,7 @@ def _tool_name(tool: Any) -> str:
 
 
 def _normalise_body(body: str) -> str:
-    return "\n".join(
-        line.rstrip()
-        for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    ).strip()
+    return "\n".join(line.rstrip() for line in body.replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
 
 
 def _is_local_hit(hit: RouterHit) -> bool:

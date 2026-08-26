@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from skillsearch.sources.marketplace_source import MarketplaceClient, MarketplaceSkillSource
+from skillsearch.types import RouterHit
 
 
 def bundle() -> bytes:
@@ -83,4 +84,36 @@ async def test_clawhub_rejects_suspicious_results(tmp_path: Path) -> None:
     http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload)))
     client = MarketplaceClient("clawhub", "https://example.test", cache_dir=tmp_path, client=http)
     assert await client.search("bad") == []
+    await http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_corrupt_cached_bundle_is_removed_and_downloaded_again(tmp_path: Path) -> None:
+    destination = tmp_path / "clawhub-alice_demo@v0"
+    destination.mkdir()
+    (destination / "partial.txt").write_text("interrupted")
+    downloads = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal downloads
+        if request.url.path == "/api/v1/download":
+            downloads += 1
+            return httpx.Response(200, content=bundle())
+        return httpx.Response(404)
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = MarketplaceClient("clawhub", "https://example.test", cache_dir=tmp_path, client=http)
+    hit = RouterHit(
+        "clawhub/demo",
+        "Demo",
+        "",
+        1.0,
+        {"source": "clawhub", "slug": "demo", "owner": "alice", "version": "v0"},
+    )
+
+    installed = await client.install(hit)
+
+    assert installed["skill_md"] == "Use the demo workflow.\n"
+    assert downloads == 1
+    assert not (destination / "partial.txt").exists()
     await http.aclose()

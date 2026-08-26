@@ -51,7 +51,8 @@ class MarketplaceClient:
         version = str(hit.meta.get("version") or "v0")
         key = re.sub(r"[^A-Za-z0-9_.@-]+", "_", f"{self.kind}-{owner + '_' if owner else ''}{slug}@{version}")
         destination = self._cache_dir / key
-        if not destination.exists():
+        was_cached = destination.exists()
+        if not was_cached:
             staging = destination.with_name(f"{destination.name}.incoming-{os.getpid()}-{uuid.uuid4().hex[:8]}")
             try:
                 SkillHubClient._safe_extract(await self._download(slug, owner, version), staging)
@@ -64,10 +65,20 @@ class MarketplaceClient:
             except BaseException:
                 shutil.rmtree(staging, ignore_errors=True)
                 raise
-        root = SkillHubClient._bundle_root(destination)
-        text = (root / "SKILL.md").read_text(encoding="utf-8")
-        _, body = _parse_frontmatter(text)
-        return {"dir": str(root), "skill_md": body}
+        try:
+            root = SkillHubClient._bundle_root(destination)
+            text = (root / "SKILL.md").read_text(encoding="utf-8")
+            _, body = _parse_frontmatter(text)
+            return {"dir": str(root), "skill_md": body}
+        except (OSError, UnicodeError):
+            # A directory is a cache hit only when it contains a readable
+            # SKILL.md. Remove incomplete/corrupt entries so one interrupted
+            # install cannot poison every later turn. Retry a pre-existing
+            # cache once; a freshly downloaded bad archive still fails.
+            shutil.rmtree(destination, ignore_errors=True)
+            if was_cached:
+                return await self.install(hit)
+            raise
 
     async def _search_clawhub(self, query: str, limit: int) -> list[dict[str, Any]]:
         response = await self._client.get(
