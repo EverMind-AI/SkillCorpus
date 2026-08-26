@@ -335,7 +335,9 @@ export class SkillSearchEngine {
     if (!this.placeholders) return hits
     return hits.map((hit) => {
       const content = hit.content
-      if (!content || !content.includes('{{')) return hit
+      const source = String(hit.meta.source ?? '')
+      const trusted = ['local', 'builtin', 'hub'].includes(source) || hit.meta.pathguardProcessed === true
+      if (!trusted || !content || !content.includes('{{')) return hit
       const skillDir = typeof hit.meta.skillDir === 'string' ? hit.meta.skillDir : undefined
       const body = resolvePlaceholders(content, skillDir, this.runtime)
       return body === content ? hit : { ...hit, content: body }

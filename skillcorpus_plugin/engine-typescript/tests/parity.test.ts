@@ -413,6 +413,26 @@ test('exact normalized-body dedup keeps the local copy without fuzzy matching', 
   assert.deepEqual(hits.map(item => item.qualifiedId), ['local/copy', 'remote/near'])
 })
 
+
+test('PathGuard expansion skips untrusted marketplace hits', async () => {
+  const source: SkillSource = {
+    name: 'mixed', weight: 1,
+    async search() {
+      return [
+        { ...hit('clawhub/demo', 'third party', 1, 'write {{OUTPUT_DIR}}/x'), meta: { source: 'clawhub' } },
+        { ...hit('hub/demo', 'curated', 0.9, 'write {{OUTPUT_DIR}}/y'), meta: { source: 'hub' } },
+      ]
+    },
+  }
+  const hits = await new SkillSearchEngine(
+    { sources: [source] },
+    { topK: 2, resolvePlaceholders: true, outputDir: '/workspace' },
+  ).hits('write')
+
+  assert.equal(hits[0]?.content, 'write {{OUTPUT_DIR}}/x')
+  assert.equal(hits[1]?.content, 'write /workspace/y')
+})
+
 test('source diagnostics distinguish empty results from failures', async () => {
   const diagnostics: import('../src/engine.ts').SourceDiagnostic[] = []
   const empty: SkillSource = {

@@ -524,13 +524,16 @@ class SkillSearch:
         out: list[RouterHit] = []
         for hit in hits:
             content = hit.content or ""
-            if not content or "{{" not in content:
+            meta = hit.meta or {}
+            source = str(meta.get("source") or "")
+            trusted = source in {"local", "builtin", "hub"} or meta.get("pathguard_processed") is True
+            if not trusted or not content or "{{" not in content:
                 out.append(hit)
                 continue
             try:
                 resolved = resolve_placeholders(
                     content,
-                    (hit.meta or {}).get("skill_dir"),
+                    meta.get("skill_dir"),
                     state_dir=cfg.state_dir or None,
                     home_dir=cfg.home_dir or None,
                     output_dir=output_dir,
