@@ -30,3 +30,12 @@ if (manifest) {
   if (data.version !== pkg.version) throw new Error(`${pkg.name}: manifest ${data.version} != package ${pkg.version}`)
   if (!files.has(manifest)) throw new Error(`${pkg.name}: tarball omits ${manifest}`)
 }
+
+
+const forbiddenToken = ['me', 'mmy'].join('')
+for (const file of files) {
+  const path = resolve(packageDir, file)
+  if (!existsSync(path)) continue
+  const text = readFileSync(path, 'utf8').toLowerCase()
+  if (text.includes(forbiddenToken)) throw new Error(`${pkg.name}: tarball contains a forbidden legacy product name in ${file}`)
+}

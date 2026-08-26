@@ -8,7 +8,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { DEFAULTS, MAX_TIMEOUT_MS, loadConfig, marketplaceName, readConfigDocument } from '../src/config.ts'
+import { dataDirectory, DEFAULTS, MAX_TIMEOUT_MS, loadConfig, marketplaceName, readConfigDocument } from '../src/config.ts'
 
 test('the defaults search the two directories WorkBuddy keeps skills in', () => {
   const config = loadConfig(undefined, {})
@@ -82,10 +82,31 @@ test('a Windows install path resolves the same name', () => {
   )
 })
 
-test('a path that is not a marketplace install keeps the historical name', () => {
-  // A dev checkout run directly, and the empty argv of an embedded import.
-  assert.equal(marketplaceName('/repo/plugin-workbuddy/src/hook.ts'), 'memmy-marketplace')
-  assert.equal(marketplaceName(''), 'memmy-marketplace')
+test('an explicit marketplace environment override wins', () => {
+  assert.equal(marketplaceName('/repo/plugin-workbuddy/src/hook.ts', {
+    SKILLSEARCH_MARKETPLACE: 'team-market',
+  }), 'team-market')
+})
+
+test('missing or malformed launch paths use the neutral fallback', () => {
+  assert.equal(marketplaceName('/repo/plugin-workbuddy/src/hook.ts', {}), 'skillcorpus-marketplace')
+  assert.equal(marketplaceName('', {}), 'skillcorpus-marketplace')
+  assert.equal(marketplaceName('/x/plugins/cache/../skillsearch/x/hook.mjs', {}), 'skillcorpus-marketplace')
+  assert.equal(marketplaceName('', { SKILLSEARCH_MARKETPLACE: '../bad' }), 'skillcorpus-marketplace')
+})
+
+test('the data directory supports an explicit environment override', () => {
+  assert.equal(dataDirectory('', { SKILLSEARCH_DATA_DIR: '/state/skillsearch' }, '/home/u'), '/state/skillsearch')
+  assert.equal(dataDirectory('', { SKILLSEARCH_DATA_DIR: '~/state' }, '/home/u'), '/home/u/state')
+})
+
+test('an existing marketplace install keeps using its marketplace data directory', () => {
+  const legacyMarket = ['me', 'mmy-marketplace'].join('')
+  const script = `/home/u/.workbuddy-ai/plugins/cache/${legacyMarket}/skillsearch/0.1.0/dist/hook.mjs`
+  assert.equal(
+    dataDirectory(script, {}, '/home/u'),
+    `/home/u/.workbuddy-ai/plugins/data/skillsearch-${legacyMarket}`,
+  )
 })
 
 test('timeoutMs is clamped below the host\'s own hook timeout', async () => {

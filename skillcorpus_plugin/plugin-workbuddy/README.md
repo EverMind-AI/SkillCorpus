@@ -96,6 +96,13 @@ with the environment winning (set it per-command in `hooks.json`):
 
 `~/.workbuddy-ai/plugins/data/skillsearch-<marketplace>/config.json`
 
+The marketplace name is read from the installed hook path. Source-checkout or
+non-standard launchers use the neutral `skillcorpus-marketplace` fallback.
+`SKILLSEARCH_MARKETPLACE` explicitly overrides the name, while
+`SKILLSEARCH_DATA_DIR` overrides the complete state directory. Existing
+installs keep their current directory because their marketplace remains present
+in the cache path.
+
 Defaults differ from the other hosts in four places. Two because this seam is
 visible silence between the user pressing enter and the reply starting:
 `rewrite` is off, while `timeoutMs` remains 8000 so the measured public hubs
