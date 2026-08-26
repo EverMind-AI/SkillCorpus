@@ -35,7 +35,7 @@ Retrieval never throws. A failed source, an unparseable gate reply, or a slow ca
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `skillsDirs` | `['.dsh/skills']` | Directories scanned for `SKILL.md`, up to 5 levels deep. Relative paths resolve against cwd. |
-| `hubEndpoint` | `''` | EverMind-compatible catalog; empty disables this source only. |
+| `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables this source only. |
 | `clawhubEndpoint` | `https://clawhub.ai` | ClawHub API; empty disables it. |
 | `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it. |
 | `hubApiKey` | `''` | Bearer token for the catalog. |

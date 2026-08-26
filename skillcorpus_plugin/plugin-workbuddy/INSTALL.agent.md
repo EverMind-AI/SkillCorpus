@@ -94,7 +94,7 @@ call it. Read these values, never invent them.
    entries.
 6. Tell the user to quit and reopen WorkBuddy.
 
-## Optional capabilities — ask, don't assume
+## Network and optional model configuration
 
 Configuration lives in
 `~/.workbuddy-ai/plugins/data/skillsearch-<market>/config.json` (the
@@ -108,13 +108,11 @@ from their current path.
   calls per retrieving turn — spent inside the silence between the user
   pressing enter and the reply starting, which this host does not indicate.
   Ask which route to use; leave empty if they don't care.
-- **The remote catalog** (`hubEndpoint`, e.g.
-  `https://skillhub.evermind.ai`): community skills, but **sends the
-  retrieval query to that service on every retrieving turn and downloads
-  third-party skill content to disk**, and unvetted catalog skills may
-  reference infrastructure this machine lacks. State this plainly and let
-  the user opt in; never enable it silently. If enabled, raise `timeoutMs`
-  to 4000 and recommend the gate.
+- **Remote sources are enabled by default**: EverMind SkillHub
+  (`https://skillhub.evermind.ai`), ClawHub, and skillhub.cn each receive the
+  retrieval query and may download candidate skill content to disk. State this
+  plainly during installation. The user can set any endpoint to an empty
+  string to disable that source, or clear all three for local-only operation.
 
 ## Verification — definition of done
 

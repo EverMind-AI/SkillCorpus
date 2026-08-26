@@ -35,7 +35,7 @@ Gate 不是优化项。融合按位次排序，因此每个来源的最佳命中
 | 键 | 默认值 | 含义 |
 | --- | --- | --- |
 | `skillsDirs` | `['.dsh/skills']` | 扫描 `SKILL.md` 的目录，最深 5 层。相对路径相对 cwd 解析。 |
-| `hubEndpoint` | `''` | 远程目录服务基址——例如 `https://skillhub.evermind.ai`，或任何实现同一 API 的自建服务。为空则禁用远程来源。 |
+| `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub，或任何实现同一 API 的自建服务；空值关闭。 |
 | `hubApiKey` | `''` | 目录服务的 Bearer token。 |
 | `hubTimeoutMs` | `5000` | 目录服务的单请求超时。 |
 | `hubMinSafety` | `0.7` | 剔除安全分低于该值的目录条目；仅当目录在搜索结果里携带逐技能安全分时才生效。 |

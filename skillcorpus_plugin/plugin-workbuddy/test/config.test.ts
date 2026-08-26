@@ -16,8 +16,18 @@ test('the defaults search the two directories WorkBuddy keeps skills in', () => 
     '~/.workbuddy-ai/skills',
     '~/.workbuddy-ai/plugins/cache',
   ])
-  assert.equal(config.hubEndpoint, '')
+  assert.equal(config.hubEndpoint, 'https://skillhub.evermind.ai')
   assert.equal(config.gate, undefined)
+})
+
+test('an explicitly empty endpoint disables each default remote source', () => {
+  const config = loadConfig(
+    { hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '' },
+    {},
+  )
+  assert.equal(config.hubEndpoint, '')
+  assert.equal(config.clawhubEndpoint, '')
+  assert.equal(config.skillhubCnEndpoint, '')
 })
 
 test('the default deadline allows the measured public hubs but stays below the host timeout', () => {

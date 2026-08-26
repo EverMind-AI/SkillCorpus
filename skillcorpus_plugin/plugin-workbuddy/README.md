@@ -113,8 +113,8 @@ within one, and the fused list degenerates into whole-source blocks), and
 `localWeight 1.0 / hubWeight 0.85` seats the local directory first — tried
 the other way round on 2026-08-18, and the catalog's top two for a poster
 task both depended on infrastructure this machine lacked while the local
-skill that runs here sat unread in seat three. ClawHub (`clawhubEndpoint`) and
-skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public API
+skill that runs here sat unread in seat three. EverMind SkillHub (`hubEndpoint`, `https://skillhub.evermind.ai`), ClawHub
+(`clawhubEndpoint`), and skillhub.cn (`skillhubCnEndpoint`) are enabled by default at their public API
 URLs; set either endpoint to an empty string to disable that source.
 
 ## Install — paste this to WorkBuddy

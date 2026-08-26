@@ -106,7 +106,7 @@ Full per-host tables live in each plugin's README; these seven decide behaviour 
 | Setting | Default | What it decides |
 | --- | --- | --- |
 | `skills_dir` / `skillsDirs` | the host's own skills directory | Where local skills are scanned. Missing directory = the source simply doesn't exist. |
-| `hub_endpoint` / `hubEndpoint` | *(empty)* | EverMind-compatible catalog. Empty disables only this source. |
+| `hub_endpoint` / `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables only this source. |
 | `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub search; empty disables it. |
 | `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn search; empty disables it. |
 | `model` (+ host-specific route) | *(empty)* | Enables the query rewriter and the gate. Empty = retrieval runs unfiltered, ranked by keywords. |
@@ -133,8 +133,8 @@ Nothing is added to durable history — the injection is rebuilt per turn and di
 Honest accounting, because retrieval runs on your conversation:
 
 - **Local-only setup (after explicitly disabling the three remote endpoints)** — nothing. Scanning, ranking and injection are all in-process.
-- **Default installation** — ClawHub and skillhub.cn are enabled; the retrieval query is sent to both services. Set their endpoint fields to an empty string to disable either one. With no `model`, no LLM gate runs: only the marketplaces’ own trust flags and the lexical relevance guard apply.
-- **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
+- **Default installation** — EverMind SkillHub, ClawHub, and skillhub.cn are enabled; the retrieval query is sent to all three services. Set any endpoint field to an empty string to disable that source. With no `model`, no LLM gate runs: source safety checks and the EverMind lexical relevance guard still apply.
+- **EverMind SkillHub** — selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
 - **Marketplace body fetches** — up to two candidates per enabled marketplace are downloaded and safely extracted before the optional LLM gate, because those APIs expose the skill body through the bundle. A rejected candidate may therefore remain in the cache, but the plugin never executes it automatically.
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 
