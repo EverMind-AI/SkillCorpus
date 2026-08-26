@@ -4,7 +4,8 @@ version = "0.2.0"
 description = "Skill retrieval for agent hosts — one engine, five host adapters."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "EverMind AI" }]
 keywords = ["agent", "skills", "retrieval", "rrf", "bm25", "llm"]
 classifiers = [
@@ -35,7 +36,7 @@ Issues = "https://github.com/EverMind-AI/SkillCorpus/issues"
 skillsearch-serve = "skillsearch.adapters.http_server:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
