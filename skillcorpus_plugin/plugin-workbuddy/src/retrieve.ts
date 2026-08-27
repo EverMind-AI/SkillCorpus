@@ -37,6 +37,7 @@ export function expandHome(path: string, home: string = homedir()): string {
 export function buildEngine(
   config: SkillSearchConfig,
   onDiagnostic?: (diagnostic: SourceDiagnostic) => void,
+  workspaceDir?: string,
 ): SkillSearchEngine {
   const sources: SkillSource[] = []
 
@@ -131,7 +132,18 @@ export function buildEngine(
         }
         : {}),
     },
-    { topK: config.topK, gatePool: config.gatePool, rrfK: config.rrfK },
+    {
+      topK: config.topK,
+      gatePool: config.gatePool,
+      rrfK: config.rrfK,
+      // PathGuard placeholders' per-agent facts. WorkBuddy's own config root
+      // is ~/.workbuddy-ai; the agent's writable output is its workspace,
+      // falling back to the hook process's cwd when the payload reports none.
+      outputDir: workspaceDir || process.cwd(),
+      homeDir: homedir(),
+      stateDir: join(homedir(), '.workbuddy-ai'),
+      resolvePlaceholders: config.resolvePlaceholders,
+    },
   )
 }
 
@@ -152,12 +164,13 @@ export async function retrieveForTurn(
   config: SkillSearchConfig,
   deps: { buildEngineFn?: typeof buildEngine } = {},
   onDiagnostic?: (diagnostic: SourceDiagnostic) => void,
+  workspaceDir?: string,
 ): Promise<string> {
   if (!query.trim()) return ''
 
   let engine: SkillSearchEngine
   try {
-    engine = (deps.buildEngineFn ?? buildEngine)(config, onDiagnostic)
+    engine = (deps.buildEngineFn ?? buildEngine)(config, onDiagnostic, workspaceDir)
   } catch {
     return ''
   }

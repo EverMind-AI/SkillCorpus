@@ -180,12 +180,32 @@ class SearchConfig:
     paths. Requires the host and the skills to share a filesystem; turn it
     off when serving retrieval over HTTP."""
 
+    resolve_placeholders: bool = False
+    """Expand PathGuard placeholders (``{{SKILL_DIR}}``, ``{{HOME}}`` …) in
+    skill bodies to real host paths. Off by default: it maps a
+    machine-agnostic placeholder onto this host's filesystem, so it should
+    only be turned on for a corpus that a trusted PathGuard pass produced —
+    never for arbitrary third-party skills."""
+
     heading: str = "# Skills"
 
     # ── Host-provided, not user-facing ───────────────────────────────
     workspace: str = "."
     cache_dir: str = ""
     """Where downloaded bundles are extracted. Defaults under ``workspace``."""
+
+    output_dir: str = ""
+    """The agent's writable output directory, for ``{{OUTPUT_DIR}}``.
+    Empty resolves to ``workspace`` at substitution time."""
+
+    home_dir: str = ""
+    """The agent's home directory, for ``{{HOME}}``. Empty falls back to
+    ``output_dir`` (then ``workspace``) at substitution time."""
+
+    state_dir: str = ""
+    """The agent's own config/state root, for ``{{AGENT_STATE_DIR}}``
+    (``~/.openclaw``, ``~/.hermes`` …). Empty means this agent has no such
+    concept, and the placeholder falls back to ``output_dir``."""
 
     def gate_enabled(self) -> bool:
         """Whether to build the gate, resolving the ``None`` default."""

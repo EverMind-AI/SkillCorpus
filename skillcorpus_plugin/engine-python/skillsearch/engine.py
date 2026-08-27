@@ -357,6 +357,7 @@ class SkillSearch:
         # so it waits until the gate has decided what is actually going in.
         if cfg.resolve_refs:
             hits = await self._hydrate_refs(hits)
+        hits = self._resolve_placeholders(hits)
         return hits
 
     def _resolve_local_refs(self, hits: list[RouterHit]) -> list[RouterHit]:
@@ -502,6 +503,47 @@ class SkillSearch:
             return hit
 
         return list(await asyncio.gather(*(_one(h) for h in hits)))
+
+    def _resolve_placeholders(self, hits: list[RouterHit]) -> list[RouterHit]:
+        """Fill PathGuard placeholders ({{SKILL_DIR}}, {{HOME}}, …) per agent.
+
+        Gated by ``resolve_placeholders`` (off by default): a placeholder maps
+        machine-agnostic text onto this host's real filesystem, so it must only
+        run for a corpus a trusted PathGuard pass produced, not for arbitrary
+        third-party skills. Unlike :meth:`_resolve_local_refs` /
+        :meth:`_hydrate_refs` this never touches the filesystem; it runs last,
+        once every surviving hit has its ``skill_dir`` settled.
+        """
+        cfg = self._cfg
+        if not cfg.resolve_placeholders:
+            return hits
+
+        from skillsearch.refs import resolve_placeholders
+
+        output_dir = cfg.output_dir or cfg.workspace
+        out: list[RouterHit] = []
+        for hit in hits:
+            content = hit.content or ""
+            meta = hit.meta or {}
+            source = str(meta.get("source") or "")
+            trusted = source in {"local", "builtin", "hub"} or meta.get("pathguard_processed") is True
+            if not trusted or not content or "{{" not in content:
+                out.append(hit)
+                continue
+            try:
+                resolved = resolve_placeholders(
+                    content,
+                    meta.get("skill_dir"),
+                    state_dir=cfg.state_dir or None,
+                    home_dir=cfg.home_dir or None,
+                    output_dir=output_dir,
+                )
+            except Exception as e:
+                log.debug("skillsearch: could not resolve placeholders for %s (%s)", hit.name, e)
+                out.append(hit)
+                continue
+            out.append(replace(hit, content=resolved) if resolved != content else hit)
+        return out
 
     def render(self, hits: list[RouterHit]) -> str:
         """Render selected hits into the block. Public so an adapter can

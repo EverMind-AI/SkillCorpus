@@ -56,6 +56,12 @@ export interface SkillSearchConfig {
   readonly indexCachePath: string
   /** Append one JSON line per turn here. Empty disables the log. */
   readonly logPath: string
+  /**
+   * Expand PathGuard placeholders in skill bodies to real host paths. Off by
+   * default: only a corpus produced by a trusted PathGuard pass should turn
+   * this on, never arbitrary third-party skills.
+   */
+  readonly resolvePlaceholders: boolean
 }
 
 /** Where a marketplace-installed hook lives, which is where its name is. */
@@ -150,6 +156,7 @@ export const DEFAULTS: SkillSearchConfig = {
   rrfK: 10,
   indexCachePath: join(DATA_DIR, 'index-cache.json'),
   logPath: join(DATA_DIR, 'skillsearch.log'),
+  resolvePlaceholders: false,
 }
 
 const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
@@ -175,6 +182,7 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   rrfK: 'SKILLSEARCH_RRF_K',
   indexCachePath: 'SKILLSEARCH_INDEX_CACHE_PATH',
   logPath: 'SKILLSEARCH_LOG_PATH',
+  resolvePlaceholders: 'SKILLSEARCH_RESOLVE_PLACEHOLDERS',
 }
 
 function asList(value: unknown): string[] | undefined {
@@ -278,5 +286,6 @@ export function loadConfig(
     rrfK: asNumber(pick('rrfK')) ?? DEFAULTS.rrfK,
     indexCachePath: asText(pick('indexCachePath')) ?? DEFAULTS.indexCachePath,
     logPath: asText(pick('logPath')) ?? DEFAULTS.logPath,
+    resolvePlaceholders: asBoolean(pick('resolvePlaceholders')) ?? DEFAULTS.resolvePlaceholders,
   }
 }

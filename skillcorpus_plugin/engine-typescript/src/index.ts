@@ -137,6 +137,8 @@ export interface Config {
    * skills it retrieves.
    */
   resolveRefs?: boolean
+  /** Expand PathGuard placeholders in trusted skill bodies. Off by default. */
+  resolvePlaceholders?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -161,6 +163,7 @@ export const Config: z<Config> = z.object({
   rewriteTimeoutMs: z.number().default(5_000),
   gateTimeoutMs: z.number().default(20_000),
   resolveRefs: z.boolean().default(true),
+  resolvePlaceholders: z.boolean().default(false),
 })
 
 /** Marks the messages this plugin publishes. */
@@ -329,6 +332,9 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
       topK: cfg.topK ?? 2,
       gatePool: cfg.gatePool ?? 10,
       resolveRefs: cfg.resolveRefs ?? true,
+      resolvePlaceholders: cfg.resolvePlaceholders ?? false,
+      homeDir: homedir(),
+      outputDir: process.cwd(),
     },
   )
 }

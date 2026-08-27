@@ -119,7 +119,7 @@ export async function runTurn(
   if (query) {
     try {
       block = await (deps.retrieveFn ?? retrieveForTurn)(
-        query, config, {}, diagnostic => { sourceDiagnostics.push(diagnostic) },
+        query, config, {}, diagnostic => { sourceDiagnostics.push(diagnostic) }, payload.cwd,
       )
     } catch (error) {
       // `retrieveForTurn` already promises never to reject. This is the

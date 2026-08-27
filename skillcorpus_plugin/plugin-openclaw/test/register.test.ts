@@ -11,7 +11,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -129,6 +129,28 @@ test('registers no hook at all when nothing is configured to search', async () =
   const { api, hooks } = fakeApi({ skillsDirs: [] })
   register(api)
   assert.equal(hooks.size, 0)
+})
+
+test('the manifest accepts the placeholder-resolution switch', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'))
+  assert.equal(manifest.configSchema.properties.resolvePlaceholders.type, 'boolean')
+  assert.equal(manifest.configSchema.properties.resolvePlaceholders.default, false)
+})
+
+test('engines are cached per workspace rather than shared across agents', async () => {
+  const builtFor: Array<string | undefined> = []
+  const { api, hooks } = fakeApi({ skillsDirs: ['/skills'] })
+  register(api, {
+    buildEngineFn: (_config, workspaceDir) => {
+      builtFor.push(workspaceDir)
+      return { enabled: true, retrieve: () => Promise.resolve('') } as never
+    },
+  })
+  const hook = hooks.get('before_prompt_build')!
+  await hook({ prompt: 'one', messages: [] }, { workspaceDir: '/workspace/a' })
+  await hook({ prompt: 'two', messages: [] }, { workspaceDir: '/workspace/b' })
+  await hook({ prompt: 'three', messages: [] }, { workspaceDir: '/workspace/a' })
+  assert.deepEqual(builtFor, [undefined, '/workspace/a', '/workspace/b'])
 })
 
 test('a retrieval that throws costs the turn its skills, not the turn', async () => {

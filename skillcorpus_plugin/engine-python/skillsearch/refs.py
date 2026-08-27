@@ -92,4 +92,64 @@ def resolve_refs(body: str, skill_dir: Path | str | None) -> tuple[str, bool]:
     return body, any_resolved
 
 
-__all__ = ["resolve_refs"]
+_PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}")
+
+
+def resolve_placeholders(
+    body: str,
+    skill_dir: str | None,
+    *,
+    state_dir: str | None = None,
+    home_dir: str | None = None,
+    output_dir: str | None = None,
+) -> str:
+    """Replace PathGuard placeholders in a skill body with real paths.
+
+    ``{{SKILL_DIR}}`` / ``{{SKILL_DIR:<name>}}`` / ``{{AGENT_STATE_DIR}}`` /
+    ``{{HOME}}`` / ``{{OUTPUT_DIR}}`` are written by an offline pass over a
+    shared skill library (see ``skill_retire_and_classify/pathguard``) that
+    rewrites hardcoded paths to agent-agnostic placeholders. This fills them
+    in per agent, next to :func:`resolve_refs`.
+
+    - ``{{SKILL_DIR}}`` → this skill's bundle directory; ``{{SKILL_DIR:<n>}}``
+      → a sibling bundle under the same parent. ``<n>`` is restricted to a safe
+      slug (``[A-Za-z0-9._-]+``), so a traversal like ``../../x`` or an absolute
+      path does not match and stays literal.
+    - ``{{AGENT_STATE_DIR}}`` → the agent's own config/state root, falling back
+      to ``output_dir`` when this agent has none.
+    - ``{{HOME}}`` → the agent's home, falling back to ``output_dir`` when unset.
+    - ``{{OUTPUT_DIR}}`` → the agent's writable output directory.
+
+    Substitution is unconditional — unlike :func:`resolve_refs` it never checks
+    the filesystem, because a placeholder already carries its replacement target
+    and only the host knows it.
+    """
+    if not body or "{{" not in body:
+        return body
+
+    sd = str(skill_dir) if skill_dir else None
+
+    # Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so the
+    # directory is written once. Without a directory on disk the placeholder is
+    # left literal, not stripped: a bare `scripts/x.py` would tell the model the
+    # bundle is present when it never downloaded.
+    if sd:
+        body = body.replace("{{SKILL_DIR}}/", sd.rstrip("/") + "/")
+        body = body.replace("{{SKILL_DIR}}", sd)
+
+    def _sub(m: re.Match[str]) -> str:
+        name, arg = m.group(1), m.group(2)
+        if name == "SKILL_DIR":  # {{SKILL_DIR:<name>}} — arg is a safe slug
+            return str(Path(sd).parent / arg) if sd and arg and arg not in {".", ".."} else m.group(0)
+        if name == "AGENT_STATE_DIR":
+            return state_dir or output_dir or m.group(0)
+        if name == "HOME":
+            return home_dir or output_dir or m.group(0)
+        if name == "OUTPUT_DIR":
+            return output_dir or m.group(0)
+        return m.group(0)
+
+    return _PLACEHOLDER_RE.sub(_sub, body)
+
+
+__all__ = ["resolve_placeholders", "resolve_refs"]

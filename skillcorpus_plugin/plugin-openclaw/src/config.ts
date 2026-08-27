@@ -51,6 +51,12 @@ export interface SkillSearchConfig {
    * here. Empty leaves the gate judging relevance alone.
    */
   readonly availableTools: string[]
+  /**
+   * Expand PathGuard placeholders in skill bodies to real host paths. Off by
+   * default: only a corpus produced by a trusted PathGuard pass should turn
+   * this on, never arbitrary third-party skills.
+   */
+  readonly resolvePlaceholders: boolean
 }
 
 export const DEFAULTS: SkillSearchConfig = {
@@ -71,6 +77,7 @@ export const DEFAULTS: SkillSearchConfig = {
   gate: undefined,
   timeoutMs: 8000,
   availableTools: [],
+  resolvePlaceholders: false,
 }
 
 /** Environment variable for each field a deployment may prefer to keep out of a file. */
@@ -92,6 +99,7 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   gate: 'SKILLSEARCH_GATE',
   timeoutMs: 'SKILLSEARCH_TIMEOUT_MS',
   availableTools: 'SKILLSEARCH_AVAILABLE_TOOLS',
+  resolvePlaceholders: 'SKILLSEARCH_RESOLVE_PLACEHOLDERS',
 }
 
 /**
@@ -180,5 +188,6 @@ export function loadConfig(
     gate: asBoolean(pick('gate')),
     timeoutMs: asNumber(pick('timeoutMs')) ?? DEFAULTS.timeoutMs,
     availableTools: asList(pick('availableTools')) ?? DEFAULTS.availableTools,
+    resolvePlaceholders: asBoolean(pick('resolvePlaceholders')) ?? DEFAULTS.resolvePlaceholders,
   }
 }

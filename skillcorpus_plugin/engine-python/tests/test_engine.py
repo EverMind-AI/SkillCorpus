@@ -84,6 +84,26 @@ def test_exact_normalized_body_dedup_prefers_local_and_keeps_near_duplicates() -
     assert [hit.qualified_id for hit in result] == ["local/copy", "remote/near"]
 
 
+def test_placeholder_resolution_skips_untrusted_marketplaces(tmp_path: Path) -> None:
+    from skillsearch.types import RouterHit
+
+    search = SkillSearch(
+        SearchConfig(
+            skills_dir="absent",
+            workspace=str(tmp_path),
+            resolve_placeholders=True,
+            output_dir="/workspace",
+        )
+    )
+    untrusted = RouterHit("clawhub/demo", "demo", "write {{OUTPUT_DIR}}/x", 1, {"source": "clawhub"})
+    trusted = RouterHit("hub/demo", "demo", "write {{OUTPUT_DIR}}/x", 1, {"source": "hub"})
+
+    result = search._resolve_placeholders([untrusted, trusted])
+
+    assert result[0].content == "write {{OUTPUT_DIR}}/x"
+    assert result[1].content == "write /workspace/x"
+
+
 class TestLocalStore:
     def test_frontmatter_is_parsed(self, tmp_path: Path) -> None:
         from skillsearch.local_store import DirectorySkillStore

@@ -40,7 +40,7 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
-export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
+export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(dir => isAbsolute(dir) || dir)
@@ -131,7 +131,17 @@ export function buildEngine(config: SkillSearchConfig): SkillSearchEngine {
         }
         : {}),
     },
-    { topK: config.topK, gatePool: config.gatePool },
+    {
+      topK: config.topK,
+      gatePool: config.gatePool,
+      // PathGuard placeholders' per-agent facts. OpenClaw's own config root is
+      // ~/.openclaw; the agent's writable output is its workspace, falling back
+      // to the host process's cwd when the hook did not report one.
+      outputDir: workspaceDir || process.cwd(),
+      homeDir: homedir(),
+      stateDir: join(homedir(), '.openclaw'),
+      resolvePlaceholders: config.resolvePlaceholders,
+    },
   )
 }
 
@@ -173,16 +183,32 @@ export function register(
   deps: { buildEngineFn?: typeof buildEngine } = {},
 ): void {
   const config = loadConfig(api.pluginConfig)
-  const engine = (deps.buildEngineFn ?? buildEngine)(config)
+  const build = deps.buildEngineFn ?? buildEngine
 
-  if (!engine.enabled) {
+  // Probe without a workspace: `enabled` depends only on the sources, not on
+  // the output directory.
+  if (!build(config).enabled) {
     api.logger?.info?.('[skillsearch] no sources configured; retrieval is off')
     return
   }
 
+  // The engine is built lazily on the first hook, where the agent's own
+  // workspace directory is known. Using `process.cwd()` (the host process's
+  // cwd) would be wrong for multi-agent hosts and for sessions with a
+  // different workspace.
+  const engines = new Map<string, SkillSearchEngine>()
+
   api.on('before_prompt_build', async (
     event: BeforePromptBuildEvent,
+    ctx: { workspaceDir?: string },
   ): Promise<BeforePromptBuildResult | void> => {
+    const workspaceDir = ctx?.workspaceDir || process.cwd()
+    let engine = engines.get(workspaceDir)
+    if (!engine) {
+      engine = build(config, workspaceDir)
+      engines.set(workspaceDir, engine)
+    }
+
     const query = (event.prompt || '').trim() || recentUserText(event.messages ?? [])
     if (!query) return
 

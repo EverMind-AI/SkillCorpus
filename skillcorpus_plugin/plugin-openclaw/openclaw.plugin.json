@@ -88,6 +88,11 @@
         "default": false,
         "description": "Index skill bodies alongside name and description. Off by default: the description is the retrieval contract of the SKILL.md format, and is also what the gate reads."
       },
+      "resolvePlaceholders": {
+        "type": "boolean",
+        "default": false,
+        "description": "Expand trusted PathGuard placeholders to this agent's paths. Keep disabled for arbitrary third-party skill bodies."
+      },
       "rewrite": {
         "type": "boolean",
         "default": true,

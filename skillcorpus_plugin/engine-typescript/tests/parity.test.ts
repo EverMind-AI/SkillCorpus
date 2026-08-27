@@ -21,7 +21,7 @@ import { bounded } from '../src/deadline.ts'
 import { RRF_K, rrfMergeWeighted } from '../src/fusion.ts'
 import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
-import { resolveRefs } from '../src/refs.ts'
+import { resolvePlaceholders, resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
 import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
@@ -242,6 +242,43 @@ test('refs resolve exactly as the Python implementation resolves them', async ()
   assert.deepEqual(stripped, { body: 'run scripts/y.sh', anyResolved: false })
 })
 
+test('PathGuard placeholders resolve per agent, with traversal kept literal', () => {
+  const runtime = { stateDir: '/root/.oc', homeDir: '/root', outputDir: '/ws' }
+
+  const out = resolvePlaceholders(
+    'python {{SKILL_DIR}}/scripts/x.py --out {{OUTPUT_DIR}}/r.csv\n' +
+    'cat {{AGENT_STATE_DIR}}/auth/x > {{HOME}}/.cache/y\n' +
+    'see {{SKILL_DIR:other}}/refs/a.md',
+    '/skills/foo',
+    runtime,
+  )
+  assert.ok(out.includes('python /skills/foo/scripts/x.py'))
+  assert.ok(out.includes('/ws/r.csv'))
+  assert.ok(out.includes('/root/.oc/auth/x'))
+  assert.ok(out.includes('/root/.cache/y'))
+  assert.ok(out.includes('/skills/other/refs/a.md'))
+
+  // A traversal or absolute name must not leave the skill root.
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:../../secret}}', '/skills/foo'),
+    'see {{SKILL_DIR:../../secret}}')
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:/etc/passwd}}', '/skills/foo'),
+    'see {{SKILL_DIR:/etc/passwd}}')
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:.}}/x', '/skills/foo'),
+    'see {{SKILL_DIR:.}}/x')
+  assert.equal(resolvePlaceholders('see {{SKILL_DIR:..}}/x', '/skills/foo'),
+    'see {{SKILL_DIR:..}}/x')
+
+  // Without a directory, the placeholder stays literal — never a bare path
+  // that would tell the model the bundle is present when it did not download.
+  assert.equal(resolvePlaceholders('python {{SKILL_DIR}}/scripts/x.py', undefined),
+    'python {{SKILL_DIR}}/scripts/x.py')
+
+  // state/home fall back to output; unknown placeholders stay untouched.
+  assert.equal(resolvePlaceholders('{{AGENT_STATE_DIR}}/x', '/s/f', { outputDir: '/o' }),
+    '/o/x')
+  assert.equal(resolvePlaceholders('{{YOUR_TOKEN}}', '/s/f', runtime), '{{YOUR_TOKEN}}')
+})
+
 test('a timed-out model call is hung up on, not just abandoned', async () => {
   let seen: AbortSignal | undefined
   const never = (signal: AbortSignal) => {
@@ -374,6 +411,26 @@ test('exact normalized-body dedup keeps the local copy without fuzzy matching', 
   }
   const hits = await new SkillSearchEngine({ sources: [remote, local] }, { topK: 3 }).hits('body')
   assert.deepEqual(hits.map(item => item.qualifiedId), ['local/copy', 'remote/near'])
+})
+
+
+test('PathGuard expansion skips untrusted marketplace hits', async () => {
+  const source: SkillSource = {
+    name: 'mixed', weight: 1,
+    async search() {
+      return [
+        { ...hit('clawhub/demo', 'third party', 1, 'write {{OUTPUT_DIR}}/x'), meta: { source: 'clawhub' } },
+        { ...hit('hub/demo', 'curated', 0.9, 'write {{OUTPUT_DIR}}/y'), meta: { source: 'hub' } },
+      ]
+    },
+  }
+  const hits = await new SkillSearchEngine(
+    { sources: [source] },
+    { topK: 2, resolvePlaceholders: true, outputDir: '/workspace' },
+  ).hits('write')
+
+  assert.equal(hits[0]?.content, 'write {{OUTPUT_DIR}}/x')
+  assert.equal(hits[1]?.content, 'write /workspace/y')
 })
 
 test('source diagnostics distinguish empty results from failures', async () => {

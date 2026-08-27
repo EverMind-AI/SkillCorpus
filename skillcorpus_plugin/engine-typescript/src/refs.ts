@@ -19,7 +19,7 @@
  */
 
 import { existsSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 const BUNDLED_DIRS = ['references', 'scripts', 'assets', 'examples']
 
@@ -110,4 +110,71 @@ function isDirectory(path: string): boolean {
 function firstIndexOfAny(text: string, needles: readonly string[]): number {
   const found = needles.map(n => text.indexOf(n)).filter(i => i !== -1)
   return found.length === 0 ? -1 : Math.min(...found)
+}
+
+const PLACEHOLDER_RE = /\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}/g
+
+/** Per-agent facts that fill the PathGuard placeholders. */
+export interface PlaceholderRuntime {
+  /** The agent's own config/state root, for `{{AGENT_STATE_DIR}}`. */
+  readonly stateDir?: string
+  /** The agent's home, for `{{HOME}}`. */
+  readonly homeDir?: string
+  /** The agent's writable output directory, for `{{OUTPUT_DIR}}`. */
+  readonly outputDir?: string
+}
+
+/**
+ * Replace PathGuard placeholders in a skill body with real paths.
+ *
+ * `{{SKILL_DIR}}` / `{{SKILL_DIR:<name>}}` / `{{AGENT_STATE_DIR}}` /
+ * `{{HOME}}` / `{{OUTPUT_DIR}}` are written by an offline pass over a shared
+ * skill library (see `skill_retire_and_classify/pathguard`) that rewrites
+ * hardcoded paths to agent-agnostic placeholders. This fills them per agent,
+ * next to {@link resolveRefs}.
+ *
+ * - `{{SKILL_DIR}}` → this skill's bundle directory; `{{SKILL_DIR:<n>}}` → a
+ *   sibling bundle under the same parent. `<n>` is restricted to a safe slug
+ *   (`[A-Za-z0-9._-]+`), so `../../x` or an absolute path does not match and
+ *   stays literal.
+ * - `{{AGENT_STATE_DIR}}` → `stateDir`, else `outputDir`.
+ * - `{{HOME}}` → `homeDir`, else `outputDir`.
+ * - `{{OUTPUT_DIR}}` → `outputDir`.
+ *
+ * Substitution is unconditional — unlike `resolveRefs` it never checks the
+ * filesystem, because a placeholder already carries its target.
+ */
+export function resolvePlaceholders(
+  body: string,
+  skillDir: string | undefined,
+  runtime: PlaceholderRuntime = {},
+): string {
+  if (!body || !body.includes('{{')) return body
+
+  const sd = skillDir || undefined
+
+  // Bare {{SKILL_DIR}} and {{SKILL_DIR}}/… — the slash is folded in so the
+  // directory is written once. Without a directory on disk the placeholder is
+  // left literal, not stripped: a bare `scripts/x.py` would tell the model the
+  // bundle is present when it never downloaded.
+  if (sd) {
+    body = body.replaceAll('{{SKILL_DIR}}/', `${sd.replace(/\/+$/, '')}/`)
+    body = body.replaceAll('{{SKILL_DIR}}', sd)
+  }
+
+  return body.replace(PLACEHOLDER_RE, (match, name: string, arg?: string) => {
+    if (name === 'SKILL_DIR') {
+      return sd && arg && arg !== '.' && arg !== '..' ? join(dirname(sd), arg) : match
+    }
+    if (name === 'AGENT_STATE_DIR') {
+      return runtime.stateDir || runtime.outputDir || match
+    }
+    if (name === 'HOME') {
+      return runtime.homeDir || runtime.outputDir || match
+    }
+    if (name === 'OUTPUT_DIR') {
+      return runtime.outputDir || match
+    }
+    return match
+  })
 }
