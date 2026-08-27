@@ -125,9 +125,10 @@ To delegate the installation to WorkBuddy, paste:
 > WorkBuddy's standard plugin marketplace. Do not manually edit
 > `settings.json`, `installed_plugins.json`, or `known_marketplaces.json`, and
 > do not copy files into the plugin cache. Fully restart WorkBuddy, then follow
-> `skillcorpus_plugin/plugin-workbuddy/INSTALL.agent.md` to verify the live
-> `.in_use/<pid>` marker and one real hook turn. Stop and report any discovery
-> failure instead of bypassing it.
+> `skillcorpus_plugin/plugin-workbuddy/INSTALL.agent.md` to verify one real hook
+> turn and its Skill Search log entry. A live `.in_use/<pid>` marker is optional
+> diagnostic evidence because some WorkBuddy builds do not create one. Stop and
+> report any discovery failure instead of bypassing it.
 
 Installation is not complete until the restart and hook checks in
 [`INSTALL.agent.md`](INSTALL.agent.md) pass. A plugin card alone does not prove

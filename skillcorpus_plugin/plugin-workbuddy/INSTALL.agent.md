@@ -85,8 +85,10 @@ from their current path.
 
 Installation is complete only after these checks pass:
 
-1. **Discovered after restart:** the plugin still appears installed and enabled,
-   and its install directory contains a live `.in_use/<pid>` marker.
+1. **Discovered after restart:** the plugin still appears installed and enabled.
+   Some WorkBuddy builds create a live `.in_use/<pid>` marker in the install
+   directory; treat that marker as optional diagnostic evidence, not as a
+   requirement.
 2. **Hook runs:** create a fresh task and ask a skill-related question. Confirm
    the new line in
    `~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/skillsearch.log`
@@ -103,8 +105,9 @@ not whether WorkBuddy loaded it.
 
 1. Uninstall **Skill Search** from the `skillcorpus` marketplace in WorkBuddy.
 2. Remove the marketplace source if no other SkillCorpus plugin uses it.
-3. Fully quit and reopen WorkBuddy, then confirm the plugin no longer has a
-   live `.in_use/<pid>` marker.
+3. Fully quit and reopen WorkBuddy, then confirm the plugin is no longer
+   installed or enabled and that a fresh task produces no new Skill Search log
+   entry. A stale or absent `.in_use/<pid>` marker is not authoritative.
 4. Offer to delete its state directory
    (`~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/`) and bundle cache
    (`~/.workbuddy-ai/skillsearch-bundles/`). These contain only plugin cache,
