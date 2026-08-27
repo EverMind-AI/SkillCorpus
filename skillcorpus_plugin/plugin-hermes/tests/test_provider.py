@@ -211,6 +211,7 @@ def test_a_missing_config_enables_public_marketplaces_by_default(tmp_path: Path)
     from engine_adapter import load_config
 
     config = load_config(str(tmp_path))
+    assert config.hub_endpoint == "https://skillhub.evermind.ai"
     assert config.clawhub_endpoint == "https://clawhub.ai"
     assert config.skillhub_cn_endpoint == "https://api.skillhub.cn"
 

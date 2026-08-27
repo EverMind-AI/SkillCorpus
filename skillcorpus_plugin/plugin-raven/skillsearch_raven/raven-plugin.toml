@@ -20,9 +20,11 @@ replaces = "skills"
 skills_dir     = { type = "string",  default = "skills" }
 builtin_dir    = { type = "string",  default = "" }
 scan_depth     = { type = "integer", default = 5 }
-hub_endpoint   = { type = "string",  default = "" }
+hub_endpoint   = { type = "string",  default = "https://skillhub.evermind.ai" }
 hub_api_key    = { type = "string",  default = "" }
 hub_timeout_s  = { type = "number",  default = 2.0 }
+clawhub_endpoint    = { type = "string", default = "https://clawhub.ai" }
+skillhub_cn_endpoint = { type = "string", default = "https://api.skillhub.cn" }
 hub_min_safety = { type = "number",  default = 0.7 }
 agent_id       = { type = "string",  default = "" }
 

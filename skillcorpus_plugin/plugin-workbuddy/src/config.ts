@@ -122,7 +122,7 @@ export const DEFAULTS: SkillSearchConfig = {
   // Both roots WorkBuddy actually keeps skills in: what the user installed,
   // and what plugins brought with them.
   skillsDirs: ['~/.workbuddy-ai/skills', '~/.workbuddy-ai/plugins/cache'],
-  hubEndpoint: '',
+  hubEndpoint: 'https://skillhub.evermind.ai',
   hubApiKey: '',
   clawhubEndpoint: 'https://clawhub.ai',
   skillhubCnEndpoint: 'https://api.skillhub.cn',
@@ -261,7 +261,7 @@ export function loadConfig(
 
   return {
     skillsDirs: asList(pick('skillsDirs')) ?? DEFAULTS.skillsDirs,
-    hubEndpoint: asText(pick('hubEndpoint')) ?? DEFAULTS.hubEndpoint,
+    hubEndpoint: asEndpoint(pick('hubEndpoint'), DEFAULTS.hubEndpoint),
     hubApiKey: asText(pick('hubApiKey')) ?? DEFAULTS.hubApiKey,
     clawhubEndpoint: asEndpoint(pick('clawhubEndpoint'), DEFAULTS.clawhubEndpoint),
     skillhubCnEndpoint: asEndpoint(pick('skillhubCnEndpoint'), DEFAULTS.skillhubCnEndpoint),

@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** SkillCorpus Plugins 盯着用户刚说的话，从本地目录和可选的远程技能库里检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
+**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** SkillCorpus Plugins 盯着用户刚说的话，从本地目录以及默认开启的三个远程来源中检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
 
 一个真实轮次，发生在 WorkBuddy 上：问 *"帮我生成一个二维码，内容是 https://evermind.ai，存到桌面"*。这台机器上没有任何二维码技能——但语料库里有，于是模型作答前，它的上下文多出：
 
@@ -19,7 +19,7 @@ this directory — use the absolute form for read_file / exec.
 
 技能自带的脚本已经解包在旁边；模型直接运行它，二维码落到桌面。没有检索的话，模型只能即兴发挥——`pip install qrcode`，然后碰运气。
 
-技能来源可以是你自己的技能目录、[SkillHub](https://evermind.ai/skillhub)（[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点，114,190 条经审核、许可宽松的社区技能——上面那条二维码技能就来自这里），或两者融合进同一个排序。
+技能来源可以是你自己的技能目录，也可以是默认开启的 EverMind SkillHub、ClawHub 和 skillhub.cn，所有来源融合进同一个排序。上面的二维码技能来自 [SkillHub](https://evermind.ai/skillhub)，即 [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的托管端点。
 
 ## 安装——把这段话粘给你的 agent
 
@@ -33,7 +33,7 @@ this directory — use the absolute form for read_file / exec.
 
 | 你的宿主 | 操作 | 详情 |
 | --- | --- | --- |
-| **WorkBuddy** | 构建 `plugin-workbuddy`、注册为 marketplace、启用——文件级步骤，agent 干最合适：把它 README 里的 prompt 粘给 WorkBuddy | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install--paste-this-to-workbuddy) |
+| **WorkBuddy** | 在标准插件市场添加 `EverMind-AI/SkillCorpus`，安装 **Skill Search**，然后重启 | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-hermes/README.md#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
 | **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-typescript/README.md#where-this-goes) |
@@ -82,7 +82,7 @@ EOF
 | 配置 | 默认 | 决定什么 |
 | --- | --- | --- |
 | `skills_dir` / `skillsDirs` | 宿主自己的技能目录 | 本地技能扫哪里。目录不存在 = 这个源就不存在。 |
-| `hub_endpoint` / `hubEndpoint` | *(空)* | EverMind 兼容目录；空值只关闭这个来源。 |
+| `hub_endpoint` / `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub；空值只关闭这个来源。 |
 | `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub 检索；空值关闭。 |
 | `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn 检索；空值关闭。 |
 | `model`（+ 宿主自己的路由字段） | *(空)* | 启用查询改写器和 gate。空 = 检索裸跑，按关键词排序注入。 |
@@ -109,8 +109,8 @@ EOF
 如实交代，因为检索跑在你的对话上：
 
 - **显式清空三个远程 endpoint 后的纯本地模式**——什么都不出去。扫描、排序、注入全在进程内。
-- **默认安装**——ClawHub 与 skillhub.cn 默认开启，检索查询会发送给这两个服务；将对应 endpoint 设为空字符串可分别关闭。未配置 `model` 时不会运行 LLM gate，只依赖 marketplace 自带的信任标记和关键词相关性过滤。
-- **配了 `hub_endpoint`**——每个检索轮次，检索查询（你的消息，或模型清洗后的改写）会发给那个目录服务；选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
+- **默认安装**——EverMind SkillHub、ClawHub 与 skillhub.cn 默认开启，检索查询会发送给三个服务；将任一 endpoint 设为空字符串可单独关闭。未配置 `model` 时不会运行 LLM gate，但仍执行来源安全检查和 EverMind 关键词相关性过滤。
+- **EverMind SkillHub**——选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
 - **Marketplace 正文获取**——每个启用的 marketplace 最多会有两个候选在可选 LLM gate 之前下载并安全解包，因为这两个 API 通过 bundle 提供技能正文。被 gate 拒绝的候选可能仍留在缓存里，但插件不会自动执行它。
 - **配了 `model`**——改写器看到你的消息（截断到 2,000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 

@@ -1,0 +1,17 @@
+{
+  "name": "skillcorpus",
+  "description": "SkillCorpus plugins marketplace.",
+  "owner": {
+    "name": "EverMind AI",
+    "url": "https://evermind.ai"
+  },
+  "plugins": [
+    {
+      "name": "skillsearch",
+      "description": "Per-turn skill retrieval for WorkBuddy.",
+      "source": "./skillcorpus_plugin/plugin-workbuddy",
+      "version": "0.2.0",
+      "category": "skill"
+    }
+  ]
+}

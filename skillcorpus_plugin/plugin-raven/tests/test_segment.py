@@ -99,6 +99,13 @@ def test_the_manifest_id_matches_the_entry_point() -> None:
     assert points.get(MANIFEST["plugin"]["id"]) == "skillsearch_raven"
 
 
+def test_the_manifest_enables_all_remote_sources_by_default() -> None:
+    schema = MANIFEST["plugin"]["config_schema"]
+    assert schema["hub_endpoint"]["default"] == "https://skillhub.evermind.ai"
+    assert schema["clawhub_endpoint"]["default"] == "https://clawhub.ai"
+    assert schema["skillhub_cn_endpoint"]["default"] == "https://api.skillhub.cn"
+
+
 # ── behaviour ────────────────────────────────────────────────────────────
 
 # `build()` wraps its result in the host's `Segment` type, so these need a
@@ -132,7 +139,13 @@ def test_the_factory_declines_its_slot_when_nothing_is_configured(tmp_path: Path
     assert (
         make_segment(
             PluginContext(
-                tmp_path, {"skills_dir": str(tmp_path / "absent"), "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
+                tmp_path,
+                {
+                    "skills_dir": str(tmp_path / "absent"),
+                    "hub_endpoint": "",
+                    "clawhub_endpoint": "",
+                    "skillhub_cn_endpoint": "",
+                }
             )
         )
         is None

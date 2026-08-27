@@ -28,7 +28,7 @@ be active.
 | Key | Default | Purpose |
 |---|---|---|
 | `skills_dir` | `~/.hermes/skills` | Directory scanned for `SKILL.md` files |
-| `hub_endpoint` | - | EverMind-compatible catalog; empty disables this source only |
+| `hub_endpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables this source only |
 | `clawhub_endpoint` | `https://clawhub.ai` | ClawHub API; empty disables it |
 | `skillhub_cn_endpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `hub_api_key` | — | Bearer token for that catalog |

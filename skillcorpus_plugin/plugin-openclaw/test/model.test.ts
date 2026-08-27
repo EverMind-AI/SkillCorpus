@@ -100,6 +100,7 @@ function fakeApi(pluginConfig: Record<string, unknown>): {
       id: 'skillsearch',
       name: 'Skill Search',
       pluginConfig: {
+        hubEndpoint: '',
         clawhubEndpoint: '',
         skillhubCnEndpoint: '',
         ...pluginConfig,

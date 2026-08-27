@@ -42,7 +42,7 @@ which the host validates against; the ones that matter most:
 | Key | Default | Purpose |
 |---|---|---|
 | `skills_dir` | `skills` | Directory scanned for `SKILL.md`, relative to the workspace |
-| `hub_endpoint` | - | EverMind-compatible catalog; empty disables this source only |
+| `hub_endpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables this source only |
 | `clawhub_endpoint` | `https://clawhub.ai` | ClawHub API; empty disables it |
 | `skillhub_cn_endpoint` | `https://api.skillhub.cn` | skillhub.cn API; empty disables it |
 | `model` | — | Model for the rewriter and the gate |

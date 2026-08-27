@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh.md)
 
-**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** SkillCorpus Plugins watches what the user just asked, retrieves the matching `SKILL.md` skills from a local directory and an optional remote catalog, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
+**The official agent-host plugins for [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus): your agent, automatically briefed with the right skills — every turn.** SkillCorpus Plugins watches what the user just asked, retrieves matching `SKILL.md` skills from local directories and three remote sources enabled by default, and puts their bodies in front of the model before it answers. No tool call, no skill name the model has to already know.
 
 A real turn, on WorkBuddy: ask *“帮我生成一个二维码，内容是 https://evermind.ai，存到桌面”*. No QR skill exists on the machine — but the catalog has one, so before the model answers, its context gains:
 
@@ -19,7 +19,7 @@ this directory — use the absolute form for read_file / exec.
 
 The skill's bundled script is already extracted next to it; the model runs it and the QR code lands on the desktop. Without retrieval, the model improvises — `pip install qrcode` and hope.
 
-Works with a directory of your own skills, with [SkillHub](https://evermind.ai/skillhub) — the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus)'s 114,190 vetted, permissively-licensed skills, where that QR skill came from — or both fused into one ranking.
+Works with your own skill directories and with EverMind SkillHub, ClawHub, and skillhub.cn, fused into one ranking. The QR skill above came from [SkillHub](https://evermind.ai/skillhub), the hosted endpoint over [SkillCorpus](https://github.com/EverMind-AI/SkillCorpus).
 
 ## Install — paste this to your agent
 
@@ -39,7 +39,7 @@ The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — human-read
 
 | Your host | Do this | Details |
 | --- | --- | --- |
-| **WorkBuddy** | build `plugin-workbuddy`, register it as a marketplace, enable — file-level steps an agent does well: paste the prompt in its README | [plugin-workbuddy](plugin-workbuddy#install--paste-this-to-workbuddy) |
+| **WorkBuddy** | add `EverMind-AI/SkillCorpus` in the standard plugin marketplace, install **Skill Search**, then restart | [plugin-workbuddy](plugin-workbuddy#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
 | **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`, then two keys in `openclaw.json` | [plugin-openclaw](plugin-openclaw#install) |
 | **DeepSeek Harness** | copy `engine-typescript/` to `packages/skill/skill-search/`, add a `cordis.yml` row | [engine-typescript](engine-typescript#where-this-goes) |
@@ -106,7 +106,7 @@ Full per-host tables live in each plugin's README; these seven decide behaviour 
 | Setting | Default | What it decides |
 | --- | --- | --- |
 | `skills_dir` / `skillsDirs` | the host's own skills directory | Where local skills are scanned. Missing directory = the source simply doesn't exist. |
-| `hub_endpoint` / `hubEndpoint` | *(empty)* | EverMind-compatible catalog. Empty disables only this source. |
+| `hub_endpoint` / `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub; empty disables only this source. |
 | `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub search; empty disables it. |
 | `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn search; empty disables it. |
 | `model` (+ host-specific route) | *(empty)* | Enables the query rewriter and the gate. Empty = retrieval runs unfiltered, ranked by keywords. |
@@ -133,8 +133,8 @@ Nothing is added to durable history — the injection is rebuilt per turn and di
 Honest accounting, because retrieval runs on your conversation:
 
 - **Local-only setup (after explicitly disabling the three remote endpoints)** — nothing. Scanning, ranking and injection are all in-process.
-- **Default installation** — ClawHub and skillhub.cn are enabled; the retrieval query is sent to both services. Set their endpoint fields to an empty string to disable either one. With no `model`, no LLM gate runs: only the marketplaces’ own trust flags and the lexical relevance guard apply.
-- **With `hub_endpoint` set** — the retrieval query (your message, or its model-cleaned rewrite) is sent to that catalog on every retrieving turn; selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
+- **Default installation** — EverMind SkillHub, ClawHub, and skillhub.cn are enabled; the retrieval query is sent to all three services. Set any endpoint field to an empty string to disable that source. With no `model`, no LLM gate runs: source safety checks and the EverMind lexical relevance guard still apply.
+- **EverMind SkillHub** — selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
 - **Marketplace body fetches** — up to two candidates per enabled marketplace are downloaded and safely extracted before the optional LLM gate, because those APIs expose the skill body through the bundle. A rejected candidate may therefore remain in the cache, but the plugin never executes it automatically.
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 

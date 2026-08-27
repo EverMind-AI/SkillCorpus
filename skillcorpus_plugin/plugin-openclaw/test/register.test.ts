@@ -40,7 +40,7 @@ function fakeApi(pluginConfig?: Record<string, unknown>): {
   const api: OpenClawPluginApi = {
     id: 'skillsearch',
     name: 'Skill Search',
-    pluginConfig: { clawhubEndpoint: '', skillhubCnEndpoint: '', ...(pluginConfig ?? {}) },
+    pluginConfig: { hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '', ...(pluginConfig ?? {}) },
     logger: {
       info: () => {},
       warn: (message: string) => { warnings.push(message) },
@@ -216,6 +216,29 @@ test('the environment wins over the host config document', () => {
 test('an unset configuration resolves to the documented defaults', () => {
   const config = loadConfig(undefined, {} as NodeJS.ProcessEnv)
   assert.deepEqual(config, DEFAULTS)
+  assert.equal(config.hubEndpoint, 'https://skillhub.evermind.ai')
+  assert.equal(config.clawhubEndpoint, 'https://clawhub.ai')
+  assert.equal(config.skillhubCnEndpoint, 'https://api.skillhub.cn')
+})
+
+test('the host manifest and runtime agree on every remote-source default', async () => {
+  const manifest = JSON.parse(
+    await readFile(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'),
+  )
+  const properties = manifest.configSchema.properties
+  assert.equal(properties.hubEndpoint.default, DEFAULTS.hubEndpoint)
+  assert.equal(properties.clawhubEndpoint.default, DEFAULTS.clawhubEndpoint)
+  assert.equal(properties.skillhubCnEndpoint.default, DEFAULTS.skillhubCnEndpoint)
+})
+
+test('an explicitly empty endpoint disables each default remote source', () => {
+  const config = loadConfig(
+    { hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '' },
+    {} as NodeJS.ProcessEnv,
+  )
+  assert.equal(config.hubEndpoint, '')
+  assert.equal(config.clawhubEndpoint, '')
+  assert.equal(config.skillhubCnEndpoint, '')
 })
 
 test('a comma-separated list is accepted wherever an array is', () => {
@@ -242,5 +265,5 @@ test('the last user message is found past assistant and tool turns', () => {
 })
 
 test('an engine with no sources reports itself disabled', async () => {
-  assert.equal(buildEngine(loadConfig({ skillsDirs: [], clawhubEndpoint: '', skillhubCnEndpoint: '' }, {} as NodeJS.ProcessEnv)).enabled, false)
+  assert.equal(buildEngine(loadConfig({ skillsDirs: [], hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '' }, {} as NodeJS.ProcessEnv)).enabled, false)
 })

@@ -10,3 +10,5 @@ node_modules/
 lib/
 *.tsbuildinfo
 dist/
+!plugin-workbuddy/dist/
+!plugin-workbuddy/dist/hook.mjs

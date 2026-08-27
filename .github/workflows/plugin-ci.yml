@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "skillcorpus_plugin/**"
+      - ".codebuddy-plugin/**"
       - ".github/workflows/plugin-ci.yml"
   push:
     branches: [main]
     paths:
       - "skillcorpus_plugin/**"
+      - ".codebuddy-plugin/**"
       - ".github/workflows/plugin-ci.yml"
 
 permissions:
@@ -86,6 +88,10 @@ jobs:
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
       - run: npm run ci
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
+      - name: Verify checked-in WorkBuddy runtime is current
+        if: matrix.directory == 'plugin-workbuddy'
+        run: git diff --exit-code -- dist/hook.mjs
+        working-directory: skillcorpus_plugin/plugin-workbuddy
       - run: node ../scripts/verify_npm_package.mjs .
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
 
