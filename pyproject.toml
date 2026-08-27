@@ -42,5 +42,5 @@ eval = [
 # Keeping the package name `skillcorpus` (not renamed) so existing
 # `python -m skillcorpus.*` invocations and absolute imports keep working.
 [tool.setuptools.packages.find]
-include = ["skillcorpus*"]
-
+include = ["skillcorpus", "skillcorpus.*"]
+exclude = ["skillcorpus.tests", "skillcorpus.tests.*"]
