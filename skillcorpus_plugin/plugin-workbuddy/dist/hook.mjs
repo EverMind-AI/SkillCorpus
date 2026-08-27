@@ -2,7 +2,7 @@
 
 // src/hook.ts
 import { appendFileSync, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname as dirname2 } from "node:path";
+import { dirname as dirname3 } from "node:path";
 
 // src/config.ts
 import { readFileSync } from "node:fs";
@@ -68,7 +68,8 @@ var DEFAULTS = {
   hubWeight: 0.85,
   rrfK: 10,
   indexCachePath: join(DATA_DIR, "index-cache.json"),
-  logPath: join(DATA_DIR, "skillsearch.log")
+  logPath: join(DATA_DIR, "skillsearch.log"),
+  resolvePlaceholders: false
 };
 var ENV_KEYS = {
   skillsDirs: "SKILLSEARCH_SKILLS_DIRS",
@@ -92,7 +93,8 @@ var ENV_KEYS = {
   hubWeight: "SKILLSEARCH_HUB_WEIGHT",
   rrfK: "SKILLSEARCH_RRF_K",
   indexCachePath: "SKILLSEARCH_INDEX_CACHE_PATH",
-  logPath: "SKILLSEARCH_LOG_PATH"
+  logPath: "SKILLSEARCH_LOG_PATH",
+  resolvePlaceholders: "SKILLSEARCH_RESOLVE_PLACEHOLDERS"
 };
 function asList(value) {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -165,7 +167,8 @@ function loadConfig(document, env = process.env) {
     hubWeight: asNumber(pick("hubWeight")) ?? DEFAULTS.hubWeight,
     rrfK: asNumber(pick("rrfK")) ?? DEFAULTS.rrfK,
     indexCachePath: asText(pick("indexCachePath")) ?? DEFAULTS.indexCachePath,
-    logPath: asText(pick("logPath")) ?? DEFAULTS.logPath
+    logPath: asText(pick("logPath")) ?? DEFAULTS.logPath,
+    resolvePlaceholders: asBoolean(pick("resolvePlaceholders")) ?? DEFAULTS.resolvePlaceholders
   };
 }
 
@@ -391,7 +394,7 @@ function parseResponse(content) {
 
 // ../engine-typescript/src/refs.ts
 import { existsSync, statSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { dirname, join as join2 } from "node:path";
 var BUNDLED_DIRS = ["references", "scripts", "assets", "examples"];
 var MD_LINK_RE = new RegExp(
   String.raw`\[([^\]]+)\]\((?:\.{0,2}/)?((?:${BUNDLED_DIRS.join("|")})/[^)\s]+)\)`,
@@ -448,6 +451,30 @@ function isDirectory(path) {
 function firstIndexOfAny(text, needles) {
   const found = needles.map((n) => text.indexOf(n)).filter((i) => i !== -1);
   return found.length === 0 ? -1 : Math.min(...found);
+}
+var PLACEHOLDER_RE = /\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}/g;
+function resolvePlaceholders(body, skillDir, runtime = {}) {
+  if (!body || !body.includes("{{")) return body;
+  const sd = skillDir || void 0;
+  if (sd) {
+    body = body.replaceAll("{{SKILL_DIR}}/", `${sd.replace(/\/+$/, "")}/`);
+    body = body.replaceAll("{{SKILL_DIR}}", sd);
+  }
+  return body.replace(PLACEHOLDER_RE, (match, name, arg) => {
+    if (name === "SKILL_DIR") {
+      return sd && arg && arg !== "." && arg !== ".." ? join2(dirname(sd), arg) : match;
+    }
+    if (name === "AGENT_STATE_DIR") {
+      return runtime.stateDir || runtime.outputDir || match;
+    }
+    if (name === "HOME") {
+      return runtime.homeDir || runtime.outputDir || match;
+    }
+    if (name === "OUTPUT_DIR") {
+      return runtime.outputDir || match;
+    }
+    return match;
+  });
 }
 
 // ../engine-typescript/src/rewriter.ts
@@ -515,6 +542,8 @@ var SkillSearchEngine = class {
   dedupBy;
   heading;
   refs;
+  placeholders;
+  runtime;
   constructor(parts, options = {}) {
     this.sources = parts.sources;
     this.rewriter = parts.rewriter;
@@ -530,6 +559,12 @@ var SkillSearchEngine = class {
     this.dedupBy = options.dedupBy ?? "qualifiedId";
     this.heading = options.heading ?? "# Skills";
     this.refs = options.resolveRefs ?? true;
+    this.placeholders = options.resolvePlaceholders ?? false;
+    this.runtime = {
+      outputDir: options.outputDir,
+      homeDir: options.homeDir,
+      stateDir: options.stateDir
+    };
   }
   /** Whether anything is configured to search. */
   get enabled() {
@@ -602,7 +637,7 @@ var SkillSearchEngine = class {
     if (this.gate) {
       hits = await this.gate.filter(query, hits, options.availableTools, signal);
     }
-    return this.resolveHitRefs(hits.slice(0, this.topK), signal);
+    return this.resolvePlaceholders(await this.resolveHitRefs(hits.slice(0, this.topK), signal));
   }
   diagnose(diagnostic) {
     try {
@@ -665,6 +700,26 @@ var SkillSearchEngine = class {
       const { body } = resolveRefs(current.content, skillDir);
       return body === current.content ? current : { ...current, content: body };
     }));
+  }
+  /**
+   * Fill PathGuard placeholders (`{{SKILL_DIR}}`, `{{HOME}}`, …) per agent.
+   *
+   * Unlike `resolveLocalRefs` / `resolveHitRefs` this never touches the
+   * filesystem and is not gated by `resolveRefs`: a placeholder already names
+   * its target, and only the host knows it. It runs last, once every surviving
+   * hit has its `skillDir` settled.
+   */
+  resolvePlaceholders(hits) {
+    if (!this.placeholders) return hits;
+    return hits.map((hit) => {
+      const content = hit.content;
+      const source = String(hit.meta.source ?? "");
+      const trusted = ["local", "builtin", "hub"].includes(source) || hit.meta.pathguardProcessed === true;
+      if (!trusted || !content || !content.includes("{{")) return hit;
+      const skillDir = typeof hit.meta.skillDir === "string" ? hit.meta.skillDir : void 0;
+      const body = resolvePlaceholders(content, skillDir, this.runtime);
+      return body === content ? hit : { ...hit, content: body };
+    });
   }
   /** Fill in bodies for hits a source returned as metadata only. */
   async hydrateBodies(hits, signal) {
@@ -1417,7 +1472,7 @@ function errorMessage2(error) {
 
 // src/cached-local-source.ts
 import { mkdirSync, readFileSync as readFileSync2, readdirSync, renameSync, statSync as statSync2, writeFileSync } from "node:fs";
-import { dirname, join as join7 } from "node:path";
+import { dirname as dirname2, join as join7 } from "node:path";
 
 // ../engine-typescript/src/local-source.ts
 import { readFile as readFile2, readdir as readdir2 } from "node:fs/promises";
@@ -1679,7 +1734,7 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
   }
   write(file) {
     try {
-      mkdirSync(dirname(this.cachePath), { recursive: true });
+      mkdirSync(dirname2(this.cachePath), { recursive: true });
       const temp = `${this.cachePath}.${process.pid}.tmp`;
       writeFileSync(temp, JSON.stringify(file));
       renameSync(temp, this.cachePath);
@@ -1749,7 +1804,7 @@ function expandHome(path, home = homedir2()) {
   if (path.startsWith("~/")) return join8(home, path.slice(2));
   return path;
 }
-function buildEngine(config, onDiagnostic) {
+function buildEngine(config, onDiagnostic, workspaceDir) {
   const sources = [];
   const dirs = config.skillsDirs.map((dir) => expandHome(dir)).filter(Boolean);
   if (dirs.length > 0) {
@@ -1828,14 +1883,25 @@ function buildEngine(config, onDiagnostic) {
         }
       } : {}
     },
-    { topK: config.topK, gatePool: config.gatePool, rrfK: config.rrfK }
+    {
+      topK: config.topK,
+      gatePool: config.gatePool,
+      rrfK: config.rrfK,
+      // PathGuard placeholders' per-agent facts. WorkBuddy's own config root
+      // is ~/.workbuddy-ai; the agent's writable output is its workspace,
+      // falling back to the hook process's cwd when the payload reports none.
+      outputDir: workspaceDir || process.cwd(),
+      homeDir: homedir2(),
+      stateDir: join8(homedir2(), ".workbuddy-ai"),
+      resolvePlaceholders: config.resolvePlaceholders
+    }
   );
 }
-async function retrieveForTurn(query, config, deps = {}, onDiagnostic) {
+async function retrieveForTurn(query, config, deps = {}, onDiagnostic, workspaceDir) {
   if (!query.trim()) return "";
   let engine;
   try {
-    engine = (deps.buildEngineFn ?? buildEngine)(config, onDiagnostic);
+    engine = (deps.buildEngineFn ?? buildEngine)(config, onDiagnostic, workspaceDir);
   } catch {
     return "";
   }
@@ -1879,7 +1945,7 @@ function resultFor(block) {
 function log(config, entry) {
   if (!config.logPath) return;
   try {
-    mkdirSync2(dirname2(config.logPath), { recursive: true });
+    mkdirSync2(dirname3(config.logPath), { recursive: true });
     appendFileSync(config.logPath, `${JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), ...entry })}
 `);
   } catch {
@@ -1906,7 +1972,8 @@ async function runTurn(input, deps = {}) {
         {},
         (diagnostic) => {
           sourceDiagnostics.push(diagnostic);
-        }
+        },
+        payload.cwd
       );
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
