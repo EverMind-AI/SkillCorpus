@@ -140,7 +140,7 @@ This is the concrete inventory of what is public today.
 service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
 
 <div align="center">
-<img src="docs/assets/taxonomy.png" alt="16-class distribution over the 96,401 active skills" width="58%">
+<img src="https://github.com/user-attachments/assets/71edc5ab-291f-4fb8-8f5c-177d50e5b8f4" alt="16-class distribution over the 96,401 active skills" width="58%">
 </div>
 
 The 96,401-skill snapshot measured in the paper, organised by a 16-class taxonomy and three quality facets
@@ -237,7 +237,7 @@ To curate **your own** sources instead, see [Build your own corpus](#build-your-
 ## How it works
 
 <div align="center">
-<img src="docs/assets/pipeline.png" alt="SkillCorpus: curated skills are matched to a task and injected into an agent before execution" width="100%">
+<img src="https://github.com/user-attachments/assets/e0e72150-373b-4381-ad6c-74668d436d49" alt="SkillCorpus: curated skills are matched to a task and injected into an agent before execution" width="100%">
 <p><em>The collection pipeline is the foundation; the payoff is task-specific skill retrieval before the agent acts.</em></p>
 </div>
 

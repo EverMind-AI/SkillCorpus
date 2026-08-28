@@ -131,7 +131,7 @@ Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments`
 *目前开源：代码、1,000 条 demo 语料和检索模型。托管的 SkillHub 服务不开源，完整在线目录也尚未作为可下载数据集发布。*
 
 <div align="center">
-<img src="docs/assets/taxonomy.png" alt="96,401 个有效技能的 16 类分布" width="58%">
+<img src="https://github.com/user-attachments/assets/71edc5ab-291f-4fb8-8f5c-177d50e5b8f4" alt="96,401 个有效技能的 16 类分布" width="58%">
 </div>
 
 论文所评测的 96,401 条快照，按 16 类体系和三个质量维度（utility / robustness / safety）组织，并带 1024 维
@@ -222,7 +222,7 @@ EMBEDDING_MODEL=<embedding 检查点目录> RERANKER_MODEL=<reranker 检查点�
 ## 工作原理
 
 <div align="center">
-<img src="docs/assets/pipeline.png" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
+<img src="https://github.com/user-attachments/assets/e0e72150-373b-4381-ad6c-74668d436d49" alt="SkillCorpus：把策展后的技能匹配到任务，并在执行前注入 agent 上下文" width="100%">
 <p><em>收集和策展是基础，真正的价值是 agent 执行前能拿到与任务匹配的技能。</em></p>
 </div>
 
