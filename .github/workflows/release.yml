@@ -6,7 +6,9 @@ name: Release
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+*"
+      # GitHub Actions uses glob patterns here, not regular expressions.
+      # The publish job below still requires an exact v<pyproject version> match.
+      - "v*"
 
 permissions:
   contents: read
