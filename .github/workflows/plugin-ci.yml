@@ -75,6 +75,11 @@ jobs:
         include:
           - name: OpenClaw
             directory: plugin-openclaw
+          # A separate package, not a replacement: OpenClaw 2.0 dropped the
+          # hook path the 1.x plugin is built on, so the two hosts need
+          # different shapes and both ship.
+          - name: OpenClaw 2.0
+            directory: plugin-openclaw2
           - name: WorkBuddy
             directory: plugin-workbuddy
     steps:

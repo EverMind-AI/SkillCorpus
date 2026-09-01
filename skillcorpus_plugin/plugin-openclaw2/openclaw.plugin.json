@@ -1,8 +1,9 @@
 {
   "id": "skillsearch",
   "name": "Skill Search",
-  "description": "Per-turn skill retrieval: local directory, remote catalog, model-gated selection.",
+  "description": "Per-turn skill retrieval as a context engine: local directory, remote catalog, model-gated selection.",
   "version": "0.2.0",
+  "kind": "context-engine",
   "activation": {
     "onStartup": true
   },
@@ -22,7 +23,7 @@
           "auto"
         ],
         "default": "on_demand",
-        "description": "How skills reach the agent. \"on_demand\" registers a skill_search tool and lets the agent decide when it needs one; \"auto\" injects what it finds on every turn through before_prompt_build. The two are exclusive: running both would pay for retrieval twice and show the same skill from two directions."
+        "description": "How skills reach the agent. \"on_demand\" registers a skill_search tool and lets the agent decide when it needs one; \"auto\" searches every turn and injects what it finds. The two are exclusive: auto takes the host's single context-engine slot, on_demand does not."
       },
       "skillsDirs": {
         "type": "array",

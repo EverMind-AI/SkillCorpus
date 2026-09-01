@@ -18,6 +18,7 @@ import test from 'node:test'
 import { DEFAULTS, loadConfig } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import type {
+  AgentTool,
   BeforePromptBuildEvent,
   BeforePromptBuildResult,
   OpenClawPluginApi,
@@ -33,9 +34,11 @@ type Handler = (
 function fakeApi(pluginConfig?: Record<string, unknown>): {
   api: OpenClawPluginApi
   hooks: Map<string, Handler>
+  tools: Map<string, AgentTool>
   warnings: string[]
 } {
   const hooks = new Map<string, Handler>()
+  const tools = new Map<string, AgentTool>()
   const warnings: string[] = []
   const api: OpenClawPluginApi = {
     id: 'skillsearch',
@@ -46,8 +49,9 @@ function fakeApi(pluginConfig?: Record<string, unknown>): {
       warn: (message: string) => { warnings.push(message) },
     },
     on: (event, handler) => { hooks.set(event, handler as Handler) },
+    registerTool: tool => { tools.set(tool.name, tool) },
   }
-  return { api, hooks, warnings }
+  return { api, hooks, tools, warnings }
 }
 
 /** A skills directory with one obvious match and one distractor. */
@@ -69,13 +73,13 @@ async function skillsDir(): Promise<string> {
 const NO_CTX: PluginHookAgentContext = {}
 
 test('registers exactly the hook the host calls before a prompt is built', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api)
   assert.deepEqual([...hooks.keys()], ['before_prompt_build'])
 })
 
 test('injects the ranked skills through prependContext', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()], topK: 1 })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()], topK: 1 })
   register(api)
 
   const result = await hooks.get('before_prompt_build')!(
@@ -98,7 +102,7 @@ test('returns nothing when the corpus shares no term with the query', async () =
   // match and nothing else: a query with no shared term returns nothing, and
   // a query that merely brushes one does return a weak hit. Removing those
   // is the gate's job, which is why the README calls a model near-required.
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api)
   const hook = hooks.get('before_prompt_build')!
 
@@ -109,7 +113,7 @@ test('returns nothing when the corpus shares no term with the query', async () =
 })
 
 test('falls back to the last user message when the prompt arrives empty', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()], topK: 1 })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()], topK: 1 })
   register(api)
 
   const result = await hooks.get('before_prompt_build')!(
@@ -126,7 +130,7 @@ test('falls back to the last user message when the prompt arrives empty', async 
 })
 
 test('registers no hook at all when nothing is configured to search', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [] })
   register(api)
   assert.equal(hooks.size, 0)
 })
@@ -139,7 +143,7 @@ test('the manifest accepts the placeholder-resolution switch', async () => {
 
 test('engines are cached per workspace rather than shared across agents', async () => {
   const builtFor: Array<string | undefined> = []
-  const { api, hooks } = fakeApi({ skillsDirs: ['/skills'] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: ['/skills'] })
   register(api, {
     buildEngineFn: (_config, workspaceDir) => {
       builtFor.push(workspaceDir)
@@ -154,7 +158,7 @@ test('engines are cached per workspace rather than shared across agents', async 
 })
 
 test('a retrieval that throws costs the turn its skills, not the turn', async () => {
-  const { api, hooks, warnings } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks, warnings } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api, {
     buildEngineFn: () => ({
       enabled: true,
@@ -173,6 +177,7 @@ test('a retrieval that throws costs the turn its skills, not the turn', async ()
 test('the gate sees the tools a deployment declared', async () => {
   const seen: (readonly string[] | undefined)[] = []
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     availableTools: 'exec, read_file',
   })
@@ -192,7 +197,7 @@ test('the gate sees the tools a deployment declared', async () => {
 
 test('a blank turn never reaches retrieval', async () => {
   let called = 0
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api, {
     buildEngineFn: () => ({
       enabled: true,

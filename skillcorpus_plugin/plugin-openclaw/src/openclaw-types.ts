@@ -57,6 +57,39 @@ export interface PluginHookAgentContext {
   channelId?: string
 }
 
+/** What a tool returns to the model. */
+export interface ToolResult {
+  content: { type: 'text'; text: string }[]
+  details: unknown
+}
+
+/** The slice of the host's tool-execution context this plugin reads. */
+export interface ToolExecuteContext {
+  /** Tool names this agent can call, for the gate's environment check. */
+  availableTools?: readonly string[]
+}
+
+/**
+ * A tool definition, narrowed to the fields this plugin sets.
+ *
+ * The host types `parameters` as a TypeBox `TSchema`, which at runtime is a
+ * plain JSON Schema object — so the schema is written as an object literal
+ * here and the plugin still imports no runtime value from the host.
+ */
+export interface AgentTool {
+  name: string
+  label: string
+  description: string
+  parameters: unknown
+  execute(
+    toolCallId: string,
+    params: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    onUpdate: unknown,
+    ctx?: ToolExecuteContext,
+  ): Promise<ToolResult>
+}
+
 /** Where the plugin writes diagnostics. Every method is optional. */
 export interface PluginLogger {
   debug?(message: string, ...args: unknown[]): void
@@ -79,6 +112,8 @@ export interface OpenClawPluginApi {
       ctx: PluginHookAgentContext,
     ) => BeforePromptBuildResult | void | Promise<BeforePromptBuildResult | void>,
   ): void
+  /** Register a tool the agent may call. */
+  registerTool(tool: AgentTool): void
 }
 
 /** What `definePluginEntry` accepts. */

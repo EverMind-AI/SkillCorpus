@@ -16,12 +16,10 @@ import { after, test } from 'node:test'
 import { createChatModel } from '../src/model.ts'
 import { register } from '../src/register.ts'
 import type {
-  AgentTool,
-  BeforePromptBuildEvent,
-  BeforePromptBuildResult,
-  OpenClawPluginApi,
-  PluginHookAgentContext,
-} from '../src/openclaw-types.ts'
+  ContextEngine,
+  ContextEngineFactory,
+  OpenClaw2PluginApi,
+} from '../src/openclaw2-types.ts'
 
 interface Recorded {
   readonly authorization: string | undefined
@@ -92,29 +90,43 @@ async function skillsDir(): Promise<string> {
 }
 
 function fakeApi(pluginConfig: Record<string, unknown>): {
-  api: OpenClawPluginApi
-  hooks: Map<string, (e: BeforePromptBuildEvent, c: PluginHookAgentContext) => unknown>
-  tools: Map<string, AgentTool>
+  api: OpenClaw2PluginApi
+  engines: Map<string, ContextEngineFactory>
 } {
-  const hooks = new Map<string, (e: BeforePromptBuildEvent, c: PluginHookAgentContext) => unknown>()
-  const tools = new Map<string, AgentTool>()
+  const engines = new Map<string, ContextEngineFactory>()
   return {
     api: {
       id: 'skillsearch',
       name: 'Skill Search',
-      pluginConfig: {
-        hubEndpoint: '',
-        clawhubEndpoint: '',
-        skillhubCnEndpoint: '',
-        ...pluginConfig,
-      },
+    // 0.2.0 ships EverMind, ClawHub and skillhub.cn on by default; these
+    // tests are about the plugin, not about what a public catalog returned
+    // this minute, so every remote source is blanked unless a case asks.
+      pluginConfig: { hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '', ...pluginConfig },
       logger: { info: () => {}, warn: () => {} },
-      on: (event, handler) => { hooks.set(event, handler as never) },
-      registerTool: tool => { tools.set(tool.name, tool) },
+      registerContextEngine: (id, factory) => { engines.set(id, factory) },
+      registerTool: () => {},
     },
-    hooks,
-    tools,
+    engines,
   }
+}
+
+/** Assemble one turn through the registered engine and return what it added. */
+async function injected(
+  engines: Map<string, ContextEngineFactory>,
+  prompt: string,
+  workspaceDir?: string,
+): Promise<string> {
+  const factory = engines.get('skillsearch')
+  assert.ok(factory, 'the plugin registered no context engine')
+  const engine: ContextEngine = await factory(workspaceDir ? { workspaceDir } : {})
+  const before = [{ role: 'user', content: prompt }]
+  const { messages } = await engine.assemble({ sessionId: 's1', messages: [...before], prompt })
+  // The host's own messages come back untouched; anything after them is ours.
+  assert.deepEqual(messages.slice(0, before.length), before, 'host messages must pass through')
+  return messages
+    .slice(before.length)
+    .map(message => String((message as { content?: unknown }).content ?? ''))
+    .join('\n')
 }
 
 test('the client sends the credential and the configured model', async () => {
@@ -143,7 +155,8 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
     '{"rewritten_query": "fill a pdf acroform"}',
     '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
   ])
-  const { api, hooks } = fakeApi({
+  const { api, engines } = fakeApi({
+    // These pin what auto mode injects; the default is on demand.
     mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
@@ -156,12 +169,7 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
   })
   register(api)
 
-  const result = (await hooks.get('before_prompt_build')!(
-    { prompt: 'can you fill in /tmp/a7f2.pdf for me', messages: [] },
-    {},
-  )) as BeforePromptBuildResult
-
-  const block = result?.prependContext ?? ''
+  const block = await injected(engines, 'can you fill in /tmp/a7f2.pdf for me')
   assert.match(block, /### Skill: pdf-forms/)
   assert.doesNotMatch(block, /git-bisect/)
 
@@ -173,7 +181,8 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
 
 test('the rewriter deciding against retrieval skips the search entirely', async () => {
   const server = await provider(['{"need_retrieval": false, "rewritten_query": null}'])
-  const { api, hooks } = fakeApi({
+  const { api, engines } = fakeApi({
+    // These pin what auto mode injects; the default is on demand.
     mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
@@ -181,13 +190,13 @@ test('the rewriter deciding against retrieval skips the search entirely', async 
   })
   register(api)
 
-  const result = await hooks.get('before_prompt_build')!({ prompt: 'thanks!', messages: [] }, {})
-  assert.equal(result, undefined)
+  assert.equal(await injected(engines, 'thanks!'), '')
   assert.equal(server.seen.length, 1, 'only the rewriter ran')
 })
 
 test('an unreachable provider degrades to unfiltered retrieval, not to a failed turn', async () => {
-  const { api, hooks } = fakeApi({
+  const { api, engines } = fakeApi({
+    // These pin what auto mode injects; the default is on demand.
     mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
@@ -197,12 +206,7 @@ test('an unreachable provider degrades to unfiltered retrieval, not to a failed 
   })
   register(api)
 
-  const result = (await hooks.get('before_prompt_build')!(
-    { prompt: 'fill the acroform with pdftk', messages: [] },
-    {},
-  )) as BeforePromptBuildResult
-
-  assert.match(result?.prependContext ?? '', /pdf-forms/)
+  assert.match(await injected(engines, 'fill the acroform with pdftk'), /pdf-forms/)
 })
 
 test('the gate stays off for a local directory and on for a catalog', async () => {
@@ -213,7 +217,8 @@ test('the gate stays off for a local directory and on for a catalog', async () =
     '{"rewritten_query": "fill a pdf acroform"}',
     '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
   ])
-  const { api, hooks } = fakeApi({
+  const { api, engines } = fakeApi({
+    // These pin what auto mode injects; the default is on demand.
     mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
@@ -222,9 +227,6 @@ test('the gate stays off for a local directory and on for a catalog', async () =
   })
   register(api)
 
-  await hooks.get('before_prompt_build')!(
-    { prompt: 'can you fill in /tmp/a7f2.pdf for me', messages: [] },
-    {},
-  )
+  await injected(engines, 'can you fill in /tmp/a7f2.pdf for me')
   assert.equal(server.seen.length, 1, 'only the rewriter ran')
 })

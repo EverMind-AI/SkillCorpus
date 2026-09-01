@@ -19,6 +19,7 @@ import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { loadConfig, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
+import { skillSearchTool } from './tool.js'
 import type {
   BeforePromptBuildEvent,
   BeforePromptBuildResult,
@@ -187,10 +188,26 @@ export function register(
 
   // Probe without a workspace: `enabled` depends only on the sources, not on
   // the output directory.
-  if (!build(config).enabled) {
+  const probe = build(config)
+  if (!probe.enabled) {
     api.logger?.info?.('[skillsearch] no sources configured; retrieval is off')
     return
   }
+
+  if (config.mode === 'on_demand') {
+    // The agent decides when it needs a skill. No hook: injecting on every
+    // turn is the other mode, and running both would pay for retrieval twice
+    // and put the same skill in front of the model from two directions.
+    //
+    // One engine, not the per-workspace map the auto path keeps: the tool is
+    // handed no workspace, so there is nothing to key on. Only the PathGuard
+    // placeholders read one, and they are off unless a deployment turned them
+    // on for a trusted corpus.
+    api.registerTool(skillSearchTool(probe, config, api.logger))
+    api.logger?.info?.('[skillsearch] on-demand mode: the agent calls skill_search')
+    return
+  }
+  api.logger?.info?.('[skillsearch] auto mode: retrieval runs on every turn')
 
   // The engine is built lazily on the first hook, where the agent's own
   // workspace directory is known. Using `process.cwd()` (the host process's
