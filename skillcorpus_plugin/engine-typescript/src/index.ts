@@ -35,7 +35,7 @@ import { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.
 import { QueryRewriter } from './rewriter.js'
 
 export const name = 'skill-search'
-export const inject = ['agents', 'llm', 'tools']
+export const inject = ['agents', 'llm']
 
 export * from './types.js'
 export { SkillSearchEngine } from './engine.js'
@@ -178,7 +178,11 @@ export const Config: z<Config> = z.object({
   gateTimeoutMs: z.number().default(20_000),
   resolveRefs: z.boolean().default(true),
   resolvePlaceholders: z.boolean().default(false),
-  mode: z.string().default('on_demand'),
+  // A union, not `z.string()`: the branch below reads `!== 'auto'`, so a
+  // plain string schema turns `mode: "atuo"` into a silent downgrade to
+  // on-demand — the deployment asks for auto and never learns it did not get
+  // it. Narrowed, the loader rejects the typo instead.
+  mode: z.union([z.const('on_demand'), z.const('auto')]).default('on_demand'),
 })
 
 /** Marks the messages this plugin publishes. */
@@ -208,6 +212,10 @@ declare module '@deepseek-ai/dsh-llm' {
  * The in-house-convention clause is not padding — measured on a real host, a
  * question about an internal template went unanswered until it was named.
  */
+// Joined with newlines, not spaces: the empty strings above are blank lines,
+// and the dashes are a list. `.join(' ')` flattened the whole thing into one
+// paragraph — the model still called the tool, but the shape the text was
+// written in never reached it.
 const SKILL_SEARCH_DESCRIPTION = [
   'Search the skill library for a procedure that fits the task at hand, and',
   'get back the matching skills in full.',
@@ -226,7 +234,7 @@ const SKILL_SEARCH_DESCRIPTION = [
   'Search with the words the task actually uses; the query is matched against',
   'skill names and descriptions. Returns nothing when the library has no fit,',
   'which is a normal answer and means: proceed on your own.',
-].join(' ')
+].join('\n')
 
 
 export function apply(ctx: Context, config: Config = {}): void {
@@ -240,48 +248,60 @@ export function apply(ctx: Context, config: Config = {}): void {
   if ((cfg.mode ?? 'on_demand') !== 'auto') {
     // On demand. No `agent/pre-step` hook: injecting on every turn is the
     // other mode, and running both would search twice for one turn.
-    ctx.tools.register(defineTool({
-      name: 'skill_search',
-      description: SKILL_SEARCH_DESCRIPTION,
-      parameters: {
-        query: {
-          type: 'string',
-          required: true,
-          description:
-            'What you need to do, in the task\'s own words — e.g. "extract tables from a scanned PDF invoice".',
-        },
-      },
-      output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            skills: { type: 'string', required: true, description: 'The matching skills, rendered.' },
-            matched: { type: 'boolean', required: true, description: 'Whether anything matched.' },
+    //
+    // `ctx.inject` rather than adding `'tools'` to the module's `inject`
+    // array: entries in that array are *required* services, so listing it
+    // there would stop the plugin loading at all — auto mode included — on a
+    // composition that mounts no tool service. Here the dependency is scoped
+    // to the mode that actually needs it.
+    ctx.inject(['tools'], (toolCtx: Context) => {
+      toolCtx.tools.register(defineTool({
+        name: 'skill_search',
+        description: SKILL_SEARCH_DESCRIPTION,
+        parameters: {
+          query: {
+            type: 'string',
+            required: true,
+            description:
+              'What you need to do, in the task\'s own words — e.g. "extract tables from a scanned PDF invoice".',
           },
         },
-        render: (_args, value) => [{ type: 'text', text: value.skills }],
-      },
-      async execute(args, exec) {
-        const query = String((args as { query?: unknown }).query ?? '').trim()
-        if (!query) return { skills: 'skill_search needs a query describing the task.', matched: false }
-        try {
-          const skills = await engine.retrieve(query, {
-            signal: exec.signal,
-            ...(toolNames(ctx, exec.agent) ? { availableTools: toolNames(ctx, exec.agent) } : {}),
-          })
-          // A miss is an answer. An empty string would read to a model as a
-          // broken tool rather than as "the library has no fit".
-          return skills
-            ? { skills, matched: true }
-            : { skills: `No skill in the library matches "${query}". Proceed without one.`, matched: false }
-        } catch {
-          // Same rule as the injection path: a failed search costs the turn a
-          // skill, not the turn.
-          return { skills: 'Skill search is unavailable right now. Proceed without a skill.', matched: false }
-        }
-      },
-    }))
+        output: {
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              skills: { type: 'string', required: true, description: 'The matching skills, rendered.' },
+              matched: { type: 'boolean', required: true, description: 'Whether anything matched.' },
+            },
+          },
+          render: (_args, value) => [{ type: 'text', text: value.skills }],
+        },
+        async execute(args, exec) {
+          const query = String((args as { query?: unknown }).query ?? '').trim()
+          if (!query) return { skills: 'skill_search needs a query describing the task.', matched: false }
+          // `exec.agent` is optional on the host's contract — a non-agent
+          // caller has none — and `toolNames` was called twice, walking the
+          // tool registry once per branch of its own ternary.
+          const availableTools = toolNames(ctx, exec.agent)
+          try {
+            const skills = await engine.retrieve(query, {
+              signal: exec.signal,
+              ...(availableTools ? { availableTools } : {}),
+            })
+            // A miss is an answer. An empty string would read to a model as a
+            // broken tool rather than as "the library has no fit".
+            return skills
+              ? { skills, matched: true }
+              : { skills: `No skill in the library matches "${query}". Proceed without one.`, matched: false }
+          } catch {
+            // Same rule as the injection path: a failed search costs the turn a
+            // skill, not the turn.
+            return { skills: 'Skill search is unavailable right now. Proceed without a skill.', matched: false }
+          }
+        },
+      }))
+    })
     ctx.logger('skill-search').info('on-demand mode: the agent calls skill_search')
     return
   }
@@ -515,7 +535,7 @@ function finishError(finish: FinishReason): Error | undefined {
  * The tools this agent may call, or `undefined` where no tool service is
  * mounted. The gate uses them to reject a skill this agent cannot execute.
  */
-function toolNames(ctx: Context, agent: Agent): readonly string[] | undefined {
+function toolNames(ctx: Context, agent?: Agent): readonly string[] | undefined {
   const tools = ctx.get('tools')
   return tools?.schemas(agent).map(schema => schema.name)
 }

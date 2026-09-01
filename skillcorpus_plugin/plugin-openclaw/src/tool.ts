@@ -27,6 +27,10 @@ import type { AgentTool, PluginLogger, ToolExecuteContext, ToolResult } from './
 
 export const SKILL_SEARCH_TOOL_NAME = 'skill_search'
 
+// Joined with newlines, not spaces: the empty strings above are blank lines,
+// and the dashes are a list. `.join(' ')` flattened the whole thing into one
+// paragraph — the model still called the tool, but the shape the text was
+// written in never reached it.
 const DESCRIPTION = [
   'Search the skill library for a procedure that fits the task at hand, and',
   'get back the matching skills in full.',
@@ -45,7 +49,7 @@ const DESCRIPTION = [
   'Search with the words the task actually uses; the query is matched against',
   'skill names and descriptions. Returns nothing when the library has no fit,',
   'which is a normal answer and means: proceed on your own.',
-].join(' ')
+].join('\n')
 
 /** The parameter schema, written as the plain JSON Schema the host reads. */
 const PARAMETERS = {

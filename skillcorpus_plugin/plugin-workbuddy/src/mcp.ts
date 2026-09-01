@@ -46,7 +46,11 @@ import { retrieveForTurn } from './retrieve.js'
 /** Accepted by WorkBuddy 2.143.0, newest first. */
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07']
 
-export const SKILL_SEARCH_DESCRIPTION = [
+export // Joined with newlines, not spaces: the empty strings above are blank lines,
+// and the dashes are a list. `.join(' ')` flattened the whole thing into one
+// paragraph — the model still called the tool, but the shape the text was
+// written in never reached it.
+const SKILL_SEARCH_DESCRIPTION = [
   'Search the skill library for a procedure that fits the task at hand, and',
   'get back the matching skills in full.',
   '',
@@ -64,7 +68,7 @@ export const SKILL_SEARCH_DESCRIPTION = [
   'Search with the words the task actually uses; the query is matched against',
   'skill names and descriptions. Returns nothing when the library has no fit,',
   'which is a normal answer and means: proceed on your own.',
-].join(' ')
+].join('\n')
 
 export const SKILL_SEARCH_TOOL = {
   name: 'skill_search',

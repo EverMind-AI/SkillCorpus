@@ -112,9 +112,18 @@ class SkillsSegment:
 class SkillSearchTool:
     """`skill_search` — the on-demand half of retrieval.
 
-    Duck-typed against Raven's ``Tool`` ABC rather than subclassing it: the
-    host is not importable outside a checkout, and the package has to install
-    and test without one. The four members below are that ABC's whole surface.
+    The four members below are the ABC's *abstract* surface, and they are not
+    enough on their own: ``Tool`` also carries concrete implementations the
+    registry calls — ``to_schema``, ``cast_params``, ``validate_params``,
+    ``display_call``, ``timeout_seconds``, ``blocking_interaction``. Duck-typing
+    this class against the ABC therefore loads fine and then dies on the first
+    turn with ``AttributeError: 'SkillSearchTool' object has no attribute
+    'to_schema'``. :func:`make_skill_search_tool` subclasses the host's real
+    ``Tool`` around this body instead, so the inherited half comes along.
+
+    The body stays host-free so it can be imported, read and tested without a
+    Raven checkout, which is the same reason ``SkillsSegment.build`` imports
+    ``Segment`` at call time rather than at module scope.
 
     Two modes exist because two different things go wrong with one. Auto
     discovers capability the agent did not know to ask for, and pays for that
@@ -258,6 +267,15 @@ def make_skill_search_tool(ctx: Any) -> Any | None:
     The host drops a tool whose factory returns ``None``, which is what keeps
     `skill_search` out of the agent's tool list in auto mode instead of
     offering a search that already ran.
+
+    The returned object subclasses the host's own ``Tool``. That matters more
+    than it looks: the registry calls ``to_schema`` to build the model-facing
+    definition and ``cast_params`` / ``validate_params`` before dispatch, and
+    the agent loop calls ``display_call`` with no ``hasattr`` guard — all of
+    them concrete methods on the ABC that a look-alike class does not get. The
+    import is here rather than at module scope because the host is not
+    importable outside a checkout, and this package installs and tests without
+    one.
     """
     built = _build_search(ctx)
     if built is None:
@@ -265,7 +283,13 @@ def make_skill_search_tool(ctx: Any) -> Any | None:
     search, cfg_map = built
     if _mode(cfg_map) != "on_demand":
         return None
-    return SkillSearchTool(search)
+
+    from raven.agent.tools.base import Tool  # host type, factory-local
+
+    class _HostSkillSearchTool(SkillSearchTool, Tool):  # type: ignore[misc, valid-type]
+        """`SkillSearchTool`'s body over the host's ABC."""
+
+    return _HostSkillSearchTool(search)
 
 
 def _text_of(resp: Any) -> str:

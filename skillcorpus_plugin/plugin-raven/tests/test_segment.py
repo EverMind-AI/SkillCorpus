@@ -19,7 +19,13 @@ from typing import Any
 import pytest
 
 import skillsearch_raven
-from skillsearch_raven import SkillsSegment, make_segment, make_skill_search_tool
+from skillsearch_raven import (
+    SkillSearchTool,
+    SkillsSegment,
+    _build_search,
+    make_segment,
+    make_skill_search_tool,
+)
 
 PLUGIN_ROOT = Path(skillsearch_raven.__file__).parent
 MANIFEST = tomllib.loads((PLUGIN_ROOT / "raven-plugin.toml").read_text(encoding="utf-8"))
@@ -59,7 +65,14 @@ class PluginContext:
 
 
 def segment_for(workspace: Path, **extra: Any) -> Any:
-    return make_segment(PluginContext(workspace, {"skills_dir": str(workspace / "skills"), "top_k": 2, **extra}))
+    # `mode` explicitly: the default is on demand, where the segment declines
+    # its slot and `skill_search` does the work instead.
+    return make_segment(
+        PluginContext(
+            workspace,
+            {"skills_dir": str(workspace / "skills"), "top_k": 2, "mode": "auto", **extra},
+        )
+    )
 
 
 # ── the protocol the assembler reads before building anything ────────────
@@ -181,6 +194,18 @@ def test_build_never_raises_on_a_broken_engine(workspace: Path) -> None:
 # the same skill in front of the model from two directions.
 
 
+def bare_tool(workspace: Path, **extra: Any) -> SkillSearchTool:
+    """The tool's body, without the host.
+
+    `make_skill_search_tool` subclasses Raven's `Tool`, so it needs a checkout.
+    What the body does — the description, a hit, a miss, an empty query — does
+    not, and pinning it here keeps that covered wherever the suite runs.
+    """
+    built = _build_search(config_for(workspace, **extra))
+    assert built is not None
+    return SkillSearchTool(built[0])
+
+
 def config_for(workspace: Path, **extra: Any) -> PluginContext:
     return PluginContext(
         workspace,
@@ -197,6 +222,7 @@ def config_for(workspace: Path, **extra: Any) -> PluginContext:
     )
 
 
+@needs_host
 def test_the_default_is_on_demand(workspace: Path) -> None:
     assert make_segment(config_for(workspace)) is None
     tool = make_skill_search_tool(config_for(workspace))
@@ -210,6 +236,7 @@ def test_auto_is_the_mirror_image(workspace: Path) -> None:
     assert make_segment(config_for(workspace, mode="auto")) is not None
 
 
+@needs_host
 def test_an_unrecognised_mode_falls_back_to_the_default(workspace: Path) -> None:
     assert make_skill_search_tool(config_for(workspace, mode="atuo")) is not None
 
@@ -226,8 +253,7 @@ def test_nothing_configured_registers_neither(tmp_path: Path) -> None:
 
 
 def test_the_tool_answers_a_hit_a_miss_and_an_empty_query(workspace: Path) -> None:
-    tool = make_skill_search_tool(config_for(workspace, top_k=1))
-    assert tool is not None
+    tool = bare_tool(workspace, top_k=1)
     assert "pdf-forms" in asyncio.run(tool.execute(query="fill the acroform with pdftk"))
 
     # A miss is an answer, not an empty string a model would read as breakage.
@@ -242,8 +268,35 @@ def test_the_description_says_when_to_reach_for_it(workspace: Path) -> None:
     Measured on a real host: a question about an in-house template went
     unanswered until the description named that case explicitly.
     """
-    description = make_skill_search_tool(config_for(workspace)).description
+    description = bare_tool(workspace).description
     assert "multi-step" in description
     assert "internal convention" in description
     assert "Returns nothing" in description
     assert len(description) > 200
+
+
+@needs_host
+def test_the_tool_is_the_host_s_Tool_not_a_look_alike(workspace: Path) -> None:
+    """Subclassing is the point, and only a checkout can prove it.
+
+    `Tool` carries concrete implementations the host calls on every turn —
+    `to_schema` to build the model-facing definition, `cast_params` and
+    `validate_params` before dispatch, `display_call` from the agent loop with
+    no `hasattr` guard. A class that merely defines the four abstract members
+    loads fine and dies on the first turn with
+    `AttributeError: 'SkillSearchTool' object has no attribute 'to_schema'`,
+    which is exactly what a real Raven run produced before this.
+    """
+    from raven.agent.tools.base import Tool
+
+    tool = make_skill_search_tool(config_for(workspace))
+    assert isinstance(tool, Tool), "the factory must return the host's Tool"
+
+    for inherited in ("to_schema", "cast_params", "validate_params", "display_call"):
+        assert callable(getattr(tool, inherited, None)), inherited
+    for attribute in ("timeout_seconds", "blocking_interaction"):
+        assert hasattr(tool, attribute), attribute
+
+    # The schema the registry actually hands the model.
+    schema = tool.to_schema()
+    assert "skill_search" in repr(schema)

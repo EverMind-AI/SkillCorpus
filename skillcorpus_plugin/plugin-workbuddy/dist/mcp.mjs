@@ -566,9 +566,9 @@ var SkillSearchEngine = class {
     this.refs = options.resolveRefs ?? true;
     this.placeholders = options.resolvePlaceholders ?? false;
     this.runtime = {
-      outputDir: options.outputDir,
-      homeDir: options.homeDir,
-      stateDir: options.stateDir
+      ...options.outputDir === void 0 ? {} : { outputDir: options.outputDir },
+      ...options.homeDir === void 0 ? {} : { homeDir: options.homeDir },
+      ...options.stateDir === void 0 ? {} : { stateDir: options.stateDir }
     };
   }
   /** Whether anything is configured to search. */
@@ -1947,7 +1947,7 @@ var SKILL_SEARCH_DESCRIPTION = [
   "Search with the words the task actually uses; the query is matched against",
   "skill names and descriptions. Returns nothing when the library has no fit,",
   "which is a normal answer and means: proceed on your own."
-].join(" ");
+].join("\n");
 var SKILL_SEARCH_TOOL = {
   name: "skill_search",
   description: SKILL_SEARCH_DESCRIPTION,

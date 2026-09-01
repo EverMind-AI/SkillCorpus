@@ -567,9 +567,9 @@ var SkillSearchEngine = class {
     this.refs = options.resolveRefs ?? true;
     this.placeholders = options.resolvePlaceholders ?? false;
     this.runtime = {
-      outputDir: options.outputDir,
-      homeDir: options.homeDir,
-      stateDir: options.stateDir
+      ...options.outputDir === void 0 ? {} : { outputDir: options.outputDir },
+      ...options.homeDir === void 0 ? {} : { homeDir: options.homeDir },
+      ...options.stateDir === void 0 ? {} : { stateDir: options.stateDir }
     };
   }
   /** Whether anything is configured to search. */
