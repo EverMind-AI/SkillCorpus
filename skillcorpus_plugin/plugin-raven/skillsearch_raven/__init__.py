@@ -195,6 +195,39 @@ class SkillSearchTool:
         return text or f'No skill in the library matches "{query}". Proceed without one.'
 
 
+def _resolve_model(cfg_map: dict[str, Any]) -> Any:
+    """The channel the rewriter and the gate run on, or ``None``.
+
+    Two sources, in order. Raven hands the *segment* factory a live
+    ``LLMProvider`` under the private ``_provider`` key, which is the better
+    one — it is the model the user already chose, and it follows a ``/model``
+    switch. The *tool* factory is handed no such thing, so on-demand mode had
+    nothing: `build_plugin_tools` passes the config slice and a
+    ``ServiceLocator``, and a live object cannot be written in TOML.
+
+    So a plugin-configured endpoint is the fallback, the same one every other
+    host plugin already carries. Neither present means no rewriter and no
+    gate, which is a real loss rather than a mild one: fusion ranks by
+    position, so each source's best hit reaches the model however weakly it
+    matched, and the gate is what removes those.
+    """
+    provider = cfg_map.get("_provider")
+    if provider is not None:
+        return _ProviderAdapter(provider)
+
+    model_name = str(cfg_map.get("model") or "").strip()
+    if not model_name:
+        return None
+    from .model import DEFAULT_BASE_URL, OpenAICompatibleModel
+
+    return OpenAICompatibleModel(
+        base_url=str(cfg_map.get("model_base_url") or DEFAULT_BASE_URL).strip(),
+        api_key=str(cfg_map.get("model_api_key") or "").strip(),
+        model=model_name,
+        timeout_s=float(cfg_map.get("model_timeout_s") or 30.0),
+    )
+
+
 def _mode(cfg_map: dict[str, Any]) -> str:
     """``auto`` or ``on_demand``; anything unrecognised means the default.
 
@@ -231,8 +264,7 @@ def _build_search(ctx: Any) -> tuple[Any, dict[str, Any]] | None:
     # host's own SkillRegistry so the plugin does not rescan the disk the
     # host already watches; `_provider` is the model channel the rewriter
     # and the gate run on.
-    provider = cfg_map.get("_provider")
-    model = _ProviderAdapter(provider) if provider is not None else None
+    model = _resolve_model(cfg_map)
 
     search = SkillSearch(
         config,

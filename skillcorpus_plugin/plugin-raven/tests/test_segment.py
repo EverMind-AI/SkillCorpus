@@ -300,3 +300,46 @@ def test_the_tool_is_the_host_s_Tool_not_a_look_alike(workspace: Path) -> None:
     # The schema the registry actually hands the model.
     schema = tool.to_schema()
     assert "skill_search" in repr(schema)
+
+
+# ── the model channel ────────────────────────────────────────────────────
+
+# `build_plugin_tools` hands a factory the config slice and a `ServiceLocator`
+# and nothing else, so the private `_provider` the segment factory gets never
+# reaches the tool. On-demand — the default — therefore ran with no rewriter
+# and no gate, which is not a mild degradation: fusion ranks by position, so
+# each source's best hit reaches the model however weakly it matched.
+
+
+def test_a_configured_endpoint_gives_on_demand_a_model(workspace: Path) -> None:
+    from skillsearch_raven import _resolve_model
+
+    model = _resolve_model({"model": "gpt-4o-mini", "model_base_url": "http://localhost:1/v1"})
+    assert model is not None
+    assert hasattr(model, "complete")
+
+
+def test_a_live_provider_still_wins(workspace: Path) -> None:
+    """The host's own provider is the better channel where it is offered:
+    it is the model the user picked, and it follows a `/model` switch."""
+    from skillsearch_raven import _ProviderAdapter, _resolve_model
+
+    sentinel = object()
+    model = _resolve_model({"_provider": sentinel, "model": "ignored"})
+    assert isinstance(model, _ProviderAdapter)
+
+
+def test_naming_no_model_leaves_retrieval_raw(workspace: Path) -> None:
+    """Not an error — a local directory with no catalog does not need a gate."""
+    from skillsearch_raven import _resolve_model
+
+    assert _resolve_model({}) is None
+    assert _resolve_model({"model_base_url": "http://localhost:1/v1"}) is None
+
+
+def test_the_endpoint_keys_are_declared_in_the_manifest() -> None:
+    # Unlike a JSON-Schema host, Raven ignores keys its manifest omits, so an
+    # undeclared setting is silently dropped rather than rejected.
+    schema = MANIFEST["plugin"]["config_schema"]
+    for key in ("model", "model_base_url", "model_api_key", "model_timeout_s"):
+        assert key in schema, key
