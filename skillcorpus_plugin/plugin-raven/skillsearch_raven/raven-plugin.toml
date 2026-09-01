@@ -14,7 +14,19 @@ name     = "skills"
 factory  = "skillsearch_raven:make_segment"
 replaces = "skills"
 
+# The other half of `mode`. Both entries are always declared; the factories
+# decide which one is live, so exactly one of them ever registers. Declaring
+# both and having each decline when it is not the configured mode is how the
+# host's static manifest and a runtime setting are reconciled.
+[[plugin.contributes.tools]]
+name    = "skill_search"
+factory = "skillsearch_raven:make_skill_search_tool"
+
 [plugin.config_schema]
+# How skills reach the agent. "on_demand" offers `skill_search` and lets the
+# agent decide; "auto" fills the `skills` stage on every turn. Exclusive:
+# running both would search twice a turn and show the same skill twice.
+mode           = { type = "string",  default = "on_demand" }
 # Sources. With neither a skills directory nor a catalog endpoint there is
 # nothing to retrieve, and the segment declines its slot.
 skills_dir     = { type = "string",  default = "skills" }

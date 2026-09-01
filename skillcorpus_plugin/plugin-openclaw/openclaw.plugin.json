@@ -11,6 +11,16 @@
       "skill_search"
     ]
   },
+  "toolMetadata": {
+    "skill_search": {
+      "profiles": [
+        "minimal",
+        "coding",
+        "messaging",
+        "full"
+      ]
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

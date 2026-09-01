@@ -109,8 +109,94 @@ class SkillsSegment:
         )
 
 
-def make_segment(ctx: Any) -> Any | None:
-    """Plugin entry point. ``None`` declines the stage."""
+class SkillSearchTool:
+    """`skill_search` — the on-demand half of retrieval.
+
+    Duck-typed against Raven's ``Tool`` ABC rather than subclassing it: the
+    host is not importable outside a checkout, and the package has to install
+    and test without one. The four members below are that ABC's whole surface.
+
+    Two modes exist because two different things go wrong with one. Auto
+    discovers capability the agent did not know to ask for, and pays for that
+    on every turn. This one costs nothing until the agent reaches a step that
+    needs a skill — and finds nothing if the agent never thinks to look, which
+    is why the description below is written to say plainly when to reach for
+    it, including for questions about in-house conventions. That wording is
+    load-bearing: measured on a real host, a query about an internal template
+    went unanswered until the description named that case.
+    """
+
+    def __init__(self, search: SkillSearch) -> None:
+        self._search = search
+
+    @property
+    def name(self) -> str:
+        return "skill_search"
+
+    @property
+    def description(self) -> str:
+        return (
+            "Search the skill library for a procedure that fits the task at "
+            "hand, and get back the matching skills in full.\n\n"
+            "A skill is a written workflow for a specific job — filling PDF "
+            "forms, building a slide deck, migrating a schema — including the "
+            "exact commands, files, and in-house conventions it needs.\n\n"
+            "Reach for it when:\n"
+            "- a task needs a multi-step procedure you would otherwise improvise;\n"
+            "- a task names a format, tool, or workflow you would have to guess at;\n"
+            "- a question asks about an internal convention, template, standard, "
+            'or "our" way of doing something — a skill is where those are '
+            "written down, so searching here comes before answering that you "
+            "do not know.\n\n"
+            "Search with the words the task actually uses; the query is matched "
+            "against skill names and descriptions. Returns nothing when the "
+            "library has no fit, which is a normal answer and means: proceed "
+            "on your own."
+        )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "What you need to do, in the task's own words — e.g. "
+                        '"extract tables from a scanned PDF invoice".'
+                    ),
+                },
+            },
+            "required": ["query"],
+        }
+
+    async def execute(self, **kwargs: Any) -> str:
+        """Never raises: a failed search costs the turn a skill, not the turn."""
+        query = str(kwargs.get("query") or "").strip()
+        if not query:
+            return "skill_search needs a query describing the task."
+        try:
+            hits = await self._search.hits(query, history=[])
+            text = self._search.render(hits) if hits else ""
+        except Exception as e:
+            log.warning("skillsearch: skill_search failed (%s)", e)
+            return "Skill search is unavailable right now. Proceed without a skill."
+        # A miss is an answer. An empty string would read to a model as a
+        # broken tool rather than as "the library has no fit".
+        return text or f'No skill in the library matches "{query}". Proceed without one.'
+
+
+def _mode(cfg_map: dict[str, Any]) -> str:
+    """``auto`` or ``on_demand``; anything unrecognised means the default.
+
+    A typo should cost the deployment the mode it asked for, not its
+    retrieval — so this narrows rather than raising.
+    """
+    return "auto" if str(cfg_map.get("mode", "")).strip() == "auto" else "on_demand"
+
+
+def _build_search(ctx: Any) -> tuple[Any, dict[str, Any]] | None:
+    """The engine and its config slice, or ``None`` when nothing is configured."""
     cfg_map = dict(getattr(ctx, "config", None) or {})
     services = getattr(ctx, "services", None)
 
@@ -147,7 +233,39 @@ def make_segment(ctx: Any) -> Any | None:
     )
     if not search.has_sources:
         return None
+    return search, cfg_map
+
+
+def make_segment(ctx: Any) -> Any | None:
+    """Context-segment entry point. ``None`` declines the stage.
+
+    Declines in on-demand mode as well as when nothing is configured: filling
+    the stage there would search a second time for the same turn and put the
+    same skill in front of the model twice.
+    """
+    built = _build_search(ctx)
+    if built is None:
+        return None
+    search, cfg_map = built
+    if _mode(cfg_map) != "auto":
+        return None
     return SkillsSegment(search)
+
+
+def make_skill_search_tool(ctx: Any) -> Any | None:
+    """Tool entry point. ``None`` declines to register.
+
+    The host drops a tool whose factory returns ``None``, which is what keeps
+    `skill_search` out of the agent's tool list in auto mode instead of
+    offering a search that already ran.
+    """
+    built = _build_search(ctx)
+    if built is None:
+        return None
+    search, cfg_map = built
+    if _mode(cfg_map) != "on_demand":
+        return None
+    return SkillSearchTool(search)
 
 
 def _text_of(resp: Any) -> str:
@@ -168,4 +286,4 @@ def _text_of(resp: Any) -> str:
     return str(resp or "")
 
 
-__all__ = ["SkillsSegment", "make_segment"]
+__all__ = ["SkillSearchTool", "SkillsSegment", "make_segment", "make_skill_search_tool"]

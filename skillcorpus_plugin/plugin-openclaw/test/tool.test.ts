@@ -92,6 +92,9 @@ test('the description tells the agent when to reach for it', async () => {
   assert.match(description, /skill/i)
   assert.match(description, /before improvising|multi-step/i, 'it must say when to call')
   assert.match(description, /Returns nothing|no fit/i, 'it must say what a miss means')
+  assert.match(description, /internal convention|template|standard/i,
+    'a question about an in-house convention must route here too — measured: '
+    + 'without this line the model answered "I don\'t know" instead of searching')
   assert.ok(description.length > 200, 'too short to steer a model')
 })
 

@@ -48,6 +48,44 @@ DEFAULTS: dict[str, Any] = {
     "top_k": "2",
     "max_select": "2",
     "timeout_s": "8.0",
+    # How skills reach the agent. "on_demand" offers a `skill_search` tool and
+    # lets the agent decide; "auto" injects what it finds before every model
+    # call. See SKILL_SEARCH_SCHEMA for why the default is the former.
+    "mode": "on_demand",
+}
+
+
+SKILL_SEARCH_SCHEMA: dict[str, Any] = {
+    "name": "skill_search",
+    "description": (
+        "Search the skill library for a procedure that fits the task at hand, "
+        "and get back the matching skills in full.\n\n"
+        "A skill is a written workflow for a specific job — filling PDF forms, "
+        "building a slide deck, migrating a schema — including the exact "
+        "commands, files, and in-house conventions it needs.\n\n"
+        "Reach for it when:\n"
+        "- a task needs a multi-step procedure you would otherwise improvise;\n"
+        "- a task names a format, tool, or workflow you would have to guess at;\n"
+        "- a question asks about an internal convention, template, standard, or "
+        '"our" way of doing something — a skill is where those are written '
+        "down, so searching here comes before answering that you do not know."
+        "\n\nSearch with the words the task actually uses; the query is matched "
+        "against skill names and descriptions. Returns nothing when the library "
+        "has no fit, which is a normal answer and means: proceed on your own."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "What you need to do, in the task's own words — e.g. "
+                    '"extract tables from a scanned PDF invoice".'
+                ),
+            },
+        },
+        "required": ["query"],
+    },
 }
 
 
@@ -149,6 +187,15 @@ class SkillSearchProvider(MemoryProvider):
             Never raises: this runs before the model answers the user.
         """
         del session_id
+        # On demand, this hook stays silent and `skill_search` does the work.
+        # Running both would search twice a turn and put the same skill in
+        # front of the model from two directions.
+        if self._mode != "auto":
+            return ""
+        return self._search(query)
+
+    def _search(self, query: str) -> str:
+        """Retrieval, shared by both modes. Never raises."""
         if self._adapter is None:
             return ""
         try:
@@ -160,8 +207,29 @@ class SkillSearchProvider(MemoryProvider):
     # -- host configuration UI (`hermes memory setup`) -------------------------
 
     def get_tool_schemas(self) -> list[dict[str, Any]]:
-        """No model-callable tools: retrieval is automatic, not something to press."""
-        return []
+        """The `skill_search` tool, in on-demand mode only.
+
+        In auto mode retrieval already ran before this model call, so offering
+        a tool that would run it again is a second search for the same turn.
+        """
+        return [] if self._mode == "auto" else [SKILL_SEARCH_SCHEMA]
+
+    def handle_tool_call(self, tool_name: str, args: dict[str, Any], **kwargs: Any) -> str:
+        """Run `skill_search`. Returns text for the model, never raises."""
+        del kwargs
+        if tool_name != SKILL_SEARCH_SCHEMA["name"]:
+            return f"Unknown tool: {tool_name}"
+        query = str((args or {}).get("query") or "").strip()
+        if not query:
+            return "skill_search needs a query describing the task."
+        block = self._search(query)
+        # A miss is a normal answer, and has to read as one: an empty string
+        # would look to a model like a broken tool rather than "no fit".
+        return block or f'No skill in the library matches "{query}". Proceed without one.'
+
+    @property
+    def _mode(self) -> str:
+        return "auto" if str(load_config(self._home).get("mode", "")).strip() == "auto" else "on_demand"
 
     def get_config_schema(self) -> list[dict[str, Any]]:
         """The fields `hermes memory setup` prompts for."""

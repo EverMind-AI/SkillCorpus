@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 import skillsearch_raven
-from skillsearch_raven import SkillsSegment, make_segment
+from skillsearch_raven import SkillsSegment, make_segment, make_skill_search_tool
 
 PLUGIN_ROOT = Path(skillsearch_raven.__file__).parent
 MANIFEST = tomllib.loads((PLUGIN_ROOT / "raven-plugin.toml").read_text(encoding="utf-8"))
@@ -171,3 +171,79 @@ def test_build_never_raises_on_a_broken_engine(workspace: Path) -> None:
     segment._search = Exploding()
     out = asyncio.run(segment.build(Ctx("fill in the acroform")))
     assert out is None or not (getattr(out, "content", "") or "").strip()
+
+
+# ── the two modes ────────────────────────────────────────────────────────
+
+# They are exclusive, and the manifest declares both factories: each one
+# declines when it is not the configured mode, so exactly one is ever live.
+# Filling the stage *and* offering the tool would search twice a turn and put
+# the same skill in front of the model from two directions.
+
+
+def config_for(workspace: Path, **extra: Any) -> PluginContext:
+    return PluginContext(
+        workspace,
+        {
+            "skills_dir": str(workspace / "skills"),
+            # 0.2.0 ships three catalog endpoints on by default; these tests
+            # are about the mode switch, not about what a public catalog
+            # returned this minute.
+            "hub_endpoint": "",
+            "clawhub_endpoint": "",
+            "skillhub_cn_endpoint": "",
+            **extra,
+        },
+    )
+
+
+def test_the_default_is_on_demand(workspace: Path) -> None:
+    assert make_segment(config_for(workspace)) is None
+    tool = make_skill_search_tool(config_for(workspace))
+    assert tool is not None
+    assert tool.name == "skill_search"
+    assert tool.parameters["required"] == ["query"]
+
+
+def test_auto_is_the_mirror_image(workspace: Path) -> None:
+    assert make_skill_search_tool(config_for(workspace, mode="auto")) is None
+    assert make_segment(config_for(workspace, mode="auto")) is not None
+
+
+def test_an_unrecognised_mode_falls_back_to_the_default(workspace: Path) -> None:
+    assert make_skill_search_tool(config_for(workspace, mode="atuo")) is not None
+
+
+def test_nothing_configured_registers_neither(tmp_path: Path) -> None:
+    for mode in ("on_demand", "auto"):
+        ctx = PluginContext(
+            tmp_path,
+            {"skills_dir": str(tmp_path / "absent"), "mode": mode,
+             "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": ""},
+        )
+        assert make_segment(ctx) is None, mode
+        assert make_skill_search_tool(ctx) is None, mode
+
+
+def test_the_tool_answers_a_hit_a_miss_and_an_empty_query(workspace: Path) -> None:
+    tool = make_skill_search_tool(config_for(workspace, top_k=1))
+    assert tool is not None
+    assert "pdf-forms" in asyncio.run(tool.execute(query="fill the acroform with pdftk"))
+
+    # A miss is an answer, not an empty string a model would read as breakage.
+    miss = asyncio.run(tool.execute(query="kubernetes ingress annotations"))
+    assert "No skill" in miss and "Proceed without" in miss
+    assert "needs a query" in asyncio.run(tool.execute(query="  "))
+
+
+def test_the_description_says_when_to_reach_for_it(workspace: Path) -> None:
+    """The only thing standing between on-demand mode and never retrieving.
+
+    Measured on a real host: a question about an in-house template went
+    unanswered until the description named that case explicitly.
+    """
+    description = make_skill_search_tool(config_for(workspace)).description
+    assert "multi-step" in description
+    assert "internal convention" in description
+    assert "Returns nothing" in description
+    assert len(description) > 200
