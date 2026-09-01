@@ -1,8 +1,7 @@
-#!/usr/bin/env node
-
-// src/hook.ts
-import { appendFileSync, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname as dirname3 } from "node:path";
+// src/mcp.ts
+import { argv } from "node:process";
+import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 
 // src/config.ts
 import { readFileSync } from "node:fs";
@@ -114,9 +113,9 @@ function asNumber(value) {
 function asBoolean(value) {
   if (typeof value === "boolean") return value;
   if (typeof value === "string") {
-    const text = value.trim().toLowerCase();
-    if (["true", "1", "yes", "on"].includes(text)) return true;
-    if (["false", "0", "no", "off"].includes(text)) return false;
+    const text2 = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(text2)) return true;
+    if (["false", "0", "no", "off"].includes(text2)) return false;
   }
   return void 0;
 }
@@ -254,14 +253,14 @@ var THINK = /<think>[\s\S]*?<\/think>/g;
 var FENCED = /```(?:json)?\s*\n?([\s\S]*?)\n?```/;
 var BRACED = /\{[\s\S]*\}/;
 function extractJsonObject(content) {
-  const text = (content ?? "").replace(THINK, "").trim();
-  if (!text) return void 0;
+  const text2 = (content ?? "").replace(THINK, "").trim();
+  if (!text2) return void 0;
   const candidates = [];
-  const fenced = FENCED.exec(text);
+  const fenced = FENCED.exec(text2);
   if (fenced?.[1] !== void 0) candidates.push(fenced[1].trim());
-  const braced = BRACED.exec(text);
+  const braced = BRACED.exec(text2);
   if (braced) candidates.push(braced[0]);
-  candidates.push(text);
+  candidates.push(text2);
   for (const candidate of candidates) {
     let data;
     try {
@@ -454,8 +453,8 @@ function isDirectory(path) {
     return false;
   }
 }
-function firstIndexOfAny(text, needles) {
-  const found = needles.map((n) => text.indexOf(n)).filter((i) => i !== -1);
+function firstIndexOfAny(text2, needles) {
+  const found = needles.map((n) => text2.indexOf(n)).filter((i) => i !== -1);
   return found.length === 0 ? -1 : Math.min(...found);
 }
 var PLACEHOLDER_RE = /\{\{([A-Z_]+)(?::([A-Za-z0-9._-]+))?\}\}/g;
@@ -1114,13 +1113,13 @@ function stem(token) {
   }
   return token;
 }
-function containsTerm(text, term) {
+function containsTerm(text2, term) {
   if (/^[a-z0-9+#.-]+$/.test(term)) {
     const special = "\\^$.*+?()[]{}|";
     const escaped = Array.from(term, (char) => special.includes(char) ? `\\\\${char}` : char).join("");
-    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text2);
   }
-  return text.includes(term);
+  return text2.includes(term);
 }
 
 // ../engine-typescript/src/hub-source.ts
@@ -1467,10 +1466,10 @@ function malicious(value) {
   if (!value || typeof value !== "object") return false;
   return Object.values(value).some((report) => report && typeof report === "object" && ["malicious", "suspicious"].includes(String(report.status)));
 }
-function stripFrontmatter(text) {
-  if (!text.startsWith("---")) return text;
-  const end = text.indexOf("\n---", 3);
-  return end < 0 ? text : text.slice(end + 4).replace(/^\n+/, "");
+function stripFrontmatter(text2) {
+  if (!text2.startsWith("---")) return text2;
+  const end = text2.indexOf("\n---", 3);
+  return end < 0 ? text2 : text2.slice(end + 4).replace(/^\n+/, "");
 }
 function errorMessage2(error) {
   return error instanceof Error ? error.message : String(error);
@@ -1487,9 +1486,9 @@ import { basename, join as join6 } from "node:path";
 // ../engine-typescript/src/bm25.ts
 var TOKEN_RE = /[a-z0-9]{2,}|[一-鿿]+/g;
 var CJK_RE = /^[一-鿿]/;
-function tokenize(text) {
+function tokenize(text2) {
   const out = [];
-  for (const run of text.toLowerCase().match(TOKEN_RE) ?? []) {
+  for (const run of text2.toLowerCase().match(TOKEN_RE) ?? []) {
     if (!CJK_RE.test(run)) {
       out.push(run);
       continue;
@@ -1628,13 +1627,13 @@ var LocalSkillSource = class {
     const seen = /* @__PURE__ */ new Set();
     for (const root of this.roots) {
       for await (const file of walk(root.path, this.maxDepth)) {
-        let text;
+        let text2;
         try {
-          text = await readFile2(file, "utf8");
+          text2 = await readFile2(file, "utf8");
         } catch {
           continue;
         }
-        const { meta, body } = parseFrontmatter(text);
+        const { meta, body } = parseFrontmatter(text2);
         const dir = file.slice(0, file.length - SKILL_FILE.length - 1);
         const name = meta.name ?? basename(dir);
         const key = `${root.name}/${name}`;
@@ -1678,12 +1677,12 @@ async function* walk(root, maxDepth) {
     }
   }
 }
-function parseFrontmatter(text) {
-  if (!text.startsWith("---")) return { meta: {}, body: text };
-  const end = text.indexOf("\n---", 3);
-  if (end === -1) return { meta: {}, body: text };
-  const head = text.slice(3, end);
-  const body = text.slice(end + 4).replace(/^\n+/, "");
+function parseFrontmatter(text2) {
+  if (!text2.startsWith("---")) return { meta: {}, body: text2 };
+  const end = text2.indexOf("\n---", 3);
+  if (end === -1) return { meta: {}, body: text2 };
+  const head = text2.slice(3, end);
+  const body = text2.slice(end + 4).replace(/^\n+/, "");
   const meta = {};
   for (const line of head.split("\n")) {
     const colon = line.indexOf(":");
@@ -1768,10 +1767,10 @@ function collect(dir, depth, out) {
     }
   }
 }
-function hash(text) {
+function hash(text2) {
   let value = 5381;
-  for (let index = 0; index < text.length; index += 1) {
-    value = (value * 33 ^ text.charCodeAt(index)) >>> 0;
+  for (let index = 0; index < text2.length; index += 1) {
+    value = (value * 33 ^ text2.charCodeAt(index)) >>> 0;
   }
   return value.toString(36);
 }
@@ -1928,93 +1927,104 @@ async function retrieveForTurn(query, config, deps = {}, onDiagnostic, workspace
   }
 }
 
-// src/hook.ts
-async function readStdin(stream = process.stdin) {
-  if (stream.isTTY) return "";
-  const chunks = [];
-  stream.setEncoding("utf8");
-  for await (const chunk of stream) chunks.push(String(chunk));
-  return chunks.join("");
-}
-function queryOf(payload) {
-  return typeof payload.prompt === "string" ? payload.prompt.trim() : "";
-}
-function selectedSkills(block) {
-  return [...block.matchAll(/^### Skill: (.+?)\s+\[([^/\]]+)\//gm)].map((match) => `${match[1]}[${match[2]}]`);
-}
-function resultFor(block) {
-  return block ? {
-    continue: true,
-    hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: block }
-  } : { continue: true };
-}
-function log(config, entry) {
-  if (!config.logPath) return;
-  try {
-    mkdirSync2(dirname3(config.logPath), { recursive: true });
-    appendFileSync(config.logPath, `${JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), ...entry })}
-`);
-  } catch {
+// src/mcp.ts
+var PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
+var SKILL_SEARCH_DESCRIPTION = [
+  "Search the skill library for a procedure that fits the task at hand, and",
+  "get back the matching skills in full.",
+  "",
+  "A skill is a written workflow for a specific job \u2014 filling PDF forms,",
+  "building a slide deck, migrating a schema \u2014 including the exact commands,",
+  "files, and in-house conventions it needs.",
+  "",
+  "Reach for it when:",
+  "- a task needs a multi-step procedure you would otherwise improvise;",
+  "- a task names a format, tool, or workflow you would have to guess at;",
+  "- a question asks about an internal convention, template, standard, or",
+  '  "our" way of doing something \u2014 a skill is where those are written down,',
+  "  so searching here comes before answering that you do not know.",
+  "",
+  "Search with the words the task actually uses; the query is matched against",
+  "skill names and descriptions. Returns nothing when the library has no fit,",
+  "which is a normal answer and means: proceed on your own."
+].join(" ");
+var SKILL_SEARCH_TOOL = {
+  name: "skill_search",
+  description: SKILL_SEARCH_DESCRIPTION,
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: `What you need to do, in the task's own words \u2014 e.g. "extract tables from a scanned PDF invoice".`
+      }
+    },
+    required: ["query"],
+    additionalProperties: false
   }
+};
+function text(value) {
+  return { content: [{ type: "text", text: value }] };
 }
-async function runTurn(input, deps = {}) {
-  const config = deps.config ?? loadConfig(readConfigDocument());
-  const startedAt = Date.now();
-  let payload = {};
-  try {
-    const parsed = JSON.parse(input || "{}");
-    if (parsed && typeof parsed === "object") payload = parsed;
-  } catch {
+async function handle(message, config, search = (query) => retrieveForTurn(query, config)) {
+  const { id, method } = message;
+  if (id === void 0) return void 0;
+  const reply = (result) => ({ jsonrpc: "2.0", id, result });
+  if (method === "initialize") {
+    const asked = String(message.params?.protocolVersion ?? "");
+    return reply({
+      protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
+      capabilities: { tools: {} },
+      serverInfo: { name: "skillsearch", version: "0.2.0" }
+    });
   }
-  const query = queryOf(payload);
-  let block = "";
-  const injecting = config.mode === "auto";
-  let failure = null;
-  const sourceDiagnostics = [];
-  if (query && injecting) {
-    try {
-      block = await (deps.retrieveFn ?? retrieveForTurn)(
-        query,
-        config,
-        {},
-        (diagnostic) => {
-          sourceDiagnostics.push(diagnostic);
-        },
-        payload.cwd
-      );
-    } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
+  if (method === "tools/list") return reply({ tools: [SKILL_SEARCH_TOOL] });
+  if (method === "ping") return reply({});
+  if (method === "tools/call") {
+    const params = message.params ?? {};
+    if (params.name !== SKILL_SEARCH_TOOL.name) {
+      return { jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } };
     }
+    const query = String(params.arguments?.query ?? "").trim();
+    if (!query) return reply(text("skill_search needs a query describing the task."));
+    const block = await search(query);
+    return reply(text(block || `No skill in the library matches "${query}". Proceed without one.`));
   }
-  log(config, {
-    prompt: query.slice(0, 120),
-    model: payload.model ?? null,
-    agent_type: payload.agent_type ?? null,
-    skills: selectedSkills(block),
-    injected_chars: block.length,
-    elapsed_ms: Date.now() - startedAt,
-    sources: sourceDiagnostics,
-    error: failure
-  });
-  return resultFor(block);
+  return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${String(method)}` } };
 }
-async function main() {
-  let result = { continue: true };
-  try {
-    result = await runTurn(await readStdin());
-  } catch {
-  }
-  process.stdout.write(JSON.stringify(result), () => {
-    process.exit(0);
+function serve(config) {
+  const lines = createInterface({ input: process.stdin });
+  lines.on("line", (line) => {
+    if (!line.trim()) return;
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      return;
+    }
+    void handle(message, config).then((response) => {
+      if (response) process.stdout.write(`${JSON.stringify(response)}
+`);
+    }).catch(() => {
+      if (message.id !== void 0) {
+        process.stdout.write(`${JSON.stringify({
+          jsonrpc: "2.0",
+          id: message.id,
+          error: { code: -32603, message: "skill search failed" }
+        })}
+`);
+      }
+    });
   });
 }
-var invokedDirectly = process.argv[1] !== void 0 && /hook\.(mjs|ts|js)$/.test(process.argv[1]);
-if (invokedDirectly) void main();
+function main() {
+  const config = loadConfig(readConfigDocument());
+  if (config.mode === "on_demand") serve(config);
+}
+if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main();
 export {
-  log,
-  queryOf,
-  readStdin,
-  resultFor,
-  runTurn,
-  selectedSkills
+  SKILL_SEARCH_DESCRIPTION,
+  SKILL_SEARCH_TOOL,
+  handle,
+  serve
 };

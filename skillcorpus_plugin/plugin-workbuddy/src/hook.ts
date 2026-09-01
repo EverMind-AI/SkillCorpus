@@ -114,9 +114,13 @@ export async function runTurn(
 
   const query = queryOf(payload)
   let block = ''
+  // On demand, the MCP server offers `skill_search` and this hook stays out
+  // of the way. Injecting here as well would search twice for one turn and
+  // put the same skill in front of the model from two directions.
+  const injecting = config.mode === 'auto'
   let failure: string | null = null
   const sourceDiagnostics: SourceDiagnostic[] = []
-  if (query) {
+  if (query && injecting) {
     try {
       block = await (deps.retrieveFn ?? retrieveForTurn)(
         query, config, {}, diagnostic => { sourceDiagnostics.push(diagnostic) }, payload.cwd,

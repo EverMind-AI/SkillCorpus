@@ -31,7 +31,10 @@ const REAL_PAYLOAD = {
 
 async function config(overrides: Partial<SkillSearchConfig> = {}): Promise<SkillSearchConfig> {
   const dir = await mkdtemp(join(tmpdir(), 'skillsearch-hook-'))
-  return { ...DEFAULTS, logPath: join(dir, 'log.jsonl'), ...overrides }
+  // `mode: 'auto'` explicitly: these pin what the hook injects, and the
+  // default is on demand, where the hook stays silent and the MCP server
+  // offers `skill_search` instead.
+  return { ...DEFAULTS, mode: 'auto', logPath: join(dir, 'log.jsonl'), ...overrides }
 }
 
 test('a hit becomes additionalContext under the event name the host matches on', async () => {
@@ -144,4 +147,20 @@ test('a skill name containing a space is logged whole', () => {
   // "PDF Tables" was logged as "PDF".
   const block = '### Skill: PDF Tables  [hub/abc-123/x]\n\nbody\n'
   assert.deepEqual(selectedSkills(block), ['PDF Tables[hub]'])
+})
+
+
+test('on demand, the hook injects nothing and never searches', async () => {
+  // The two modes are exclusive: the MCP server offers `skill_search` here,
+  // and a hook that also injected would search twice for one turn and put the
+  // same skill in front of the model from two directions.
+  let searched = 0
+  const result = await runTurn(JSON.stringify(REAL_PAYLOAD), {
+    config: await config({ mode: 'on_demand' }),
+    retrieveFn: async () => { searched += 1; return '# Skills\n\nardot-design-to-code' },
+  })
+
+  assert.equal(searched, 0, 'on-demand mode must not search from the hook')
+  assert.equal(result.continue, true, 'the turn must still proceed')
+  assert.equal(result.hookSpecificOutput?.additionalContext ?? '', '')
 })

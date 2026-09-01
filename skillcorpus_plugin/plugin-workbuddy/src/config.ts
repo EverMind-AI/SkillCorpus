@@ -62,6 +62,22 @@ export interface SkillSearchConfig {
    * this on, never arbitrary third-party skills.
    */
   readonly resolvePlaceholders: boolean
+  /**
+   * How skills reach the agent.
+   *
+   * - `on_demand` (the default) serves a `skill_search` MCP tool and lets the
+   *   agent decide when it needs one. A long task pays for retrieval at the
+   *   step that needs it and nothing on the turns that do not.
+   * - `auto` injects what it finds on every turn through the hook. It surfaces
+   *   capability the agent did not know to ask for, at the cost of running —
+   *   and spending tokens — on every turn regardless.
+   *
+   * The default is `on_demand` because the cost of the other one is paid
+   * continuously and silently, while the cost of this one is only paid when
+   * the agent never thinks to search — which its tool description exists to
+   * prevent.
+   */
+  readonly mode: 'on_demand' | 'auto'
 }
 
 /** Where a marketplace-installed hook lives, which is where its name is. */
@@ -157,6 +173,7 @@ export const DEFAULTS: SkillSearchConfig = {
   indexCachePath: join(DATA_DIR, 'index-cache.json'),
   logPath: join(DATA_DIR, 'skillsearch.log'),
   resolvePlaceholders: false,
+  mode: 'on_demand',
 }
 
 const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
@@ -183,6 +200,7 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   indexCachePath: 'SKILLSEARCH_INDEX_CACHE_PATH',
   logPath: 'SKILLSEARCH_LOG_PATH',
   resolvePlaceholders: 'SKILLSEARCH_RESOLVE_PLACEHOLDERS',
+  mode: 'SKILLSEARCH_MODE',
 }
 
 function asList(value: unknown): string[] | undefined {
@@ -287,5 +305,9 @@ export function loadConfig(
     indexCachePath: asText(pick('indexCachePath')) ?? DEFAULTS.indexCachePath,
     logPath: asText(pick('logPath')) ?? DEFAULTS.logPath,
     resolvePlaceholders: asBoolean(pick('resolvePlaceholders')) ?? DEFAULTS.resolvePlaceholders,
+    // An unrecognised value falls back to the default rather than failing the
+    // load: a typo should cost the deployment the mode it wanted, not its
+    // whole plugin config.
+    mode: pick('mode') === 'auto' ? 'auto' : 'on_demand',
   }
 }

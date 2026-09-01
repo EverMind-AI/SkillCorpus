@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "skillsearch": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CODEBUDDY_PLUGIN_ROOT}/dist/mcp.mjs"
+      ],
+      "description": "按需检索：由主 Agent 判断并调用 skill_search 寻找 skill"
+    }
+  }
+}
