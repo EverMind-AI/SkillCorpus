@@ -135,10 +135,13 @@ export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): S
     {
       topK: config.topK,
       gatePool: config.gatePool,
-      // PathGuard placeholders' per-agent facts. OpenClaw's own config root is
+      // PathGuard placeholders' per-agent facts. An absent `workspaceDir`
+      // means "this caller has no trustworthy workspace", and the empty
+      // string leaves `{{OUTPUT_DIR}}` literal rather than pointing a skill
+      // at some other directory — see the tool path, which passes none. OpenClaw's own config root is
       // ~/.openclaw; the agent's writable output is its workspace, falling back
       // to the host process's cwd when the hook did not report one.
-      outputDir: workspaceDir || process.cwd(),
+      outputDir: workspaceDir ?? '',
       homeDir: homedir(),
       stateDir: join(homedir(), '.openclaw'),
       resolvePlaceholders: config.resolvePlaceholders,

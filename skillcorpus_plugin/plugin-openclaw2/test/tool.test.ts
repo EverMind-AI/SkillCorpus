@@ -198,11 +198,14 @@ test('the tool the plugin registers is declared in the manifest', async () => {
   assert.deepEqual(manifest.contracts?.tools, ['skill_search'])
 })
 
-test('the engine is chosen per workspace, from the turn\'s own directory', async () => {
-  // `{{OUTPUT_DIR}}` resolves against the turn's directory. One engine built
-  // at registration would expand it to the host process's own on any
-  // multi-agent host, or any session working somewhere else — the injecting
-  // path already keys per workspace for exactly this reason.
+test('the tool claims no workspace, even when the host offers a cwd', async () => {
+  // Fail closed. `{{OUTPUT_DIR}}` has to resolve to the *session's* workspace,
+  // and `ExtensionContext.cwd` is the gateway's own — measured on 2026.8.1,
+  // a placeholder resolved there pointed at the directory the gateway was
+  // started from. Left unresolved it stays literal, which a model can see and
+  // ask about; resolved wrongly, a skill quietly writes into the host's
+  // install directory. The injecting path is unaffected: its hook receives
+  // the session's real `workspaceDir`.
   const seen: (string | undefined)[] = []
   const tool = skillSearchTool(
     workspaceDir => {
@@ -213,9 +216,8 @@ test('the engine is chosen per workspace, from the turn\'s own directory', async
     {},
   )
 
-  await tool.execute('c', { query: 'x' }, undefined, undefined, { cwd: '/ws/a' })
-  await tool.execute('c', { query: 'x' }, undefined, undefined, { cwd: '/ws/b' })
+  await tool.execute('c', { query: 'x' }, undefined, undefined, { cwd: '/gateway/install/dir' })
   await tool.execute('c', { query: 'x' }, undefined, undefined)
 
-  assert.deepEqual(seen, ['/ws/a', '/ws/b', undefined])
+  assert.deepEqual(seen, [undefined, undefined])
 })

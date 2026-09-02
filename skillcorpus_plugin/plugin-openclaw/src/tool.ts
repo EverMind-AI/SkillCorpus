@@ -100,11 +100,17 @@ export function skillSearchTool(
       // The agent's own deadline, not the turn's: unlike the auto path this
       // runs inside a tool call the model is already waiting on, so the same
       // bound applies for the same reason.
-      // Per workspace, as the injecting path already does. `{{OUTPUT_DIR}}`
-      // resolves against the turn's directory, so one engine built at
-      // registration would expand it to the host process's own directory on
-      // any multi-agent host, or any session working somewhere else.
-      const search = engineFor(ctx?.cwd)
+      // Per workspace where the host offers one — but OpenClaw does not,
+      // for a tool. `ExtensionContext.cwd` is the *process* working
+      // directory: measured on 2026.8.1, `{{OUTPUT_DIR}}` resolved to the
+      // directory the gateway was started from, not the session's workspace.
+      //
+      // So this fails closed. Passing no workspace leaves `{{OUTPUT_DIR}}`
+      // and `{{AGENT_STATE_DIR}}` literal, which a model can see and ask
+      // about; expanding them to the gateway's own directory would have a
+      // skill quietly write its output there. The injecting path is
+      // unaffected — its hook is handed the session's real `workspaceDir`.
+      const search = engineFor(undefined)
 
       const controller = new AbortController()
       const abort = (): void => { controller.abort() }
