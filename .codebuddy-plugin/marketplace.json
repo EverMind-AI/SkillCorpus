@@ -10,7 +10,7 @@
       "name": "skillsearch",
       "description": "Per-turn skill retrieval for WorkBuddy.",
       "source": "./skillcorpus_plugin/plugin-workbuddy",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "skill"
     }
   ]

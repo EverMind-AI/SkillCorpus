@@ -2,7 +2,7 @@
   "id": "skillsearch",
   "name": "Skill Search",
   "description": "Per-turn skill retrieval as a context engine: local directory, remote catalog, model-gated selection.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "kind": "context-engine",
   "activation": {
     "onStartup": true

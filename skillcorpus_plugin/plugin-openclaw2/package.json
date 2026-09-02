@@ -1,6 +1,6 @@
 {
   "name": "@evermind-ai/openclaw2-skillsearch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Skill retrieval for OpenClaw 2.0 as a context engine: local directory, remote catalog, model-gated selection.",
   "license": "Apache-2.0",
   "type": "module",
@@ -37,9 +37,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EverMind-AI/SkillCorpus.git",
-    "directory": "skillcorpus_plugin/plugin-openclaw"
+    "directory": "skillcorpus_plugin/plugin-openclaw2"
   },
-  "homepage": "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin/plugin-openclaw",
+  "homepage": "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin/plugin-openclaw2",
   "bugs": {
     "url": "https://github.com/EverMind-AI/SkillCorpus/issues"
   }

@@ -194,37 +194,35 @@ export function register(
     return
   }
 
+  // One engine per workspace, shared by both modes. `{{OUTPUT_DIR}}` resolves
+  // against the turn's directory, and `process.cwd()` is the host process's
+  // own — wrong for a multi-agent host and for any session working elsewhere.
+  const engines = new Map<string, SkillSearchEngine>()
+  const engineFor = (workspaceDir?: string): SkillSearchEngine => {
+    const key = workspaceDir || process.cwd()
+    let engine = engines.get(key)
+    if (!engine) {
+      engine = build(config, key)
+      engines.set(key, engine)
+    }
+    return engine
+  }
+
   if (config.mode === 'on_demand') {
     // The agent decides when it needs a skill. No hook: injecting on every
     // turn is the other mode, and running both would pay for retrieval twice
     // and put the same skill in front of the model from two directions.
-    //
-    // One engine, not the per-workspace map the auto path keeps: the tool is
-    // handed no workspace, so there is nothing to key on. Only the PathGuard
-    // placeholders read one, and they are off unless a deployment turned them
-    // on for a trusted corpus.
-    api.registerTool(skillSearchTool(probe, config, api.logger))
+    api.registerTool(skillSearchTool(engineFor, config, api.logger))
     api.logger?.info?.('[skillsearch] on-demand mode: the agent calls skill_search')
     return
   }
   api.logger?.info?.('[skillsearch] auto mode: retrieval runs on every turn')
 
-  // The engine is built lazily on the first hook, where the agent's own
-  // workspace directory is known. Using `process.cwd()` (the host process's
-  // cwd) would be wrong for multi-agent hosts and for sessions with a
-  // different workspace.
-  const engines = new Map<string, SkillSearchEngine>()
-
   api.on('before_prompt_build', async (
     event: BeforePromptBuildEvent,
     ctx: { workspaceDir?: string },
   ): Promise<BeforePromptBuildResult | void> => {
-    const workspaceDir = ctx?.workspaceDir || process.cwd()
-    let engine = engines.get(workspaceDir)
-    if (!engine) {
-      engine = build(config, workspaceDir)
-      engines.set(workspaceDir, engine)
-    }
+    const engine = engineFor(ctx?.workspaceDir)
 
     const query = (event.prompt || '').trim() || recentUserText(event.messages ?? [])
     if (!query) return

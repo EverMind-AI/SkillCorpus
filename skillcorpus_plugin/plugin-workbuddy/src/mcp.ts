@@ -129,10 +129,29 @@ export async function handle(
       serverInfo: { name: 'skillsearch', version: '0.2.0' },
     })
   }
-  if (method === 'tools/list') return reply({ tools: [SKILL_SEARCH_TOOL] })
+  if (method === 'tools/list') {
+    // Empty in auto mode rather than absent. The manifest declares this
+    // server statically and cannot take it back when a user picks `auto`, so
+    // the host launches it either way; a server that exits instead leaves a
+    // failed MCP entry, restart churn, or health noise beside a hook path
+    // that is working fine. Initialising and advertising nothing is the
+    // honest answer: there is no tool to call, because the hook already
+    // injected this turn's skills.
+    return reply({ tools: config.mode === 'on_demand' ? [SKILL_SEARCH_TOOL] : [] })
+  }
   if (method === 'ping') return reply({})
   if (method === 'tools/call') {
     const params = (message.params ?? {}) as { name?: unknown; arguments?: Json }
+    if (config.mode !== 'on_demand') {
+      // Never advertised in this mode, so only a client working from a stale
+      // tool list gets here. Searching anyway would put the same skill in
+      // front of the model twice — the hook has already injected it.
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: 'skill_search is not offered in auto mode' },
+      }
+    }
     if (params.name !== SKILL_SEARCH_TOOL.name) {
       return { jsonrpc: '2.0', id, error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } }
     }
@@ -187,8 +206,11 @@ export function serve(config: SkillSearchConfig): void {
  * results the hook is already injecting.
  */
 function main(): void {
-  const config = loadConfig(readConfigDocument())
-  if (config.mode === 'on_demand') serve(config)
+  // Serves in both modes. The mode decides what `tools/list` answers, not
+  // whether the process lives: the manifest cannot withdraw a declared MCP
+  // server, so exiting here is what turns `mode: auto` into a broken entry in
+  // the host's MCP list rather than a quiet one.
+  serve(loadConfig(readConfigDocument()))
 }
 
 if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main()

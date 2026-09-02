@@ -35,7 +35,8 @@ this directory — use the absolute form for read_file / exec.
 | --- | --- | --- |
 | **WorkBuddy** | 在标准插件市场添加 `EverMind-AI/SkillCorpus`，安装 **Skill Search**，然后重启 | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-hermes/README.md#install) |
-| **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
+| **OpenClaw**（≤ 2026.7.x） | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
+| **OpenClaw 2.0**（2026.8.1+） | `npm install --prefix plugin-openclaw2 && npm run --prefix plugin-openclaw2 build`，再在 `openclaw.json` 里设 `plugins.slots.contextEngine` | [plugin-openclaw2](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw2/README.md#install) |
 | **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-typescript/README.md#where-this-goes) |
 | **Raven** | `pip install ./engine-python ./plugin-raven`——等 Raven 上游的 `context_segments` 插槽合并后生效；Raven 自带的检索今天照常工作 | [plugin-raven](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-raven/README.md#install) |
 | **其他任何宿主** | 旁边跑 `python -m skillsearch.adapters.http_server`，POST `/retrieve` | [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
@@ -168,7 +169,8 @@ query
 | --- | --- | --- | --- |
 | [`plugin-workbuddy/`](plugin-workbuddy) | WorkBuddy（5.3.13） | `UserPromptSubmit` 钩子——每轮一个进程 | 无 |
 | [`plugin-hermes/`](plugin-hermes) | Hermes | memory provider 的 `prefetch` | 无 |
-| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw（向下验证至 2026.3.8） | `before_prompt_build` 钩子 | 无 |
+| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw 2026.3.8 – 2026.7.x | `before_prompt_build` 钩子 | 无 |
+| [`plugin-openclaw2/`](plugin-openclaw2) | OpenClaw 2.0（2026.8.1+） | 上下文引擎，或注册一个工具 | 无 |
 | [`engine-typescript/`](engine-typescript) | DeepSeek Harness | `agent/pre-step` waterfall | 无 |
 | [`plugin-raven/`](plugin-raven) | Raven | 认领 `skills` 阶段的 context segment | `context_segments` 插槽，上游合并中 |
 
@@ -190,7 +192,8 @@ engine-typescript/   TypeScript / Node 18+ 的检索管道，兼 DeepSeek Harnes
 plugin-workbuddy/    WorkBuddy 插件 · 基于 engine-typescript——每轮一个钩子进程
 plugin-hermes/       Hermes 插件    · 基于 engine-python
 plugin-raven/        Raven 插件     · 基于 engine-python
-plugin-openclaw/     OpenClaw 插件  · 基于 engine-typescript
+plugin-openclaw/     OpenClaw ≤2026.7.x 插件 · 基于 engine-typescript
+plugin-openclaw2/    OpenClaw 2.0 插件       · 基于 engine-typescript
 INSTALL.agent.md     你的 agent 执行的安装剧本
 ```
 
@@ -206,6 +209,7 @@ pytest engine-python/tests plugin-hermes/tests plugin-raven/tests -q
 ruff check engine-python/skillsearch engine-python/tests plugin-raven
 cd engine-typescript && npx tsx --test tests/parity.test.ts
 cd plugin-openclaw   && npm install && npm run ci
+cd plugin-openclaw2  && npm install && npm run ci
 ```
 
 测试套件只是宿主的替身，替身测不出"宿主拒绝加载插件"。两个检查补上一部分（CI 跑第一个）：

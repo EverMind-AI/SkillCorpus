@@ -131,6 +131,15 @@ export interface ToolResult {
 export interface ToolExecuteContext {
   /** Tool names this agent can call, for the gate's environment check. */
   availableTools?: readonly string[]
+  /**
+   * The turn's working directory.
+   *
+   * What the PathGuard placeholders resolve `{{OUTPUT_DIR}}` against. The
+   * hook path keys an engine per workspace for exactly this; a tool that
+   * ignored it would expand the placeholder to the host process's own
+   * directory on any multi-agent host or any session working elsewhere.
+   */
+  cwd?: string
 }
 
 /**

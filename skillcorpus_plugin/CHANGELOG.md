@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0
+
+### Changed — read this before upgrading
+
+- **Retrieval no longer runs on every turn by default.** `mode` now selects how
+  skills reach the agent, and it defaults to `on_demand`: the agent is handed a
+  `skill_search` tool and decides when to call it. The previous behaviour is
+  `mode: "auto"`.
+
+  An existing install that sets nothing therefore stops injecting on upgrade.
+  To keep what 0.2.0 did, set `mode` to `auto` — `plugins.entries.skillsearch.config`
+  on OpenClaw, `skillsearch.json` on Hermes, the plugin config slice on Raven,
+  `cordis.yml` on DeepSeek Harness, `config.json` on WorkBuddy. Every host also
+  reads `SKILLSEARCH_MODE`.
+
+  The default changed because auto's cost is paid on every turn whether or not
+  the turn has anything to do with skills, while on-demand's cost is paid at
+  the step that needs a skill. On-demand's own failure — an agent that never
+  thinks to search — is what the tool description is written to prevent.
+
+- **The two modes are exclusive**, on every host. Whichever one is off
+  contributes nothing: the hook does not search, the segment declines its
+  slot, the tool is not offered. Running both would search twice for one turn
+  and put the same skill in front of the model from two directions.
+
+- **OpenClaw ships as two packages.** `plugin-openclaw` covers releases through
+  2026.7.x; `plugin-openclaw2` covers OpenClaw 2.0 (2026.8.1) and newer, which
+  dropped the hook the first one injects through. Installing the wrong one is
+  silent — pick by host version.
+
+- **Raven's `auto` mode is inert on a stock Raven.** The `context_segments`
+  slot it claims is not upstream, and Raven ignores manifest keys it does not
+  know. On-demand does not depend on it.
+
 ## Unreleased
 
 ### Added

@@ -124,7 +124,7 @@ test('an empty query is answered, not thrown', async () => {
 test('a failing engine degrades to "carry on", and is logged once', async () => {
   const warnings: unknown[] = []
   const tool = skillSearchTool(
-    { enabled: true, retrieve: () => Promise.reject(new Error('engine down')) } as never,
+    () => ({ enabled: true, retrieve: () => Promise.reject(new Error('engine down')) }) as never,
     DEFAULTS,
     { warn: (...args: unknown[]) => { warnings.push(args) } },
   )
@@ -137,7 +137,7 @@ test('a failing engine degrades to "carry on", and is logged once', async () => 
 test('the caller’s abort signal reaches the search', async () => {
   let seen: AbortSignal | undefined
   const tool = skillSearchTool(
-    {
+    () => ({
       enabled: true,
       // Rejects on abort, as the real engine does — a fake that ignored the
       // signal would let this test pass while the tool leaked the call.
@@ -147,7 +147,7 @@ test('the caller’s abort signal reaches the search', async () => {
           options.signal?.addEventListener('abort', () => { reject(new Error('aborted')) }, { once: true })
         })
       },
-    } as never,
+    }) as never,
     { ...DEFAULTS, timeoutMs: 5_000 },
     {},
   )
@@ -165,13 +165,13 @@ test('the caller’s abort signal reaches the search', async () => {
 test('the host’s tool surface reaches the gate, with the config as fallback', async () => {
   const seen: (readonly string[] | undefined)[] = []
   const tool = skillSearchTool(
-    {
+    () => ({
       enabled: true,
       retrieve: (_query: string, options: { availableTools?: readonly string[] }) => {
         seen.push(options.availableTools)
         return Promise.resolve('')
       },
-    } as never,
+    }) as never,
     { ...DEFAULTS, availableTools: ['fallback'] },
     {},
   )
@@ -196,4 +196,26 @@ test('the tool the plugin registers is declared in the manifest', async () => {
     await readFile(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'),
   ) as { contracts?: { tools?: string[] } }
   assert.deepEqual(manifest.contracts?.tools, ['skill_search'])
+})
+
+test('the engine is chosen per workspace, from the turn\'s own directory', async () => {
+  // `{{OUTPUT_DIR}}` resolves against the turn's directory. One engine built
+  // at registration would expand it to the host process's own on any
+  // multi-agent host, or any session working somewhere else — the injecting
+  // path already keys per workspace for exactly this reason.
+  const seen: (string | undefined)[] = []
+  const tool = skillSearchTool(
+    workspaceDir => {
+      seen.push(workspaceDir)
+      return { enabled: true, retrieve: () => Promise.resolve('') } as never
+    },
+    DEFAULTS,
+    {},
+  )
+
+  await tool.execute('c', { query: 'x' }, undefined, undefined, { cwd: '/ws/a' })
+  await tool.execute('c', { query: 'x' }, undefined, undefined, { cwd: '/ws/b' })
+  await tool.execute('c', { query: 'x' }, undefined, undefined)
+
+  assert.deepEqual(seen, ['/ws/a', '/ws/b', undefined])
 })

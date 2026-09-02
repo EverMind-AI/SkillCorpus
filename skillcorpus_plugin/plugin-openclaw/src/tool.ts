@@ -72,13 +72,13 @@ function text(value: string): ToolResult {
 /**
  * Build the tool over an engine.
  *
- * @param search - the retrieval engine, already configured.
+ * @param engineFor - builds or returns the engine for one workspace.
  * @param config - the resolved plugin configuration, for the deadline.
  * @param logger - where a failure is reported.
  * @returns the tool definition to hand `api.registerTool`.
  */
 export function skillSearchTool(
-  search: SkillSearchEngine,
+  engineFor: (workspaceDir?: string) => SkillSearchEngine,
   config: SkillSearchConfig,
   logger?: PluginLogger,
 ): AgentTool {
@@ -100,6 +100,12 @@ export function skillSearchTool(
       // The agent's own deadline, not the turn's: unlike the auto path this
       // runs inside a tool call the model is already waiting on, so the same
       // bound applies for the same reason.
+      // Per workspace, as the injecting path already does. `{{OUTPUT_DIR}}`
+      // resolves against the turn's directory, so one engine built at
+      // registration would expand it to the host process's own directory on
+      // any multi-agent host, or any session working somewhere else.
+      const search = engineFor(ctx?.cwd)
+
       const controller = new AbortController()
       const abort = (): void => { controller.abort() }
       signal?.addEventListener('abort', abort, { once: true })

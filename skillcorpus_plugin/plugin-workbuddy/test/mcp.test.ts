@@ -80,6 +80,26 @@ test('tools/list offers exactly skill_search', async () => {
   assert.equal(result.result.tools[0]?.inputSchema.additionalProperties, false)
 })
 
+test('auto mode advertises no tool, and refuses one called anyway', async () => {
+  // The manifest declares this server statically and cannot withdraw it when
+  // a user picks `auto`, so the host launches it either way. Advertising
+  // nothing is how the process stays a well-behaved MCP entry while the hook
+  // does the injecting.
+  const auto = (m: Message): Promise<unknown> =>
+    handle(m, { ...DEFAULTS, ...OFFLINE, mode: 'auto' }, () => Promise.resolve('# Skills\n\nx'))
+
+  const list = (await auto({ id: 1, method: 'tools/list' })) as { result: { tools: unknown[] } }
+  assert.deepEqual(list.result.tools, [])
+
+  // A client working from a stale list must not get a second copy of a skill
+  // the hook already injected this turn.
+  const called = (await auto({
+    id: 2, method: 'tools/call', params: { name: 'skill_search', arguments: { query: 'x' } },
+  })) as { error: { code: number; message: string } }
+  assert.equal(called.error.code, -32601)
+  assert.match(called.error.message, /auto mode/)
+})
+
 test('an unknown method and an unknown tool are both errors, not silence', async () => {
   const method = (await ask({ id: 3, method: 'nope' })) as { error: { code: number } }
   assert.equal(method.error.code, -32601)
@@ -204,4 +224,60 @@ test('the shipped bundle answers JSON-RPC as a real process', async () => {
   )
   // End to end through the real engine: the fixture skill, retrieved.
   assert.match(textOf(call), /pdf-forms/)
+})
+
+
+test('the shipped bundle stays alive in auto mode, advertising nothing', async () => {
+  // The one a unit test cannot reach. `handle` returning an empty tool list
+  // says nothing about whether the *process* is still there to be asked:
+  // this entry point used to exit 0 the moment it read a non-on-demand mode,
+  // which the host sees as an MCP server that failed to initialise — restart
+  // churn and health errors beside a hook that is working.
+  const dir = await skillsDir()
+  const child = spawn(process.execPath, [join(PLUGIN_ROOT, 'dist', 'mcp.mjs')], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      SKILLSEARCH_MODE: 'auto',
+      SKILLSEARCH_SKILLS_DIRS: dir,
+      SKILLSEARCH_HUB_ENDPOINT: '',
+      SKILLSEARCH_CLAWHUB_ENDPOINT: '',
+      SKILLSEARCH_SKILLHUB_CN_ENDPOINT: '',
+    },
+  })
+
+  let exited = false
+  child.on('exit', () => { exited = true })
+
+  const lines: string[] = []
+  let buffer = ''
+  child.stdout.on('data', chunk => {
+    buffer += String(chunk)
+    for (const line of buffer.split('\n').slice(0, -1)) if (line.trim()) lines.push(line)
+    buffer = buffer.slice(buffer.lastIndexOf('\n') + 1)
+  })
+
+  const send = (message: Message): void => { child.stdin.write(`${JSON.stringify(message)}\n`) }
+  send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+  send({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+
+  const deadline = Date.now() + 20_000
+  while (lines.length < 2 && Date.now() < deadline && !exited) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+
+  assert.equal(exited, false, 'the server must not exit in auto mode')
+  assert.equal(lines.length, 2, `expected two answers, got ${lines.length}`)
+
+  const [init, list] = lines.map(line => JSON.parse(line) as unknown)
+  // Initialisation completes: the host gets a working MCP entry either way.
+  assert.equal((init as { result: { protocolVersion: string } }).result.protocolVersion, '2025-11-25')
+  // And it offers nothing, because the hook is the one injecting this turn.
+  assert.deepEqual((list as { result: { tools: unknown[] } }).result.tools, [])
+
+  child.stdin.end()
+  child.kill()
+  await once(child, 'exit')
+  child.stdout.destroy()
+  child.stderr.destroy()
 })

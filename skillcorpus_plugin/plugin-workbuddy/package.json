@@ -1,6 +1,6 @@
 {
   "name": "@evermind-ai/workbuddy-skillsearch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Skill retrieval for WorkBuddy: a UserPromptSubmit hook over the skillsearch engine.",
   "license": "Apache-2.0",
   "type": "module",

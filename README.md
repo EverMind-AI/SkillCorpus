@@ -98,7 +98,7 @@ The gain is largest where the task needs procedural knowledge the model does not
 
 ## SkillHub integrations
 
-SkillHub brings per-turn skill retrieval to the five agent platforms below. Choose a platform to open its
+SkillHub brings skill retrieval to the six agent platforms below. Choose a platform to open its
 plugin guide:
 
 <table width="100%">
@@ -106,15 +106,23 @@ plugin guide:
 <td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw2/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw 2.0" width="72"><br><strong>OpenClaw 2.0</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
-Retrieval runs every turn, before the model answers: no tool call, no skill names to memorise,
-no host patch. The packaged Raven plugin is ready to install, but it will claim the `skills`
-stage once Raven merges its upstream `context_segments` slot; Raven's built-in retrieval keeps
-working today.
+Two modes, one setting. **On demand** — the default — gives the agent a `skill_search` tool and
+lets it decide: a long task pays for retrieval at the step that needs it and nothing on the turns
+that do not. **`mode: auto`** is the older behaviour: search every turn, before the model answers,
+with no tool call and no skill names to memorise. They are exclusive; running both would search
+twice for one turn.
+
+OpenClaw ships as two packages, because 2.0 dropped the hook the 1.x plugin injects through:
+`plugin-openclaw` for releases up to 2026.7.x, `plugin-openclaw2` for 2.0 (2026.8.1) and newer.
+The packaged Raven plugin installs and its on-demand mode works today; `mode: auto` there will
+claim the `skills` stage once Raven merges its upstream `context_segments` slot, and is inert
+until then. Raven's built-in retrieval keeps working either way.
 
 > Install SkillCorpus Plugins following https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md
 

@@ -1978,10 +1978,19 @@ async function handle(message, config, search = (query) => retrieveForTurn(query
       serverInfo: { name: "skillsearch", version: "0.2.0" }
     });
   }
-  if (method === "tools/list") return reply({ tools: [SKILL_SEARCH_TOOL] });
+  if (method === "tools/list") {
+    return reply({ tools: config.mode === "on_demand" ? [SKILL_SEARCH_TOOL] : [] });
+  }
   if (method === "ping") return reply({});
   if (method === "tools/call") {
     const params = message.params ?? {};
+    if (config.mode !== "on_demand") {
+      return {
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32601, message: "skill_search is not offered in auto mode" }
+      };
+    }
     if (params.name !== SKILL_SEARCH_TOOL.name) {
       return { jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } };
     }
@@ -2018,8 +2027,7 @@ function serve(config) {
   });
 }
 function main() {
-  const config = loadConfig(readConfigDocument());
-  if (config.mode === "on_demand") serve(config);
+  serve(loadConfig(readConfigDocument()));
 }
 if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main();
 export {

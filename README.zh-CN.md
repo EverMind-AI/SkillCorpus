@@ -92,21 +92,28 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## SkillHub 集成
 
-SkillHub 已为下面五个 agent 平台提供逐轮技能检索。点击对应平台，直接查看插件指南：
+SkillHub 已为下面六个 agent 平台提供技能检索。点击对应平台，直接查看插件指南：
 
 <table width="100%">
 <tr>
 <td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw2/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw 2.0" width="72"><br><strong>OpenClaw 2.0</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
-检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
-Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
-`skills` 阶段；Raven 自带的检索今天照常工作。
+两种模式，一个开关。**按需检索**（默认）把 `skill_search` 工具交给 agent，由它自己判断：
+长任务只在真正需要的那一步付检索成本，其余轮次不花钱。**`mode: auto`** 是原来的行为——
+每一轮、模型作答之前就检索并注入，不需要工具调用，也不用记技能名字。两者互斥，同时开会
+让同一轮检索两遍。
+
+OpenClaw 分成两个包，因为 2.0 去掉了 1.x 插件所依赖的那个 hook：`plugin-openclaw` 面向
+2026.7.x 及更早，`plugin-openclaw2` 面向 2.0（2026.8.1）及以后。Raven 插件现在就能装、
+按需模式可用；`mode: auto` 要等 Raven 上游合并 `context_segments` 插槽后才能认领 `skills`
+阶段，在那之前是静默失效的。Raven 自带的检索无论哪种情况都照常工作。
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 

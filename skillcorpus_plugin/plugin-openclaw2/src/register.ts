@@ -370,6 +370,15 @@ export function register(
   // On demand. Deliberately no context engine: that slot is exclusive, and
   // holding it in order to inject nothing would deny it to whatever else
   // could have used it.
-  api.registerTool(skillSearchTool(probe, config, api.logger))
+  //
+  // An engine per workspace, as the auto path's factory already builds:
+  // `{{OUTPUT_DIR}}` resolves against the turn's directory, so one engine
+  // built here would expand it to the host process's own on a multi-agent
+  // host or a session working elsewhere.
+  api.registerTool(skillSearchTool(
+    workspaceDir => build(config, workspaceDir),
+    config,
+    api.logger,
+  ))
   api.logger?.info?.('[skillsearch] on-demand mode: the agent calls skill_search')
 }
