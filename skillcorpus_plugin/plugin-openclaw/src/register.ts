@@ -215,7 +215,7 @@ export function register(
 
   // Probe without a workspace: `enabled` depends only on the sources, not on
   // the output directory.
-  const probe = build(config)
+  const probe = build(config, undefined, api.logger)
   if (!probe.enabled) {
     api.logger?.info?.('[skillsearch] no sources configured; retrieval is off')
     return

@@ -318,14 +318,15 @@ test('a source that is down is reported, not swallowed', async () => {
   // A closed port: the engine treats one failing source as empty and keeps
   // the others, which is right — but nothing was consuming the report, so an
   // unreachable catalogue and an empty one looked identical from outside.
-  const { api, warnings } = fakeApi({
+  const { api, tools, warnings } = fakeApi({
     mode: 'on_demand',
     skillsDirs: [await skillsDir()],
     hubEndpoint: 'http://127.0.0.1:1',
   })
   register(api)
-  const engine = buildEngine(loadConfig(api.pluginConfig), undefined, api.logger)
-  await engine.retrieve('extract tables from a scanned PDF invoice', {})
+  await tools.get('skill_search')!.execute(
+    'call', { query: 'extract tables from a scanned PDF invoice' }, undefined, undefined,
+  )
 
   const complaint = warnings.find(message => message.includes('source hub failed'))
   assert.ok(complaint, `expected a source warning, got ${JSON.stringify(warnings)}`)
