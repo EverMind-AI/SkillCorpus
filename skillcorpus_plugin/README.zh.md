@@ -2,9 +2,9 @@
 
 [English](README.md) | 简体中文
 
-**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 每一轮都自动带上对的技能。** SkillCorpus Plugins 盯着用户刚说的话，从本地目录以及默认开启的三个远程来源中检索匹配的 `SKILL.md` 技能，在模型作答之前把技能正文放到它面前——不需要工具调用，模型也不需要事先知道任何技能的名字。
+**[SkillCorpus](https://github.com/EverMind-AI/SkillCorpus) 的官方宿主插件集：让你的 agent 在需要时拿到对的技能。** SkillCorpus Plugins 从本地目录以及默认开启的三个远程来源中检索匹配的 `SKILL.md`。默认的 `on_demand` 模式让 agent 自己调用 `skill_search`；`auto` 模式则在每轮模型作答前自动检索并注入。两种模式互斥，模型不需要事先知道任何技能的名字。
 
-一个真实轮次，发生在 WorkBuddy 上：问 *"帮我生成一个二维码，内容是 https://evermind.ai，存到桌面"*。这台机器上没有任何二维码技能——但语料库里有，于是模型作答前，它的上下文多出：
+一个使用 `auto` 模式的真实轮次，发生在 WorkBuddy 上：问 *"帮我生成一个二维码，内容是 https://evermind.ai，存到桌面"*。这台机器上没有任何二维码技能——但语料库里有，于是模型作答前，它的上下文多出下面这段；默认 `on_demand` 模式会通过 `skill_search` 的工具结果交付相同的技能内容：
 
 ```markdown
 # Skills
@@ -23,11 +23,11 @@ this directory — use the absolute form for read_file / exec.
 
 ## 安装——把这段话粘给你的 agent
 
-每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / Hermes / OpenClaw / DeepSeek Harness 的会话：
+每个受支持的宿主本身就是 agent，最快的安装方式是让它自己装。把下面这段粘进 WorkBuddy / Hermes / OpenClaw / DeepSeek Harness / Raven 的会话：
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
-那份剧本人类可读：先判断宿主、改配置前备份并给出 diff、装完验证 `# Skills` 块、逐步汇报——你可以[先读一遍](INSTALL.agent.md)再让它动手。
+那份剧本人类可读：先判断宿主、改配置前备份并给出 diff，再按当前模式验证——默认 `on_demand` 检查 `skill_search` 工具调用，`auto` 检查 `# Skills` 注入块——最后逐步汇报。你可以[先读一遍](INSTALL.agent.md)再让它动手。
 
 **手动安装**——按宿主选：
 
@@ -36,9 +36,9 @@ this directory — use the absolute form for read_file / exec.
 | **WorkBuddy** | 在标准插件市场添加 `EverMind-AI/SkillCorpus`，安装 **Skill Search**，然后重启 | [plugin-workbuddy](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-workbuddy/README.md#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-hermes/README.md#install) |
 | **OpenClaw**（≤ 2026.7.x） | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`，再往 `openclaw.json` 加两个键 | [plugin-openclaw](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw/README.md#install) |
-| **OpenClaw 2.0**（2026.8.1+） | `npm install --prefix plugin-openclaw2 && npm run --prefix plugin-openclaw2 build`，再在 `openclaw.json` 里设 `plugins.slots.contextEngine` | [plugin-openclaw2](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw2/README.md#install) |
+| **OpenClaw 2.0**（2026.8.1+） | `npm install --prefix plugin-openclaw2 && npm run --prefix plugin-openclaw2 build`，再按模式配置 `openclaw.json`（默认按需模式不占用 context-engine slot） | [plugin-openclaw2](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-openclaw2/README.md#install) |
 | **DeepSeek Harness** | 把 `engine-typescript/` 拷到 `packages/skill/skill-search/`，`cordis.yml` 加一行 | [engine-typescript](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-typescript/README.md#where-this-goes) |
-| **Raven** | `pip install ./engine-python ./plugin-raven`——等 Raven 上游的 `context_segments` 插槽合并后生效；Raven 自带的检索今天照常工作 | [plugin-raven](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-raven/README.md#install) |
+| **Raven** | `pip install ./engine-python ./plugin-raven`；默认按需模式可用，自动模式仍等待 Raven 上游的 `context_segments` 插槽 | [plugin-raven](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/plugin-raven/README.md#install) |
 | **其他任何宿主** | 旁边跑 `python -m skillsearch.adapters.http_server`，POST `/retrieve` | [engine-python](https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/engine-python/README.md) |
 
 ## 30 秒尝鲜
@@ -55,7 +55,7 @@ Use camelot for native PDFs; OCR scanned pages first.
 EOF
 ```
 
-问装好插件的 agent 怎么从 PDF 里提表格——上面那个块就会出现在它的上下文里。问它今天天气——什么都不会注入：匹配不到技能的查询就是检索为空。
+问装好插件的 agent 怎么从 PDF 里提表格。默认 `on_demand` 模式下，确认 agent 调用了 `skill_search` 并拿到 `pdf-tables`；`auto` 模式下，确认上面的 `# Skills` 块出现在上下文。负向测试请问 *"zxqv-7319，只回复这个字符串"*：按需模式不应调用工具，自动模式不应注入技能。不要用天气问题，公开目录中确实存在天气技能。
 
 ## 检索到底带来什么，四个宿主实测
 
@@ -76,34 +76,35 @@ EOF
 
 **DeepSeek Harness —— 0.50 到 0.83。** 套利监控本来两种情况下都能跑；技能改变的是它的输出去了哪里。`defi-wallet-monitor` 规定了数据目录和日志约定，于是这次运行把产物写到了检查程序会去找的位置，而不是丢在脚本旁边。
 
-## 你真正会碰的五个配置
+## 你真正会碰的八个配置
 
-每宿主的完整配置表在各插件 README 里；决定行为的是这七个（Python / TypeScript 写法）：
+每宿主的完整配置表在各插件 README 里；决定行为的是这八个（Python / TypeScript 写法）：
 
 | 配置 | 默认 | 决定什么 |
 | --- | --- | --- |
+| `mode` | `on_demand` | `on_demand` 由 agent 调用 `skill_search`；`auto` 每轮检索并注入。两者互斥。 |
 | `skills_dir` / `skillsDirs` | 宿主自己的技能目录 | 本地技能扫哪里。目录不存在 = 这个源就不存在。 |
 | `hub_endpoint` / `hubEndpoint` | `https://skillhub.evermind.ai` | EverMind SkillHub；空值只关闭这个来源。 |
 | `clawhub_endpoint` / `clawhubEndpoint` | `https://clawhub.ai` | ClawHub 检索；空值关闭。 |
 | `skillhub_cn_endpoint` / `skillhubCnEndpoint` | `https://api.skillhub.cn` | skillhub.cn 检索；空值关闭。 |
-| `model`（+ 宿主自己的路由字段） | *(空)* | 启用查询改写器和 gate。空 = 检索裸跑，按关键词排序注入。 |
-| `top_k` / `topK` | 2 | 每轮最多注入的技能数。 |
+| `model`（+ 宿主自己的路由字段） | *(空)* | 启用查询改写器和 gate。空 = 检索裸跑，按关键词排序交付。 |
+| `top_k` / `topK` | 2 | 每次检索最多交付的技能数。 |
 | `gate` | *自动* | 用 LLM 剔除本 agent 跑不了的技能。自动 = 纯本地时**关**（自己的技能，排序够了），配了目录服务时**开**（野生技能需要把关）。可用 `true`/`false` 显式覆盖。 |
 
 ## 它花你什么代价
 
-每轮最坏情况，全部有上限、全部 fail-open——慢或坏只让该轮少技能，绝不坏掉对话：
+每次触发检索的最坏情况如下。`auto` 每轮触发；`on_demand` 只在 agent 调用 `skill_search` 时触发。全部有上限、全部 fail-open——慢或坏只让本次少技能，绝不坏掉对话：
 
 | 步骤 | 何时发生 | 上限 |
 | --- | --- | --- |
-| 本地 BM25 | 总是 | 毫秒级，进程内 |
+| 本地 BM25 | 每次检索 | 毫秒级，进程内 |
 | 远程目录检索 | 开启了任一远程来源 | 每请求 5s |
 | 查询改写 | 配了 model | 一次小模型调用，5s |
 | Gate | 配了 model +（自动）hub | 一次模型调用（≤10 候选），20s |
 | Bundle 下载 | 选中了远程技能 | 30s，按版本缓存——之后同版本只是一次磁盘 stat |
-| 注入文本 | 有匹配 | 0 到 `top_k` 条技能正文（开 gate 时通常 ≤2 条；一条正文常见 1–4k token） |
+| 交付技能正文 | 有匹配 | 0 到 `top_k` 条技能正文（开 gate 时通常 ≤2 条；一条正文常见 1–4k token） |
 
-注入不进持久历史——每轮重建、随轮消失。
+`auto` 的注入块每轮重建、随轮消失；`on_demand` 的工具结果是否保留在历史中由宿主的工具消息策略决定。
 
 ## 哪些数据会离开你的机器
 
@@ -163,7 +164,7 @@ query
 
 三条性质处处成立：**检索永不抛异常**（失败只让该轮少技能，不伤回答）；**融合按位次不按分数**（BM25 和目录分数的量纲才融得起来——这也是为什么精度过滤靠 gate 而不是分数阈值）；**能力即存在**（没配端点就没有远程源、没配模型就没有改写和 gate——配置永远说不出自相矛盾的话）。
 
-每个插件把这条管道绑到宿主的同一个时刻——**用户消息之后、模型调用之前**：
+`auto` 模式把这条管道绑在用户消息之后、模型调用之前；`on_demand` 模式则在 agent 调用 `skill_search` 时运行同一条管道：
 
 | 插件 | 宿主 | 接入缝 | 宿主需要改动 |
 | --- | --- | --- | --- |
@@ -194,7 +195,7 @@ plugin-hermes/       Hermes 插件    · 基于 engine-python
 plugin-raven/        Raven 插件     · 基于 engine-python
 plugin-openclaw/     OpenClaw ≤2026.7.x 插件 · 基于 engine-typescript
 plugin-openclaw2/    OpenClaw 2.0 插件       · 基于 engine-typescript
-tests/host-e2e/      六宿主 × 两模式的端到端用例与各版本结果报告
+tests/host-e2e/      五个平台、六个适配目标 × 两模式的端到端用例与各版本结果报告
 INSTALL.agent.md     你的 agent 执行的安装剧本
 ```
 
@@ -225,7 +226,7 @@ git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
 npm --prefix plugin-openclaw run check:host
 ```
 
-其余只能靠真实宿主，这一层单独成目录：[`tests/host-e2e/`](tests/host-e2e) 把 prompt、语料和判定条件都固定下来，让不同版本之间的结果可比。[`cases.md`](tests/host-e2e/cases.md) 是六宿主 × 两模式的用例清单，[`reports/`](tests/host-e2e/reports) 是每个版本实际跑出来的结果——没跑的项也写进去。Hermes、Raven、DeepSeek Harness 可以无头驱动，各有脚本；OpenClaw 与 WorkBuddy 是手工步骤。
+其余只能靠真实宿主，这一层单独成目录：[`tests/host-e2e/`](tests/host-e2e) 把 prompt、语料和判定条件都固定下来，让不同版本之间的结果可比。[`cases.md`](tests/host-e2e/cases.md) 覆盖五个平台、六个适配目标（OpenClaw 1.x/2.0 分开）及两种模式，[`reports/`](tests/host-e2e/reports) 是每个版本实际跑出来的结果——没跑的项也写进去。Hermes、Raven、DeepSeek Harness 可以无头驱动，各有脚本；OpenClaw 与 WorkBuddy 是手工步骤。
 
 **测试过的版本**：Python 3.11–3.13 · Node 18+（CI 用 22）· WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw（向下验证至 2026.3.8） · DeepSeek Harness workspace `main` · Raven 等上游插槽。
 
