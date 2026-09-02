@@ -19,19 +19,6 @@
 
 <br>
 
-## &#128293; 最新动态
-
-- **2026-09-02** 新增 OpenClaw 2.0 支持，并在六个 agent 集成中加入按需
-  `skill_search`；设置 `mode: auto` 可继续使用原来的逐轮自动检索。
-- **2026-08-27** 新增多源检索，同时搜索本地 Skill、EverMind SkillHub、ClawHub
-  和 skillhub.cn，并完成分源限额、过滤、去重与最终 0–2 条选择。
-- **2026-08-26** 新增 PathGuard 占位符解析和宿主路径适配，让检索到的 Skill
-  能安全引用自身文件和 agent 的真实工作目录。
-- **2026-08-25** 首次加入面向 WorkBuddy、OpenClaw、Hermes、Raven 和
-  DeepSeek Harness 的官方 SkillCorpus 插件。
-
-<br>
-
 ## SkillCorpus 能给你什么
 
 SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为可靠 agent 上下文的开源流水线：
@@ -49,6 +36,15 @@ SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为�
 公开的 1,000 条 demo 语料、三个 agent benchmark 和线上的 SkillHub 展示了结果。
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
+
+<br>
+
+## &#128293; 最新动态
+
+- **2026-09-02** 支持更智能的 Skill 注入策略：每轮 Query 自动检索，或由主 Agent 在复杂任务和长流程中按需调用 skill_search。
+- **2026-08-27** 支持本地 Skill、EverMind SkillHub、ClawHub 和 skillhub.cn 多源检索，并完成过滤、去重和最终 0–2 条选择。
+- **2026-08-26** 支持 PathGuard 占位符解析和宿主路径适配，正确处理 Skill 文件与 Agent 工作目录。
+- **2026-08-25** 新增面向 WorkBuddy、OpenClaw、Hermes、Raven 和 DeepSeek Harness 的官方 SkillCorpus 插件。
 
 <br>
 

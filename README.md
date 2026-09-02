@@ -21,19 +21,6 @@
 
 <br>
 
-## &#128293; Latest Updates
-
-- **2026-09-02** Added OpenClaw 2.0 support and on-demand `skill_search` across all six
-  agent integrations; `mode: auto` keeps the original per-turn retrieval behavior.
-- **2026-08-27** Added multi-source retrieval across local skills, EverMind SkillHub,
-  ClawHub, and skillhub.cn, with source caps, filtering, deduplication, and final 0–2 selection.
-- **2026-08-26** Added PathGuard placeholder resolution and host-aware paths, so retrieved
-  skills can safely reference their files and the agent workspace.
-- **2026-08-25** Added the first official SkillCorpus plugins for WorkBuddy, OpenClaw,
-  Hermes, Raven, and DeepSeek Harness.
-
-<br>
-
 ## What SkillCorpus gives you
 
 SkillCorpus is EverMind's open-source pipeline for turning scattered `SKILL.md` files from public
@@ -55,6 +42,15 @@ upstream license. The public 1,000-skill demo, three agent benchmarks, and live 
 result.
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
+
+<br>
+
+## &#128293; Latest Updates
+
+- **2026-09-02** Supports smarter skill delivery: automatic retrieval on every query, or on-demand retrieval through skill_search when the main agent needs it for complex tasks and long-running workflows.
+- **2026-08-27** Supports multi-source retrieval across local skills, EverMind SkillHub, ClawHub, and skillhub.cn, with filtering, deduplication, and final 0–2 selection.
+- **2026-08-26** Supports PathGuard placeholder resolution and host-aware paths for skill files and agent workspaces.
+- **2026-08-25** Adds official SkillCorpus plugins for WorkBuddy, OpenClaw, Hermes, Raven, and DeepSeek Harness.
 
 <br>
 
