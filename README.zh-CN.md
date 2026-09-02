@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; 最新动态
 
-- **2026-09-02** 支持更智能的 Skill 注入策略：每轮 Query 自动检索，或由主 Agent 在复杂任务和长流程中按需调用 skill_search。
+- **2026-09-02** 支持 OpenClaw 2.0，并新增更智能的 Skill 注入策略：可选择每轮自动检索，或由主 Agent 按需调用 `skill_search`。
 - **2026-08-27** 支持本地 Skill、EverMind SkillHub、ClawHub 和 skillhub.cn 多源检索，并完成过滤、去重和最终 0–2 条选择。
 - **2026-08-26** 支持 PathGuard 占位符解析和宿主路径适配，正确处理 Skill 文件与 Agent 工作目录。
 - **2026-08-25** 新增面向 WorkBuddy、OpenClaw、Hermes、Raven 和 DeepSeek Harness 的官方 SkillCorpus 插件。
@@ -62,7 +62,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <tr>
 <td><strong>上下文</strong></td>
 <td>模型自身知识，加上人工维护的 prompt。</td>
-<td>每一轮检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
+<td>自动或按需检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
 </tr>
 <tr>
 <td><strong>执行</strong></td>

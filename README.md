@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; Latest Updates
 
-- **2026-09-02** Supports smarter skill delivery: automatic retrieval on every query, or on-demand retrieval through skill_search when the main agent needs it for complex tasks and long-running workflows.
+- **2026-09-02** Adds OpenClaw 2.0 support and smarter skill delivery: retrieve automatically on every query, or let the main agent call `skill_search` on demand.
 - **2026-08-27** Supports multi-source retrieval across local skills, EverMind SkillHub, ClawHub, and skillhub.cn, with filtering, deduplication, and final 0–2 selection.
 - **2026-08-26** Supports PathGuard placeholder resolution and host-aware paths for skill files and agent workspaces.
 - **2026-08-25** Adds official SkillCorpus plugins for WorkBuddy, OpenClaw, Hermes, Raven, and DeepSeek Harness.
@@ -68,7 +68,7 @@ knowledge for the task and puts it into the agent's context.
 <tr>
 <td><strong>Context</strong></td>
 <td>Model knowledge plus a manually maintained prompt.</td>
-<td>Task-specific, license-audited <code>SKILL.md</code> retrieved on every turn.</td>
+<td>Task-specific, license-audited <code>SKILL.md</code> retrieved automatically or on demand.</td>
 </tr>
 <tr>
 <td><strong>Execution</strong></td>
