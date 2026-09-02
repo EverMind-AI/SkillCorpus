@@ -6,9 +6,11 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import tomllib
+
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
-EXPECTED = "0.3.0"
+EXPECTED = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 MARKETPLACE = json.loads(
     (REPO_ROOT / ".codebuddy-plugin/marketplace.json").read_text(encoding="utf-8")
 )
@@ -22,6 +24,12 @@ def text_version(path: str, pattern: str) -> str:
 
 
 versions = {
+    "root-package": EXPECTED,
+    "root-runtime": re.search(
+        r'^__version__ = "([^"]+)"',
+        (REPO_ROOT / "skillcorpus" / "__init__.py").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ).group(1),
     "engine-python": text_version("engine-python/pyproject.toml", r'^version = "([^"]+)"'),
     "raven": text_version("plugin-raven/pyproject.toml", r'^version = "([^"]+)"'),
     "hermes": text_version("plugin-hermes/plugin.yaml", r'^version: "([^"]+)"'),
