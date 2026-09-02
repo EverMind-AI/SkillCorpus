@@ -187,9 +187,9 @@ OpenClaw packages did not — so an unreachable catalogue and an empty one looke
 identical from outside. Run this per host, not per engine: the engine is shared
 and the wiring is not.
 
-Both scripts that support it take `--broken-source`, which points one catalogue
-at a port it just closed. A hardcoded port that something happens to be using
-would turn this into a test of whatever answered.
+Every script takes `--broken-source`, which points one catalogue at a port it
+just closed. A hardcoded port that something happens to be using would turn
+this into a test of whatever answered.
 
 ## P6 — Restart and upgrade
 
@@ -202,6 +202,11 @@ would turn this into a test of whatever answered.
   reading the schema — `e2e_deepseek.py default` writes no `mode` key for
   exactly this.
 - Setting `mode: auto` restores the 0.2.0 behaviour.
+- On hosts driven by a script, `--restart` is the check: the same turn twice
+  against the same profile directory, nothing rewritten in between, a fresh
+  session id each time so the second turn inherits none of the first one's
+  answers. It is judged the same way as the first run, so "still works" means
+  the same thing both times rather than "did not crash".
 - WorkBuddy must be verified through a standard marketplace install. Editing
   `settings.json`, `installed_plugins.json` or `known_marketplaces.json` by
   hand, or running the bundle directly, tests the bundle and not whether the

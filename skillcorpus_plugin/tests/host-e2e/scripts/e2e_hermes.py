@@ -54,7 +54,8 @@ sys.path.insert(0, str(HERE.parents[2] / "engine-python"))
 CHAT_TIMEOUT_S = 600.0
 
 
-def build_home(mode: str, skills: Path, model: dict, *, rewrite: bool) -> Path:
+def build_home(mode: str, skills: Path, model: dict, *, rewrite: bool,
+               broken_source: bool = False) -> Path:
     """A throwaway `$HERMES_HOME` carrying the plugin and its settings."""
     home = Path(tempfile.mkdtemp(prefix=f"hermes-{mode}-"))
     (home / "plugins").mkdir(parents=True)
@@ -74,9 +75,9 @@ def build_home(mode: str, skills: Path, model: dict, *, rewrite: bool) -> Path:
                 # switch, not what a public catalogue returned this minute —
                 # and 0.2.0 onwards ships all three enabled by default, so
                 # leaving them alone means testing against live network.
-                "hub_endpoint": "",
-                "clawhub_endpoint": "",
-                "skillhub_cn_endpoint": "",
+                # Under `--broken-source` the first one points at a closed
+                # port instead, which is case P5.
+                **_e2e.source_endpoints(broken=broken_source),
                 "top_k": 1,
                 "max_select": 1,
                 "model": model["model"],
@@ -100,8 +101,8 @@ def build_home(mode: str, skills: Path, model: dict, *, rewrite: bool) -> Path:
 
 
 def run(mode: str, skills: Path, host: Path, model: dict, *, prompt: str, rewrite: bool,
-        prefetch_budget_s: float | None) -> dict:
-    home = build_home(mode, skills, model, rewrite=rewrite)
+        prefetch_budget_s: float | None, broken_source: bool = False) -> dict:
+    home = build_home(mode, skills, model, rewrite=rewrite, broken_source=broken_source)
     workspace = Path(tempfile.mkdtemp(prefix=f"hermes-ws-{mode}-"))
     out: dict = {"mode": mode, "rewrite": rewrite, "home": str(home)}
     cwd = os.getcwd()
@@ -191,6 +192,10 @@ def main() -> int:
     ap.add_argument("--case", default="p1", choices=sorted(_e2e.CASES),
                     help="which case in cases.md to run; each swaps the prompt "
                          "and what the verdict requires")
+    ap.add_argument("--broken-source", action="store_true",
+                    help="case P5: point one remote catalogue at a closed port "
+                         "and check the local corpus, the turn and the log all "
+                         "survive it")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
@@ -206,7 +211,8 @@ def main() -> int:
     for mode in args.modes:
         out = run(mode, skills, Path(args.host), model,
                   prompt=_e2e.CASES[args.case]["prompt"],
-                  rewrite=not args.no_rewrite, prefetch_budget_s=args.prefetch_budget)
+                  rewrite=not args.no_rewrite, prefetch_budget_s=args.prefetch_budget,
+                  broken_source=args.broken_source)
         results[mode] = out
         if "error" in out:
             print(f"  {mode:10} host failed:\n{out['error']}")

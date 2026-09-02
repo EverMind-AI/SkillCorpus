@@ -161,7 +161,8 @@ def start_proxy(upstream_url: str, api_key: str) -> tuple[ThreadingHTTPServer, R
 # overlay
 
 
-def patch_file(mode: str, base_url: str, skills_dir: Path, model: str) -> Path:
+def patch_file(mode: str, base_url: str, skills_dir: Path, model: str,
+               broken_source: bool = False) -> Path:
     entries: list[dict] = [
         # Disabled because this install ships their types but no JS.
         {"id": "typert", "disabled": True},
@@ -183,10 +184,10 @@ def patch_file(mode: str, base_url: str, skills_dir: Path, model: str) -> Path:
              "config": {
                  **({} if mode == "default" else {"mode": mode}),
                  "skillsDirs": [str(skills_dir)],
-                 # Every remote catalogue off — see the note in `e2e_hermes.py`.
-                 "hubEndpoint": "",
-                 "clawhubEndpoint": "",
-                 "skillhubCnEndpoint": "",
+                 # Every remote catalogue off — see the note in
+                 # `e2e_hermes.py`. Under `--broken-source` the first one
+                 # points at a closed port instead, which is case P5.
+                 **_e2e.camel(_e2e.source_endpoints(broken=broken_source)),
                  "topK": 1,
                  "maxSelect": 1,
                  "gate": False,
@@ -226,9 +227,9 @@ def _role_text(requests: list[dict], role: str) -> str:
 
 
 def run(mode: str, skills: Path, base_url: str, recorder: Recorder, dsh_bin: Path,
-        model: dict, prompt: str) -> dict:
+        model: dict, prompt: str, broken_source: bool = False) -> dict:
     before = len(recorder.requests)
-    patch = patch_file(mode, base_url, skills, model["model"])
+    patch = patch_file(mode, base_url, skills, model["model"], broken_source)
     workspace = Path(tempfile.mkdtemp(prefix=f"dsh-ws-{mode}-"))
     env = {**os.environ, "DSH_E2E_KEY": model["api_key"], "DSH_SNAPSHOT": "1"}
     out: dict = {"mode": mode}
@@ -286,6 +287,10 @@ def main() -> int:
     ap.add_argument("--case", default="p1", choices=sorted(_e2e.CASES),
                     help="which case in cases.md to run; each swaps the prompt "
                          "and what the verdict requires")
+    ap.add_argument("--broken-source", action="store_true",
+                    help="case P5: point one remote catalogue at a closed port "
+                         "and check the local corpus, the turn and the log all "
+                         "survive it")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
@@ -306,7 +311,7 @@ def main() -> int:
     try:
         for mode in args.modes:
             out = run(mode, skills, base_url, recorder, dsh_bin, model,
-                      _e2e.CASES[args.case]["prompt"])
+                      _e2e.CASES[args.case]["prompt"], args.broken_source)
             # `default` has to behave as on-demand; that is the assertion.
             effective = "on_demand" if mode == "default" else mode
             ok, facts = _e2e.verdict(

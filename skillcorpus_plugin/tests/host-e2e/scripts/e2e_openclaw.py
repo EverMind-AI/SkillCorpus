@@ -256,6 +256,11 @@ def main() -> int:
                     help="case P5: point one remote catalogue at a closed port "
                          "and check the local corpus, the turn and the log all "
                          "survive it")
+    ap.add_argument("--restart", action="store_true",
+                    help="case P6: run the same turn twice against the same "
+                         "profile, with the config untouched in between, and "
+                         "check the second run still loads the plugin and "
+                         "still retrieves")
     ap.add_argument("--mode-typo", default=None, metavar="VALUE",
                     help="case P4: write this as the `mode` instead of the real "
                          "one, and check the host logs the narrowing rather "
@@ -285,6 +290,32 @@ def main() -> int:
         try:
             out = run(Path(args.openclaw), args.profile, prompt, session_id)
             out.update(read_turn(transcript(profile_dir, session_id)))
+            if args.restart:
+                # A second process against the same profile directory, with
+                # nothing rewritten in between. That is what "restart the
+                # host" means here: the config on disk and the plugin's own
+                # state are all that carry over, and a fresh session id keeps
+                # the second turn from inheriting the first one's answers.
+                second_id = str(uuid.uuid4())
+                second = run(Path(args.openclaw), args.profile, prompt, second_id)
+                second.update(read_turn(transcript(profile_dir, second_id)))
+                out["after_restart"] = {
+                    "session_id": second_id,
+                    "returncode": second["returncode"],
+                    "tool_calls": [c["name"] for c in second["tool_calls"]],
+                    "reply": second["reply"],
+                    "elapsed_s": second["elapsed_s"],
+                }
+                # Judged the same way as the first run, so "it still works"
+                # means the same thing both times rather than "it did not
+                # crash".
+                out["restart_ok"] = (
+                    second["returncode"] == 0
+                    and (("skill_search" in out["after_restart"]["tool_calls"])
+                         if mode == "on_demand"
+                         else _e2e.sentinel_in(second["reply"])
+                         or str(skills) in second["first_move"])
+                )
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
             shutil.rmtree(skills.parent, ignore_errors=True)
@@ -335,6 +366,15 @@ def main() -> int:
               f"queries={out['skill_search_queries']} "
               f"auto_evidence={out['auto_evidence']}")
         print(f"             reply: {out['reply'][:220]!r}")
+        if args.restart:
+            after = out.get("after_restart", {})
+            print(f"             after restart: rc={after.get('returncode')} "
+                  f"tools={after.get('tool_calls')} "
+                  f"{'OK' if out.get('restart_ok') else 'FAILED'} "
+                  f"({after.get('elapsed_s')}s)")
+            if not out.get("restart_ok"):
+                ok = False
+                failures.append(f"{mode}:restart")
         if not ok:
             failures.append(mode)
 
