@@ -11,8 +11,8 @@ and its PASS is not comparable with any other run.
 
 | Host | Version tested at 0.3.0 | `auto` channel | `on_demand` channel | Real host required | Headless script |
 | --- | --- | --- | --- | --- | --- |
-| OpenClaw 1.x | 2026.3.8 | `before_prompt_build` hook | native `registerTool` | Yes | No |
-| OpenClaw 2.0 | 2026.8.1 | context engine `assemble` | native `registerTool` | Yes | No |
+| OpenClaw 1.x | 2026.7.1 | `before_prompt_build` hook | native `registerTool` | Yes | [`e2e_openclaw.py --generation 1`](scripts/e2e_openclaw.py) |
+| OpenClaw 2.0 | 2026.8.1 | context engine `assemble` | native `registerTool` | Yes | [`e2e_openclaw.py --generation 2`](scripts/e2e_openclaw.py) |
 | Hermes | `77ed972` | memory provider `prefetch` | provider `get_tool_schemas` | Yes | [`e2e_hermes.py`](scripts/e2e_hermes.py) |
 | Raven | `1cb604a` + local patch | `contributes.context_segments` | `contributes.tools` | Yes | [`e2e_raven.py`](scripts/e2e_raven.py) |
 | DeepSeek Harness | `47f9438` | `agent/pre-step` injection | `ctx.tools.register` | Yes | [`e2e_deepseek.py`](scripts/e2e_deepseek.py) |

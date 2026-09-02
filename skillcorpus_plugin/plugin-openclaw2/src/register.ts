@@ -12,10 +12,16 @@
  * On 2.0 that path is dead for a plugin installed from anywhere but an
  * official source: the handler either never runs (`agent --local`) or runs
  * and has its `prependContext` dropped (through the gateway) — measured on
- * 2026.8.1 with `hooks.allowConversationAccess`, `hooks.allowPromptInjection`
- * and `--accept-capabilities` all granted. Nothing is logged either way,
- * which is the worst shape a failure can take: retrieval looks installed and
- * silently never happens.
+ * 2026.8.1 with both hook grants and `--accept-capabilities` given. Nothing
+ * is logged either way, which is the worst shape a failure can take:
+ * retrieval looks installed and silently never happens.
+ *
+ * The grants are `allowConversationAccess` and `allowPromptInjection`, and
+ * they live on the plugin's own entry —
+ * `plugins.entries.<id>.hooks.allowPromptInjection` — not in a top-level
+ * `hooks` block. Written at the top level the host rejects the whole config
+ * as `Unrecognized keys`, so the mistake is loud; written nowhere, the grant
+ * is simply absent and the silence above is what you get instead.
  *
  * 2.0's answer is capability registration. `PluginKind` is `"memory" |
  * "context-engine"`, and `assemble()` is handed the turn's `prompt`, the

@@ -11,7 +11,7 @@ way of deciding PASS, so a result from one release is comparable with the next.
 
 - [`cases.md`](cases.md) — the cases. Six hosts, two modes, six scenarios.
 - [`reports/`](reports) — what actually happened, one file per release.
-- [`scripts/`](scripts) — the three hosts that can be driven headlessly.
+- [`scripts/`](scripts) — the five hosts that can be driven headlessly.
 
 ## Three layers, and what each one is worth
 
@@ -57,10 +57,15 @@ Two rules about the corpus, both learned the hard way:
   by a 2.0-generation host's model as prompt injection and refused, and the
   case then fails for a reason that has nothing to do with retrieval. State
   facts and ask a question they answer.
-- **Put it where the agent can see it.** On hosts that give the agent a
-  workspace, a corpus in a stray temp directory reads as a skill that is not
-  installed: the agent checks, does not find the directory, and says so. Write
-  it inside the session workspace.
+- **Where to put it depends on what the agent can reach, and the two answers
+  conflict.** On Raven, a corpus in a stray temp directory reads to the agent
+  as a skill that is not installed — it checks, does not find the directory,
+  and says so — so it goes *inside* the session workspace. On OpenClaw the
+  opposite: that agent has `read`, `dir_list` and `exec`, and a corpus it can
+  browse makes "did retrieval deliver the body" unanswerable, so it goes
+  *outside* the workspace and the only way in is through retrieval naming it.
+  Each script says which it does and why; do not copy one host's choice to
+  another without checking the agent's reach.
 
 ## Turning the remote catalogues off
 
@@ -130,12 +135,11 @@ Remote sources:            enabled / disabled
 Model and gate config:     (route name, not the endpoint — see redaction)
 ```
 
-## Running the automated three
+## Running the automated five
 
-Hermes, Raven and the DeepSeek Harness can be driven headlessly, so
-[`scripts/`](scripts) has one script each. They take the model from the
-environment — never from a committed constant, which would be both wrong for
-the next maintainer and an internal address in a public repository:
+Every host but WorkBuddy can be driven headlessly. The scripts take the model
+from the environment — never from a committed constant, which would be both
+wrong for the next maintainer and an internal address in a public repository:
 
 ```bash
 export SKILLSEARCH_E2E_BASE_URL=https://your-openai-compatible-endpoint/v1
@@ -145,7 +149,11 @@ export SKILLSEARCH_E2E_API_KEY=...          # optional, defaults to EMPTY
 python scripts/e2e_hermes.py   --host /path/to/hermes-agent --prefetch-budget 300
 python scripts/e2e_raven.py    --host /path/to/raven --plugin-site /path/to/site-packages
 python scripts/e2e_deepseek.py --host /path/to/deepseek-harness auto on_demand default
+python scripts/e2e_openclaw.py --generation 1 --openclaw /path/to/1.x/openclaw
+python scripts/e2e_openclaw.py --generation 2 --openclaw /path/to/2.0/openclaw
 ```
+
+Add `--case p2` or `--case p3` to run the other scenarios; the default is P1.
 
 Each prints one line per mode and exits non-zero on any failure; `--dump FILE`
 writes the full record, including what went over the wire.
@@ -163,10 +171,34 @@ Two things to know before reading their output:
   `--no-rewrite` removes the call; a report must say which was used, because
   "auto passes" means a different thing in each case.
 
-OpenClaw 1.x, OpenClaw 2.0 and WorkBuddy have no headless path — 2.0's context
-engine needs four capability gates and a running gateway, WorkBuddy is a
-desktop application installed from a marketplace. Those are Markdown steps in
-`cases.md`, executed by hand. Do not add a script that cannot run.
+Both OpenClaw generations run headlessly too, through one script:
+
+```bash
+python scripts/e2e_openclaw.py --generation 1 --openclaw /path/to/1.x/openclaw
+python scripts/e2e_openclaw.py --generation 2 --openclaw /path/to/2.0/openclaw
+```
+
+It writes its own `--profile` config, so `~/.openclaw` is never touched, and
+reads the host's transcript for evidence rather than the reply — this agent has
+`read` and `exec`, and the skill body is a file, so the prose proves nothing on
+its own. Three things about it are worth knowing before trusting a result:
+
+- **One session per run.** The first version omitted `--session-id`, so P1's
+  `skill_search` result — which names the skill's directory — taught the model
+  a path that P2 then went straight to `read`. P2 looked like a
+  tool-description failure and was nothing of the kind.
+- **`auto` is established from the opening move**, not the reply. The injected
+  block is not persisted on either generation, so what counts is the model
+  reaching for the randomly named corpus directory before any tool has
+  returned anything. On 1.x this was cross-checked against the host's own
+  cached skills catalogue, which contains neither the skill nor the path.
+- **The two generations differ in three lines of config**, all marked in
+  `write_profile`: which package to load, whether to claim the context-engine
+  slot, and `agents.list` versus 2.0's keyed `agents.entries`.
+
+WorkBuddy is the one host with no headless path: it is a desktop application
+installed from a marketplace. Its cases are Markdown steps in `cases.md`,
+executed by hand. Do not add a script that cannot run.
 
 ## Verdicts
 
