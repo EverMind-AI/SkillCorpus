@@ -1,0 +1,145 @@
+{
+  "id": "skillsearch",
+  "name": "Skill Search",
+  "description": "Per-turn skill retrieval as a context engine: local directory, remote catalog, model-gated selection.",
+  "version": "0.3.0",
+  "kind": "context-engine",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "skill_search"
+    ]
+  },
+  "toolMetadata": {
+    "skill_search": {
+      "profiles": [
+        "minimal",
+        "coding",
+        "messaging",
+        "full"
+      ]
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "on_demand",
+          "auto"
+        ],
+        "default": "on_demand",
+        "description": "How skills reach the agent. \"on_demand\" registers a skill_search tool and lets the agent decide when it needs one; \"auto\" searches every turn and injects what it finds. The two are exclusive: auto takes the host's single context-engine slot, on_demand does not."
+      },
+      "skillsDirs": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "~/.openclaw/skills"
+        ],
+        "description": "Directories scanned for SKILL.md files"
+      },
+      "hubEndpoint": {
+        "type": "string",
+        "default": "https://skillhub.evermind.ai",
+        "description": "Remote catalog base URL; empty disables the remote source"
+      },
+      "hubApiKey": {
+        "type": "string",
+        "default": "",
+        "description": "Bearer token for the remote catalog"
+      },
+      "clawhubEndpoint": {
+        "type": "string",
+        "default": "https://clawhub.ai",
+        "description": "ClawHub API base URL; empty disables this source"
+      },
+      "skillhubCnEndpoint": {
+        "type": "string",
+        "default": "https://api.skillhub.cn",
+        "description": "skillhub.cn API base URL; empty disables this source"
+      },
+      "model": {
+        "type": "string",
+        "default": "",
+        "description": "Model for the rewriter and the gate; empty runs retrieval unfiltered"
+      },
+      "modelBaseUrl": {
+        "type": "string",
+        "default": "https://api.openai.com/v1",
+        "description": "OpenAI-compatible endpoint for that model"
+      },
+      "modelApiKey": {
+        "type": "string",
+        "default": "",
+        "description": "Credential for that endpoint"
+      },
+      "topK": {
+        "type": "number",
+        "default": 2,
+        "description": "Upper bound on skills injected per turn"
+      },
+      "gatePool": {
+        "type": "number",
+        "default": 10,
+        "description": "Candidates the gate judges"
+      },
+      "maxSelect": {
+        "type": "number",
+        "default": 2,
+        "description": "Upper bound on what the gate keeps"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "default": 8000,
+        "description": "Deadline for one retrieval"
+      },
+      "availableTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "description": "Tool names this agent can call; the host does not report them to a hook, so stating them here restores the gate's environment check"
+      },
+      "indexBody": {
+        "type": "boolean",
+        "default": false,
+        "description": "Index skill bodies alongside name and description. Off by default: the description is the retrieval contract of the SKILL.md format, and is also what the gate reads."
+      },
+      "resolvePlaceholders": {
+        "type": "boolean",
+        "default": false,
+        "description": "Expand trusted PathGuard placeholders to this agent's paths. Keep disabled for arbitrary third-party skill bodies."
+      },
+      "rewrite": {
+        "type": "boolean",
+        "default": true,
+        "description": "Clean the query with the model before searching. Needs a model."
+      },
+      "gate": {
+        "type": "boolean",
+        "description": "Let the model drop candidates before they reach the prompt. Unset means on when a catalog is configured. Needs a model."
+      },
+      "bundleCacheDir": {
+        "type": "string",
+        "default": "",
+        "description": "Where downloaded catalog bundles are extracted; empty uses ~/.openclaw/skillsearch-bundles. Keep it outside every scanned directory, or an extracted bundle is picked up as a local skill on the next scan."
+      }
+    }
+  },
+  "uiHints": {
+    "hubApiKey": {
+      "sensitive": true
+    },
+    "modelApiKey": {
+      "sensitive": true
+    }
+  }
+}

@@ -16,6 +16,7 @@ import { after, test } from 'node:test'
 import { createChatModel } from '../src/model.ts'
 import { register } from '../src/register.ts'
 import type {
+  AgentTool,
   BeforePromptBuildEvent,
   BeforePromptBuildResult,
   OpenClawPluginApi,
@@ -93,8 +94,10 @@ async function skillsDir(): Promise<string> {
 function fakeApi(pluginConfig: Record<string, unknown>): {
   api: OpenClawPluginApi
   hooks: Map<string, (e: BeforePromptBuildEvent, c: PluginHookAgentContext) => unknown>
+  tools: Map<string, AgentTool>
 } {
   const hooks = new Map<string, (e: BeforePromptBuildEvent, c: PluginHookAgentContext) => unknown>()
+  const tools = new Map<string, AgentTool>()
   return {
     api: {
       id: 'skillsearch',
@@ -107,8 +110,10 @@ function fakeApi(pluginConfig: Record<string, unknown>): {
       },
       logger: { info: () => {}, warn: () => {} },
       on: (event, handler) => { hooks.set(event, handler as never) },
+      registerTool: tool => { tools.set(tool.name, tool) },
     },
     hooks,
+    tools,
   }
 }
 
@@ -139,6 +144,7 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
     '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
   ])
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
     modelBaseUrl: server.baseUrl,
@@ -168,6 +174,7 @@ test('the gate narrows the block, over real HTTP end to end', async () => {
 test('the rewriter deciding against retrieval skips the search entirely', async () => {
   const server = await provider(['{"need_retrieval": false, "rewritten_query": null}'])
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
     modelBaseUrl: server.baseUrl,
@@ -181,6 +188,7 @@ test('the rewriter deciding against retrieval skips the search entirely', async 
 
 test('an unreachable provider degrades to unfiltered retrieval, not to a failed turn', async () => {
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
     // A port nothing listens on: both model calls fail, and each falls back.
@@ -206,6 +214,7 @@ test('the gate stays off for a local directory and on for a catalog', async () =
     '{"plan": "fill the form", "skills": ["local/pdf-forms"]}',
   ])
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     model: 'gate-model',
     modelBaseUrl: server.baseUrl,

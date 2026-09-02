@@ -2,14 +2,38 @@
   "id": "skillsearch",
   "name": "Skill Search",
   "description": "Per-turn skill retrieval: local directory, remote catalog, model-gated selection.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "activation": {
     "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "skill_search"
+    ]
+  },
+  "toolMetadata": {
+    "skill_search": {
+      "profiles": [
+        "minimal",
+        "coding",
+        "messaging",
+        "full"
+      ]
+    }
   },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "on_demand",
+          "auto"
+        ],
+        "default": "on_demand",
+        "description": "How skills reach the agent. \"on_demand\" registers a skill_search tool and lets the agent decide when it needs one; \"auto\" injects what it finds on every turn through before_prompt_build. The two are exclusive: running both would pay for retrieval twice and show the same skill from two directions."
+      },
       "skillsDirs": {
         "type": "array",
         "items": {
@@ -101,6 +125,11 @@
       "gate": {
         "type": "boolean",
         "description": "Let the model drop candidates before they reach the prompt. Unset means on when a catalog is configured. Needs a model."
+      },
+      "bundleCacheDir": {
+        "type": "string",
+        "default": "",
+        "description": "Where downloaded catalog bundles are extracted; empty uses ~/.openclaw/skillsearch-bundles. Keep it outside every scanned directory, or an extracted bundle is picked up as a local skill on the next scan."
       }
     }
   },

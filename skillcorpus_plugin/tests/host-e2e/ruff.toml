@@ -1,0 +1,39 @@
+# These scripts drive real hosts, which makes them break rules the packages
+# rightly enforce. The config is here rather than as scattered `noqa` lines so
+# the reason is stated once.
+#
+# No CI job lints this directory today — the pipeline lints packages. Keeping
+# it clean under a bare `ruff check` is still worth the file: it means the next
+# maintainer can run the linter here and get signal instead of noise.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF", "TRY", "BLE", "S"]
+ignore = [
+    # A host that will not start, an agent that will not close: both are the
+    # finding, and both have to be caught and reported rather than crashing
+    # the run and losing the modes that would have passed.
+    "BLE001",
+    "S110",
+    # `assert` is how a harness states an invariant it will not proceed past.
+    "S101",
+    # The message belongs where the reader is, which here is stdout.
+    "TRY003",
+    "TRY400",
+    # `sys.path` has to be arranged before the host or the plugin is imported,
+    # which is the whole point of the lines above the imports.
+    "E402",
+]
+
+[lint.per-file-ignores]
+# The DSH script is a recording proxy plus a host subprocess, so it does the
+# two things this rule set exists to flag. Both are the point: the proxy
+# forwards to the endpoint the operator named in the environment, and `node`
+# is resolved from PATH because the harness checkout supplies the script, not
+# the interpreter.
+"scripts/e2e_deepseek.py" = ["S310", "S603", "S607"]
+# Runs the host CLI the operator named on the command line. That is the
+# script's entire job, so flagging the call is noise.
+"scripts/e2e_openclaw.py" = ["S603"]

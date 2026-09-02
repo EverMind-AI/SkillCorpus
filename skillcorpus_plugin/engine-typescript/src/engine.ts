@@ -164,10 +164,15 @@ export class SkillSearchEngine {
     this.heading = options.heading ?? '# Skills'
     this.refs = options.resolveRefs ?? true
     this.placeholders = options.resolvePlaceholders ?? false
+    // Spread-if-defined rather than plain assignment: under the harness's
+    // `exactOptionalPropertyTypes`, handing `string | undefined` to an
+    // optional `string` field is an error, and writing the key as undefined
+    // is not the same as leaving it out — `resolvePlaceholders` falls back
+    // per field on absence.
     this.runtime = {
-      outputDir: options.outputDir,
-      homeDir: options.homeDir,
-      stateDir: options.stateDir,
+      ...(options.outputDir === undefined ? {} : { outputDir: options.outputDir }),
+      ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
+      ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
     }
   }
 

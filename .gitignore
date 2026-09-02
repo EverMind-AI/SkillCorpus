@@ -2,6 +2,10 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+# Ruff writes this wherever it is invoked from, including inside
+# skillcorpus_plugin/ — where the project-inventory gate scans directories and
+# fails on it as an undocumented package.
+.ruff_cache/
 *.egg-info/
 build/
 dist/

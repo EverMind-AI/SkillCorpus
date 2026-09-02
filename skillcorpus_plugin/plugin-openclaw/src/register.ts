@@ -17,8 +17,9 @@ import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescri
 import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
-import { loadConfig, type SkillSearchConfig } from './config.js'
+import { loadConfig, unknownMode, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
+import { skillSearchTool } from './tool.js'
 import type {
   BeforePromptBuildEvent,
   BeforePromptBuildResult,
@@ -40,7 +41,11 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
-export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): SkillSearchEngine {
+export function buildEngine(
+  config: SkillSearchConfig,
+  workspaceDir?: string,
+  logger?: PluginLogger,
+): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(dir => isAbsolute(dir) || dir)
@@ -84,6 +89,18 @@ export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): S
   return new SkillSearchEngine(
     {
       sources,
+      // Without this a source that is down is invisible here. The engine
+      // already reports it — one failing source leaves the others usable, by
+      // design — but nothing was consuming the report, so "the catalogue was
+      // unreachable all afternoon" and "the catalogue had nothing" looked
+      // identical from the outside. Only diagnostics carrying an error are
+      // logged; the successful ones are per-turn noise.
+      onDiagnostic: diagnostic => {
+        if (diagnostic.error === undefined) return
+        logger?.warn?.(
+          `[skillsearch] source ${diagnostic.source} failed at ${diagnostic.stage}: ${diagnostic.error}`,
+        )
+      },
       // Two independent switches over one model. Configuring a model used
       // to turn both on together, leaving no way to keep the query cleaning
       // and drop the gate.
@@ -134,10 +151,13 @@ export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): S
     {
       topK: config.topK,
       gatePool: config.gatePool,
-      // PathGuard placeholders' per-agent facts. OpenClaw's own config root is
+      // PathGuard placeholders' per-agent facts. An absent `workspaceDir`
+      // means "this caller has no trustworthy workspace", and the empty
+      // string leaves `{{OUTPUT_DIR}}` literal rather than pointing a skill
+      // at some other directory — see the tool path, which passes none. OpenClaw's own config root is
       // ~/.openclaw; the agent's writable output is its workspace, falling back
       // to the host process's cwd when the hook did not report one.
-      outputDir: workspaceDir || process.cwd(),
+      outputDir: workspaceDir ?? '',
       homeDir: homedir(),
       stateDir: join(homedir(), '.openclaw'),
       resolvePlaceholders: config.resolvePlaceholders,
@@ -183,31 +203,56 @@ export function register(
   deps: { buildEngineFn?: typeof buildEngine } = {},
 ): void {
   const config = loadConfig(api.pluginConfig)
+  const asked = unknownMode(api.pluginConfig)
+  if (asked !== undefined) {
+    // Narrowed, not rejected — but said out loud. Without this the operator
+    // who typed `atuo` gets the opposite mode and no indication of it.
+    api.logger?.warn?.(
+      `[skillsearch] unknown mode ${JSON.stringify(asked)}; running in ${config.mode}`,
+    )
+  }
   const build = deps.buildEngineFn ?? buildEngine
 
   // Probe without a workspace: `enabled` depends only on the sources, not on
   // the output directory.
-  if (!build(config).enabled) {
+  const probe = build(config, undefined, api.logger)
+  if (!probe.enabled) {
     api.logger?.info?.('[skillsearch] no sources configured; retrieval is off')
     return
   }
 
-  // The engine is built lazily on the first hook, where the agent's own
-  // workspace directory is known. Using `process.cwd()` (the host process's
-  // cwd) would be wrong for multi-agent hosts and for sessions with a
-  // different workspace.
+  // One engine per workspace, shared by both modes. `{{OUTPUT_DIR}}` resolves
+  // against the turn's directory, and `process.cwd()` is the host process's
+  // own — wrong for a multi-agent host and for any session working elsewhere.
   const engines = new Map<string, SkillSearchEngine>()
+  const engineFor = (workspaceDir?: string): SkillSearchEngine => {
+    const key = workspaceDir || process.cwd()
+    let engine = engines.get(key)
+    if (!engine) {
+      engine = build(config, key, api.logger)
+      engines.set(key, engine)
+    }
+    return engine
+  }
+
+  if (config.mode === 'on_demand') {
+    // The agent decides when it needs a skill. No hook: injecting on every
+    // turn is the other mode, and running both would pay for retrieval twice
+    // and put the same skill in front of the model from two directions.
+    // The tool API has no trustworthy session workspace, so reuse the probe
+    // built without one. This leaves workspace-dependent PathGuard
+    // placeholders unresolved instead of expanding them to the gateway cwd.
+    api.registerTool(skillSearchTool(() => probe, config, api.logger))
+    api.logger?.info?.('[skillsearch] on-demand mode: the agent calls skill_search')
+    return
+  }
+  api.logger?.info?.('[skillsearch] auto mode: retrieval runs on every turn')
 
   api.on('before_prompt_build', async (
     event: BeforePromptBuildEvent,
     ctx: { workspaceDir?: string },
   ): Promise<BeforePromptBuildResult | void> => {
-    const workspaceDir = ctx?.workspaceDir || process.cwd()
-    let engine = engines.get(workspaceDir)
-    if (!engine) {
-      engine = build(config, workspaceDir)
-      engines.set(workspaceDir, engine)
-    }
+    const engine = engineFor(ctx?.workspaceDir)
 
     const query = (event.prompt || '').trim() || recentUserText(event.messages ?? [])
     if (!query) return

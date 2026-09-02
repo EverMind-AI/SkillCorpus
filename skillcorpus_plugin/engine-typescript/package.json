@@ -1,7 +1,7 @@
 {
   "name": "@evermind-ai/dsh-skill-search",
   "description": "Per-turn skill retrieval for the DeepSeek Harness: fuse local and remote sources, gate by relevance, inject what fits",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EverMind-AI/SkillCorpus.git",

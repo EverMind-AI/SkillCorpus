@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
-EXPECTED = "0.2.0"
+EXPECTED = "0.3.0"
 MARKETPLACE = json.loads(
     (REPO_ROOT / ".codebuddy-plugin/marketplace.json").read_text(encoding="utf-8")
 )
@@ -26,6 +26,16 @@ versions = {
     "raven": text_version("plugin-raven/pyproject.toml", r'^version = "([^"]+)"'),
     "hermes": text_version("plugin-hermes/plugin.yaml", r'^version: "([^"]+)"'),
     "openclaw": json.loads((ROOT / "plugin-openclaw/package.json").read_text())["version"],
+    "openclaw-manifest": json.loads(
+        (ROOT / "plugin-openclaw/openclaw.plugin.json").read_text()
+    )["version"],
+    # OpenClaw ships as two packages — 2.0 dropped the hook the first one
+    # injects through — so a release that validates only one can publish a
+    # mismatched pair.
+    "openclaw2": json.loads((ROOT / "plugin-openclaw2/package.json").read_text())["version"],
+    "openclaw2-manifest": json.loads(
+        (ROOT / "plugin-openclaw2/openclaw.plugin.json").read_text()
+    )["version"],
     "workbuddy": json.loads((ROOT / "plugin-workbuddy/package.json").read_text())["version"],
 }
 if MARKETPLACE.get("name") != "skillcorpus":
@@ -38,7 +48,15 @@ source = (REPO_ROOT / entry["source"]).resolve()
 expected_source = (ROOT / "plugin-workbuddy").resolve()
 if source != expected_source:
     raise SystemExit(f"WorkBuddy marketplace source must resolve to {expected_source}, got {source}")
-for required in (source / "dist/hook.mjs", source / "hooks/hooks.json"):
+# Both runtimes and both manifests. On-demand mode reaches the model through
+# the MCP server rather than the hook, so a release carrying only `hook.mjs`
+# ships a plugin whose default mode has no runtime at all.
+for required in (
+    source / "dist/hook.mjs",
+    source / "hooks/hooks.json",
+    source / "dist/mcp.mjs",
+    source / "mcp/servers.json",
+):
     if not required.is_file():
         raise SystemExit(f"WorkBuddy marketplace is missing required runtime file: {required}")
 plugin_manifest = json.loads((source / ".codebuddy-plugin/plugin.json").read_text(encoding="utf-8"))

@@ -41,7 +41,8 @@ The playbook it follows is [`INSTALL.agent.md`](INSTALL.agent.md) — human-read
 | --- | --- | --- |
 | **WorkBuddy** | add `EverMind-AI/SkillCorpus` in the standard plugin marketplace, install **Skill Search**, then restart | [plugin-workbuddy](plugin-workbuddy#install) |
 | **Hermes** | `pip install ./engine-python && cp -r plugin-hermes "$HERMES_HOME/plugins/skillsearch" && hermes memory setup` | [plugin-hermes](plugin-hermes#install) |
-| **OpenClaw** | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`, then two keys in `openclaw.json` | [plugin-openclaw](plugin-openclaw#install) |
+| **OpenClaw** (≤ 2026.7.x) | `npm install --prefix plugin-openclaw && npm run --prefix plugin-openclaw build`, then two keys in `openclaw.json` | [plugin-openclaw](plugin-openclaw#install) |
+| **OpenClaw 2.0** (2026.8.1+) | `npm install --prefix plugin-openclaw2 && npm run --prefix plugin-openclaw2 build`, then `plugins.slots.contextEngine` in `openclaw.json` | [plugin-openclaw2](plugin-openclaw2#install) |
 | **DeepSeek Harness** | copy `engine-typescript/` to `packages/skill/skill-search/`, add a `cordis.yml` row | [engine-typescript](engine-typescript#where-this-goes) |
 | **Raven** | `pip install ./engine-python ./plugin-raven` — activates once Raven's `context_segments` slot lands upstream; Raven's built-in retrieval works today | [plugin-raven](plugin-raven#install) |
 | **Anything else** | run `python -m skillsearch.adapters.http_server` beside it and POST `/retrieve` | [engine-python](engine-python/README.md) |
@@ -192,7 +193,8 @@ Each plugin binds this pipeline to one host moment — always *after the user's 
 | --- | --- | --- | --- |
 | [`plugin-workbuddy/`](plugin-workbuddy) | WorkBuddy (5.3.13) | `UserPromptSubmit` hook — a process per turn | none |
 | [`plugin-hermes/`](plugin-hermes) | Hermes | memory provider's `prefetch` | none |
-| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw (verified back to 2026.3.8) | `before_prompt_build` hook | none |
+| [`plugin-openclaw/`](plugin-openclaw) | OpenClaw 2026.3.8 – 2026.7.x | `before_prompt_build` hook | none |
+| [`plugin-openclaw2/`](plugin-openclaw2) | OpenClaw 2.0 (2026.8.1+) | context engine, or a registered tool | none |
 | [`engine-typescript/`](engine-typescript) | DeepSeek Harness | `agent/pre-step` waterfall | none |
 | [`plugin-raven/`](plugin-raven) | Raven | context segment for the `skills` stage | `context_segments` slot, landing upstream |
 
@@ -214,7 +216,9 @@ engine-typescript/   the pipeline in TypeScript / Node 18+, and the DeepSeek Har
 plugin-workbuddy/    WorkBuddy plugin over engine-typescript — a hook process per turn
 plugin-hermes/       Hermes plugin    over engine-python
 plugin-raven/        Raven plugin     over engine-python
-plugin-openclaw/     OpenClaw plugin  over engine-typescript
+plugin-openclaw/     OpenClaw ≤2026.7.x plugin  over engine-typescript
+plugin-openclaw2/    OpenClaw 2.0 plugin        over engine-typescript
+tests/host-e2e/      the six-host, two-mode cases and their release reports
 INSTALL.agent.md     the install playbook your agent follows
 ```
 
@@ -230,6 +234,7 @@ pytest engine-python/tests plugin-hermes/tests plugin-raven/tests -q
 ruff check engine-python/skillsearch engine-python/tests plugin-raven
 cd engine-typescript && npx tsx --test tests/parity.test.ts
 cd plugin-openclaw   && npm install && npm run ci
+cd plugin-openclaw2  && npm install && npm run ci
 ```
 
 A suite stands in for its host, and a stand-in cannot fail on the host refusing to load the plugin. Two checks close part of that gap (CI runs the first):
@@ -245,9 +250,9 @@ git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
 npm --prefix plugin-openclaw run check:host
 ```
 
-Only a real checkout closes the rest: every plugin here has been installed into its host and driven through that host's own loader end to end — `verify-raven.py` in the root drives the Raven path through the host's own `ContextAssembler`.
+Only a real host closes the rest, and that layer has its own directory: [`tests/host-e2e/`](tests/host-e2e) fixes the prompts, the corpus and the pass conditions so a result from one release is comparable with the next. [`cases.md`](tests/host-e2e/cases.md) is the six-host, two-mode case list; [`reports/`](tests/host-e2e/reports) is what actually happened, per release, gaps included. Hermes, Raven and the DeepSeek Harness can be driven headlessly and have scripts; OpenClaw and WorkBuddy are manual steps.
 
-**Tested against**: Python 3.11–3.13 · Node 18+ (CI on 22) · WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw (verified back to 2026.3.8) · DeepSeek Harness workspace `main` · Raven pending its upstream slot.
+**Tested against**: Python 3.11–3.13 · Node 18+ (CI on 22) · WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw 2026.3.8 – 2026.7.x and OpenClaw 2.0 (2026.8.1) · DeepSeek Harness workspace `main` · Raven pending its upstream slot.
 
 ## Part of the EverMind agent stack
 

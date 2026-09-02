@@ -25,7 +25,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { SourceDiagnostic } from '../../engine-typescript/src/engine.js'
-import { loadConfig, readConfigDocument, type SkillSearchConfig } from './config.js'
+import { loadConfig, readConfigDocument, unknownMode, type SkillSearchConfig } from './config.js'
 import { retrieveForTurn } from './retrieve.js'
 import type { UserPromptSubmitPayload, UserPromptSubmitResult } from './workbuddy-types.js'
 
@@ -101,7 +101,12 @@ export async function runTurn(
     retrieveFn?: typeof retrieveForTurn
   } = {},
 ): Promise<UserPromptSubmitResult> {
-  const config = deps.config ?? loadConfig(readConfigDocument())
+  // Read once and kept: `unknownMode` has to see the same document
+  // `loadConfig` did, or a bad `mode` in config.json goes unreported because
+  // only the environment was checked.
+  const document = deps.config ? undefined : readConfigDocument()
+  const config = deps.config ?? loadConfig(document)
+  const badMode = deps.config ? undefined : unknownMode(document)
   const startedAt = Date.now()
 
   let payload: UserPromptSubmitPayload = {}
@@ -114,9 +119,13 @@ export async function runTurn(
 
   const query = queryOf(payload)
   let block = ''
+  // On demand, the MCP server offers `skill_search` and this hook stays out
+  // of the way. Injecting here as well would search twice for one turn and
+  // put the same skill in front of the model from two directions.
+  const injecting = config.mode === 'auto'
   let failure: string | null = null
   const sourceDiagnostics: SourceDiagnostic[] = []
-  if (query) {
+  if (query && injecting) {
     try {
       block = await (deps.retrieveFn ?? retrieveForTurn)(
         query, config, {}, diagnostic => { sourceDiagnostics.push(diagnostic) }, payload.cwd,
@@ -134,6 +143,11 @@ export async function runTurn(
     prompt: query.slice(0, 120),
     model: payload.model ?? null,
     agent_type: payload.agent_type ?? null,
+    // Present only when someone typed a mode that does not exist. The value
+    // is narrowed to the default rather than rejected, so without this line
+    // the operator gets the opposite mode and no sign of it — and 0.3.0
+    // changed which mode the default is, which makes the silence worse.
+    ...(badMode !== undefined ? { unknown_mode: badMode, mode_used: config.mode } : {}),
     skills: selectedSkills(block),
     injected_chars: block.length,
     elapsed_ms: Date.now() - startedAt,

@@ -7,7 +7,7 @@ Ship alongside a ``raven-plugin.toml``::
 
     [plugin]
     id                 = "skillsearch"
-    version            = "0.2.0"
+    version            = "0.3.0"
     bundled            = false
     enabled_by_default = true
 
@@ -109,8 +109,146 @@ class SkillsSegment:
         )
 
 
-def make_segment(ctx: Any) -> Any | None:
-    """Plugin entry point. ``None`` declines the stage."""
+class SkillSearchTool:
+    """`skill_search` — the on-demand half of retrieval.
+
+    The four members below are the ABC's *abstract* surface, and they are not
+    enough on their own: ``Tool`` also carries concrete implementations the
+    registry calls — ``to_schema``, ``cast_params``, ``validate_params``,
+    ``display_call``, ``timeout_seconds``, ``blocking_interaction``. Duck-typing
+    this class against the ABC therefore loads fine and then dies on the first
+    turn with ``AttributeError: 'SkillSearchTool' object has no attribute
+    'to_schema'``. :func:`make_skill_search_tool` subclasses the host's real
+    ``Tool`` around this body instead, so the inherited half comes along.
+
+    The body stays host-free so it can be imported, read and tested without a
+    Raven checkout, which is the same reason ``SkillsSegment.build`` imports
+    ``Segment`` at call time rather than at module scope.
+
+    Two modes exist because two different things go wrong with one. Auto
+    discovers capability the agent did not know to ask for, and pays for that
+    on every turn. This one costs nothing until the agent reaches a step that
+    needs a skill — and finds nothing if the agent never thinks to look, which
+    is why the description below is written to say plainly when to reach for
+    it, including for questions about in-house conventions. That wording is
+    load-bearing: measured on a real host, a query about an internal template
+    went unanswered until the description named that case.
+    """
+
+    def __init__(self, search: SkillSearch) -> None:
+        self._search = search
+
+    @property
+    def name(self) -> str:
+        return "skill_search"
+
+    @property
+    def description(self) -> str:
+        return (
+            "Search the skill library for a procedure that fits the task at "
+            "hand, and get back the matching skills in full.\n\n"
+            "A skill is a written workflow for a specific job — filling PDF "
+            "forms, building a slide deck, migrating a schema — including the "
+            "exact commands, files, and in-house conventions it needs.\n\n"
+            "Reach for it when:\n"
+            "- a task needs a multi-step procedure you would otherwise improvise;\n"
+            "- a task names a format, tool, or workflow you would have to guess at;\n"
+            "- a question asks about an internal convention, template, standard, "
+            'or "our" way of doing something — a skill is where those are '
+            "written down, so searching here comes before answering that you "
+            "do not know.\n\n"
+            "Search with the words the task actually uses; the query is matched "
+            "against skill names and descriptions. Returns nothing when the "
+            "library has no fit, which is a normal answer and means: proceed "
+            "on your own."
+        )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "What you need to do, in the task's own words — e.g. "
+                        '"extract tables from a scanned PDF invoice".'
+                    ),
+                },
+            },
+            "required": ["query"],
+        }
+
+    async def execute(self, **kwargs: Any) -> str:
+        """Never raises: a failed search costs the turn a skill, not the turn."""
+        query = str(kwargs.get("query") or "").strip()
+        if not query:
+            return "skill_search needs a query describing the task."
+        try:
+            hits = await self._search.hits(query, history=[])
+            text = self._search.render(hits) if hits else ""
+        except Exception as e:
+            log.warning("skillsearch: skill_search failed (%s)", e)
+            return "Skill search is unavailable right now. Proceed without a skill."
+        # A miss is an answer. An empty string would read to a model as a
+        # broken tool rather than as "the library has no fit".
+        return text or f'No skill in the library matches "{query}". Proceed without one.'
+
+
+def _resolve_model(cfg_map: dict[str, Any]) -> Any:
+    """The channel the rewriter and the gate run on, or ``None``.
+
+    Two sources, in order. Raven hands the *segment* factory a live
+    ``LLMProvider`` under the private ``_provider`` key, which is the better
+    one — it is the model the user already chose, and it follows a ``/model``
+    switch. The *tool* factory is handed no such thing, so on-demand mode had
+    nothing: `build_plugin_tools` passes the config slice and a
+    ``ServiceLocator``, and a live object cannot be written in TOML.
+
+    So a plugin-configured endpoint is the fallback, the same one every other
+    host plugin already carries. Neither present means no rewriter and no
+    gate, which is a real loss rather than a mild one: fusion ranks by
+    position, so each source's best hit reaches the model however weakly it
+    matched, and the gate is what removes those.
+    """
+    provider = cfg_map.get("_provider")
+    if provider is not None:
+        return _ProviderAdapter(provider)
+
+    model_name = str(cfg_map.get("model") or "").strip()
+    if not model_name:
+        return None
+    from .model import DEFAULT_BASE_URL, OpenAICompatibleModel
+
+    return OpenAICompatibleModel(
+        base_url=str(cfg_map.get("model_base_url") or DEFAULT_BASE_URL).strip(),
+        api_key=str(cfg_map.get("model_api_key") or "").strip(),
+        model=model_name,
+        timeout_s=float(cfg_map.get("model_timeout_s") or 30.0),
+    )
+
+
+def _mode(cfg_map: dict[str, Any]) -> str:
+    """``auto`` or ``on_demand``; anything unrecognised means the default.
+
+    A typo should cost the deployment the mode it asked for, not its
+    retrieval — so this narrows rather than raising. It does not narrow
+    *quietly*: an unrecognised value is logged with the mode actually used,
+    because handing back the opposite mode with no signal is the failure shape
+    this plugin family keeps getting caught by, and 0.3.0 changed which mode
+    the default is.
+    """
+    raw = cfg_map.get("mode")
+    asked = "" if raw is None else str(raw).strip()
+    if asked not in ("", "auto", "on_demand"):
+        used = "on_demand"
+        log.warning("unknown mode %r; running in %s", asked, used)
+        return used
+    return "auto" if asked == "auto" else "on_demand"
+
+
+def _build_search(ctx: Any) -> tuple[Any, dict[str, Any]] | None:
+    """The engine and its config slice, or ``None`` when nothing is configured."""
     cfg_map = dict(getattr(ctx, "config", None) or {})
     services = getattr(ctx, "services", None)
 
@@ -136,8 +274,7 @@ def make_segment(ctx: Any) -> Any | None:
     # host's own SkillRegistry so the plugin does not rescan the disk the
     # host already watches; `_provider` is the model channel the rewriter
     # and the gate run on.
-    provider = cfg_map.get("_provider")
-    model = _ProviderAdapter(provider) if provider is not None else None
+    model = _resolve_model(cfg_map)
 
     search = SkillSearch(
         config,
@@ -147,7 +284,54 @@ def make_segment(ctx: Any) -> Any | None:
     )
     if not search.has_sources:
         return None
+    return search, cfg_map
+
+
+def make_segment(ctx: Any) -> Any | None:
+    """Context-segment entry point. ``None`` declines the stage.
+
+    Declines in on-demand mode as well as when nothing is configured: filling
+    the stage there would search a second time for the same turn and put the
+    same skill in front of the model twice.
+    """
+    built = _build_search(ctx)
+    if built is None:
+        return None
+    search, cfg_map = built
+    if _mode(cfg_map) != "auto":
+        return None
     return SkillsSegment(search)
+
+
+def make_skill_search_tool(ctx: Any) -> Any | None:
+    """Tool entry point. ``None`` declines to register.
+
+    The host drops a tool whose factory returns ``None``, which is what keeps
+    `skill_search` out of the agent's tool list in auto mode instead of
+    offering a search that already ran.
+
+    The returned object subclasses the host's own ``Tool``. That matters more
+    than it looks: the registry calls ``to_schema`` to build the model-facing
+    definition and ``cast_params`` / ``validate_params`` before dispatch, and
+    the agent loop calls ``display_call`` with no ``hasattr`` guard — all of
+    them concrete methods on the ABC that a look-alike class does not get. The
+    import is here rather than at module scope because the host is not
+    importable outside a checkout, and this package installs and tests without
+    one.
+    """
+    built = _build_search(ctx)
+    if built is None:
+        return None
+    search, cfg_map = built
+    if _mode(cfg_map) != "on_demand":
+        return None
+
+    from raven.agent.tools.base import Tool  # host type, factory-local
+
+    class _HostSkillSearchTool(SkillSearchTool, Tool):  # type: ignore[misc, valid-type]
+        """`SkillSearchTool`'s body over the host's ABC."""
+
+    return _HostSkillSearchTool(search)
 
 
 def _text_of(resp: Any) -> str:
@@ -168,4 +352,4 @@ def _text_of(resp: Any) -> str:
     return str(resp or "")
 
 
-__all__ = ["SkillsSegment", "make_segment"]
+__all__ = ["SkillSearchTool", "SkillsSegment", "make_segment", "make_skill_search_tool"]

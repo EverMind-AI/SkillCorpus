@@ -124,6 +124,9 @@ def test_the_gate_runs_over_real_http_end_to_end(tmp_path: Path, provider) -> No
                 # Explicit: with only a local directory the gate is off by
                 # default, and these tests are about the gate.
                 "gate": True,
+                # And explicit about the mode: the default is on demand, where
+                # `prefetch` deliberately returns nothing.
+                "mode": "auto",
             }
         ),
         encoding="utf-8",

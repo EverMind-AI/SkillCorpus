@@ -86,6 +86,16 @@ openclaw-plugin:
     - npm install --no-audit --no-fund
     - npm run ci
 
+# A separate package, not a replacement: OpenClaw 2.0 dropped the hook path
+# the 1.x plugin is built on, so the two hosts need different shapes.
+openclaw2-plugin:
+  stage: test
+  image: node:22-slim
+  script:
+    - cd skillcorpus_plugin/plugin-openclaw2
+    - npm install --no-audit --no-fund
+    - npm run ci
+
 # The WorkBuddy plugin is a hook process over the TypeScript engine;
 # `ci` typechecks it, runs its suite, and builds the shipped bundle.
 workbuddy-plugin:

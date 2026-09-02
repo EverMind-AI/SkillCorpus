@@ -1,6 +1,6 @@
 [plugin]
 id                 = "skillsearch"
-version            = "0.2.0"
+version            = "0.3.0"
 display_name       = "Skill retrieval"
 raven              = ">=0.1"
 bundled            = false
@@ -14,7 +14,19 @@ name     = "skills"
 factory  = "skillsearch_raven:make_segment"
 replaces = "skills"
 
+# The other half of `mode`. Both entries are always declared; the factories
+# decide which one is live, so exactly one of them ever registers. Declaring
+# both and having each decline when it is not the configured mode is how the
+# host's static manifest and a runtime setting are reconciled.
+[[plugin.contributes.tools]]
+name    = "skill_search"
+factory = "skillsearch_raven:make_skill_search_tool"
+
 [plugin.config_schema]
+# How skills reach the agent. "on_demand" offers `skill_search` and lets the
+# agent decide; "auto" fills the `skills` stage on every turn. Exclusive:
+# running both would search twice a turn and show the same skill twice.
+mode           = { type = "string",  default = "on_demand" }
 # Sources. With neither a skills directory nor a catalog endpoint there is
 # nothing to retrieve, and the segment declines its slot.
 skills_dir     = { type = "string",  default = "skills" }
@@ -38,7 +50,15 @@ top_k         = { type = "integer", default = 5 }
 
 # Narrowing. Both the rewriter and the gate need a model; leaving `model`
 # empty runs retrieval raw.
+#
+# In auto mode the host hands the segment factory its own live provider and
+# these three are ignored. The tool factory is handed no provider, so in
+# on-demand mode — the default — they are the only way the rewriter and the
+# gate get a model at all. Naming a `model` is what turns them on.
 model          = { type = "string",  default = "" }
+model_base_url = { type = "string",  default = "https://api.openai.com/v1" }
+model_api_key  = { type = "string",  default = "" }
+model_timeout_s = { type = "number", default = 30.0 }
 rewrite        = { type = "boolean", default = true }
 gate           = { type = "boolean", default = true }
 gate_pool      = { type = "integer", default = 10 }

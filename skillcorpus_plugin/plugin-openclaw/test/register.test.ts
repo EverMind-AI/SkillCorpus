@@ -18,6 +18,7 @@ import test from 'node:test'
 import { DEFAULTS, loadConfig } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import type {
+  AgentTool,
   BeforePromptBuildEvent,
   BeforePromptBuildResult,
   OpenClawPluginApi,
@@ -33,9 +34,11 @@ type Handler = (
 function fakeApi(pluginConfig?: Record<string, unknown>): {
   api: OpenClawPluginApi
   hooks: Map<string, Handler>
+  tools: Map<string, AgentTool>
   warnings: string[]
 } {
   const hooks = new Map<string, Handler>()
+  const tools = new Map<string, AgentTool>()
   const warnings: string[] = []
   const api: OpenClawPluginApi = {
     id: 'skillsearch',
@@ -46,8 +49,9 @@ function fakeApi(pluginConfig?: Record<string, unknown>): {
       warn: (message: string) => { warnings.push(message) },
     },
     on: (event, handler) => { hooks.set(event, handler as Handler) },
+    registerTool: tool => { tools.set(tool.name, tool) },
   }
-  return { api, hooks, warnings }
+  return { api, hooks, tools, warnings }
 }
 
 /** A skills directory with one obvious match and one distractor. */
@@ -69,13 +73,13 @@ async function skillsDir(): Promise<string> {
 const NO_CTX: PluginHookAgentContext = {}
 
 test('registers exactly the hook the host calls before a prompt is built', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api)
   assert.deepEqual([...hooks.keys()], ['before_prompt_build'])
 })
 
 test('injects the ranked skills through prependContext', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()], topK: 1 })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()], topK: 1 })
   register(api)
 
   const result = await hooks.get('before_prompt_build')!(
@@ -98,7 +102,7 @@ test('returns nothing when the corpus shares no term with the query', async () =
   // match and nothing else: a query with no shared term returns nothing, and
   // a query that merely brushes one does return a weak hit. Removing those
   // is the gate's job, which is why the README calls a model near-required.
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api)
   const hook = hooks.get('before_prompt_build')!
 
@@ -109,7 +113,7 @@ test('returns nothing when the corpus shares no term with the query', async () =
 })
 
 test('falls back to the last user message when the prompt arrives empty', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()], topK: 1 })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()], topK: 1 })
   register(api)
 
   const result = await hooks.get('before_prompt_build')!(
@@ -126,7 +130,7 @@ test('falls back to the last user message when the prompt arrives empty', async 
 })
 
 test('registers no hook at all when nothing is configured to search', async () => {
-  const { api, hooks } = fakeApi({ skillsDirs: [] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [] })
   register(api)
   assert.equal(hooks.size, 0)
 })
@@ -139,7 +143,7 @@ test('the manifest accepts the placeholder-resolution switch', async () => {
 
 test('engines are cached per workspace rather than shared across agents', async () => {
   const builtFor: Array<string | undefined> = []
-  const { api, hooks } = fakeApi({ skillsDirs: ['/skills'] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: ['/skills'] })
   register(api, {
     buildEngineFn: (_config, workspaceDir) => {
       builtFor.push(workspaceDir)
@@ -153,8 +157,23 @@ test('engines are cached per workspace rather than shared across agents', async 
   assert.deepEqual(builtFor, [undefined, '/workspace/a', '/workspace/b'])
 })
 
+test('on-demand retrieval keeps an unknown workspace unknown', async () => {
+  const builtFor: Array<string | undefined> = []
+  const { api, tools } = fakeApi({ mode: 'on_demand', skillsDirs: ['/skills'] })
+  register(api, {
+    buildEngineFn: (_config, workspaceDir) => {
+      builtFor.push(workspaceDir)
+      return { enabled: true, retrieve: () => Promise.resolve('') } as never
+    },
+  })
+
+  await tools.get('skill_search')!.execute('call', { query: 'find a skill' }, undefined, undefined)
+
+  assert.deepEqual(builtFor, [undefined])
+})
+
 test('a retrieval that throws costs the turn its skills, not the turn', async () => {
-  const { api, hooks, warnings } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks, warnings } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api, {
     buildEngineFn: () => ({
       enabled: true,
@@ -173,6 +192,7 @@ test('a retrieval that throws costs the turn its skills, not the turn', async ()
 test('the gate sees the tools a deployment declared', async () => {
   const seen: (readonly string[] | undefined)[] = []
   const { api, hooks } = fakeApi({
+    mode: 'auto',
     skillsDirs: [await skillsDir()],
     availableTools: 'exec, read_file',
   })
@@ -192,7 +212,7 @@ test('the gate sees the tools a deployment declared', async () => {
 
 test('a blank turn never reaches retrieval', async () => {
   let called = 0
-  const { api, hooks } = fakeApi({ skillsDirs: [await skillsDir()] })
+  const { api, hooks } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api, {
     buildEngineFn: () => ({
       enabled: true,
@@ -266,4 +286,49 @@ test('the last user message is found past assistant and tool turns', () => {
 
 test('an engine with no sources reports itself disabled', async () => {
   assert.equal(buildEngine(loadConfig({ skillsDirs: [], hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '' }, {} as NodeJS.ProcessEnv)).enabled, false)
+})
+
+test('a mode nobody recognises is narrowed, and said out loud', async () => {
+  const { api, hooks, tools, warnings } = fakeApi({
+    mode: 'atuo',
+    skillsDirs: [await skillsDir()],
+  })
+  register(api)
+
+  // Narrowed to the default rather than failing the load: a typo must not
+  // cost the deployment its retrieval.
+  assert.ok(tools.has('skill_search'), 'on-demand is what an unknown mode falls back to')
+  assert.equal(hooks.size, 0, 'and the auto path must not also be wired')
+
+  // But not silently. Without the warning the operator gets the opposite
+  // mode of the one they typed and no indication of it.
+  const complaint = warnings.find(message => message.includes('unknown mode'))
+  assert.ok(complaint, `expected a warning, got ${JSON.stringify(warnings)}`)
+  assert.match(complaint, /"atuo"/)
+  assert.match(complaint, /on_demand/)
+})
+
+test('a valid mode draws no complaint', async () => {
+  const { api, warnings } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
+  register(api)
+  assert.equal(warnings.filter(m => m.includes('unknown mode')).length, 0)
+})
+
+test('a source that is down is reported, not swallowed', async () => {
+  // A closed port: the engine treats one failing source as empty and keeps
+  // the others, which is right — but nothing was consuming the report, so an
+  // unreachable catalogue and an empty one looked identical from outside.
+  const { api, tools, warnings } = fakeApi({
+    mode: 'on_demand',
+    skillsDirs: [await skillsDir()],
+    hubEndpoint: 'http://127.0.0.1:1',
+  })
+  register(api)
+  await tools.get('skill_search')!.execute(
+    'call', { query: 'extract tables from a scanned PDF invoice' }, undefined, undefined,
+  )
+
+  const complaint = warnings.find(message => message.includes('source hub failed'))
+  assert.ok(complaint, `expected a source warning, got ${JSON.stringify(warnings)}`)
+  assert.ok(!complaint.includes('apiKey'), 'a diagnostic must not carry a credential')
 })

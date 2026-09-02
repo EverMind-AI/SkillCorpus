@@ -75,6 +75,11 @@ jobs:
         include:
           - name: OpenClaw
             directory: plugin-openclaw
+          # A separate package, not a replacement: OpenClaw 2.0 dropped the
+          # hook path the 1.x plugin is built on, so the two hosts need
+          # different shapes and both ship.
+          - name: OpenClaw 2.0
+            directory: plugin-openclaw2
           - name: WorkBuddy
             directory: plugin-workbuddy
     steps:
@@ -88,9 +93,12 @@ jobs:
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
       - run: npm run ci
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
-      - name: Verify checked-in WorkBuddy runtime is current
+      # Both bundles: on-demand mode — the default — reaches the model
+      # through `mcp.mjs`, so a stale one ships a plugin whose default has no
+      # runtime, and nothing else would notice.
+      - name: Verify checked-in WorkBuddy runtimes are current
         if: matrix.directory == 'plugin-workbuddy'
-        run: git diff --exit-code -- dist/hook.mjs
+        run: git diff --exit-code -- dist/hook.mjs dist/mcp.mjs
         working-directory: skillcorpus_plugin/plugin-workbuddy
       - run: node ../scripts/verify_npm_package.mjs .
         working-directory: skillcorpus_plugin/${{ matrix.directory }}

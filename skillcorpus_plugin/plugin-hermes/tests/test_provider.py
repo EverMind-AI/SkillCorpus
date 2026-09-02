@@ -58,7 +58,9 @@ def home(tmp_path: Path) -> Path:
     write_skill(skills, "pdf-forms", "Fill PDF acroforms", "Run pdftk with an FDF.")
     write_skill(skills, "git-bisect", "Find the commit that broke a test", "Run git bisect start.")
     (tmp_path / "skillsearch.json").write_text(
-        json.dumps({"skills_dir": str(skills), "top_k": 2}), encoding="utf-8"
+        # `mode` explicitly: these pin what auto injects, and the default is
+        # on demand, where `prefetch` deliberately returns nothing.
+        json.dumps({"skills_dir": str(skills), "top_k": 2, "mode": "auto", "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}), encoding="utf-8"
     )
     return tmp_path
 
@@ -241,6 +243,61 @@ def test_the_config_schema_covers_every_documented_key() -> None:
     assert {"skills_dir", "hub_endpoint", "model", "top_k", "max_select"} <= keys
 
 
-def test_no_model_callable_tools_are_published() -> None:
-    """Retrieval is automatic; a tool would be one more thing to remember to press."""
-    assert plugin.SkillSearchProvider().get_tool_schemas() == []
+def test_auto_mode_publishes_no_tool(home: Path) -> None:
+    """Retrieval already ran before this model call; a tool would search twice."""
+    provider = plugin.SkillSearchProvider()
+    provider.initialize("", hermes_home=str(home))
+    assert provider.get_tool_schemas() == []
+
+
+def test_on_demand_publishes_skill_search(tmp_path: Path) -> None:
+    """The default. The tool is the only way a skill reaches the agent here."""
+    skills = tmp_path / "skills"
+    write_skill(skills, "pdf-forms", "Fill PDF acroforms", "Run pdftk with an FDF.")
+    (tmp_path / "skillsearch.json").write_text(
+        json.dumps({"skills_dir": str(skills), "top_k": 2, "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}), encoding="utf-8"
+    )
+    provider = plugin.SkillSearchProvider()
+    provider.initialize("", hermes_home=str(tmp_path))
+
+    schemas = provider.get_tool_schemas()
+    assert [s["name"] for s in schemas] == ["skill_search"]
+    assert schemas[0]["parameters"]["required"] == ["query"]
+
+    # Injection stays silent, or the same skill arrives twice.
+    assert provider.prefetch("fill the acroform with pdftk") == ""
+
+    out = provider.handle_tool_call("skill_search", {"query": "fill the acroform with pdftk"})
+    assert "pdf-forms" in out
+
+    # A miss reads as an answer, not as a broken tool.
+    assert "No skill" in provider.handle_tool_call("skill_search", {"query": "kubernetes ingress"})
+    assert "needs a query" in provider.handle_tool_call("skill_search", {"query": "  "})
+    assert "Unknown tool" in provider.handle_tool_call("nope", {"query": "x"})
+
+
+def test_unknown_mode_narrows_to_the_default_and_says_so(tmp_path, caplog):
+    """Same contract as the other hosts: narrow, but do not go quiet.
+
+    `_mode` is read on every turn, so the warning is emitted once per instance
+    rather than once per turn — a line per turn would be noise nobody reads.
+    """
+    import logging
+
+    (tmp_path / "skillsearch.json").write_text(
+        json.dumps({"mode": "atuo", "skills_dir": str(tmp_path / "skills")}),
+        encoding="utf-8",
+    )
+    provider = plugin.SkillSearchProvider()
+    provider._home = str(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        assert provider._mode == "on_demand"
+        assert provider._mode == "on_demand"
+
+    complaints = [r for r in caplog.records if "unknown mode" in r.getMessage()]
+    assert len(complaints) == 1, [r.getMessage() for r in caplog.records]
+    assert "atuo" in complaints[0].getMessage()
+
+    # An unknown mode must leave the on-demand surface intact, not strip it.
+    assert [s["name"] for s in provider.get_tool_schemas()] == ["skill_search"]

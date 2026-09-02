@@ -28,7 +28,7 @@ several pass, ask the user.
 | --- | --- |
 | WorkBuddy | `~/.workbuddy-ai/settings.json` exists, or your own hook payloads carry `"client": "WorkBuddy"` |
 | Hermes | `$HERMES_HOME` is set, or `~/.hermes/` exists |
-| OpenClaw | `~/.openclaw/openclaw.json` exists, or an `openclaw` process/CLI is present |
+| OpenClaw | `~/.openclaw/openclaw.json` exists, or an `openclaw` process/CLI is present; run `openclaw --version` before choosing the 1.x or 2.0 instructions below |
 | DeepSeek Harness | the workspace you are in has a `cordis.yml` and a `packages/` tree |
 | Raven | `~/.raven/` exists, or `raven` CLI is present |
 
@@ -73,7 +73,7 @@ memory:
   provider: skillsearch
 ```
 
-## OpenClaw
+## OpenClaw 1.x (through 2026.7.x)
 
 ```bash
 npm install --prefix plugin-openclaw
@@ -98,9 +98,64 @@ directory in this checkout:
 }
 ```
 
-Works on OpenClaw releases back to 2026.3.8. The gateway/app must be
+Works on OpenClaw releases from 2026.3.8 through 2026.7.x. The gateway/app must be
 restarted to pick up a new plugin — tell the user, or do it if they said to
 proceed.
+
+## OpenClaw 2.0 (2026.8.1 and newer)
+
+Do not install the 1.x package on OpenClaw 2.0. Build the separate context-engine
+package instead:
+
+```bash
+npm install --prefix plugin-openclaw2
+npm run --prefix plugin-openclaw2 build
+```
+
+For the default `on_demand` mode, merge the following into
+`~/.openclaw/openclaw.json`. `load.paths` must be the absolute path of the
+`plugin-openclaw2` directory:
+
+```jsonc
+{
+  "plugins": {
+    "load": { "paths": ["/ABS/PATH/TO/plugin-openclaw2"] },
+    "entries": {
+      "skillsearch": {
+        "enabled": true,
+        "config": {
+          "mode": "on_demand",
+          "skillsDirs": ["~/.openclaw/skills"]
+        }
+      }
+    }
+  }
+}
+```
+
+In `on_demand`, the plugin registers `skill_search` and does **not** occupy the
+context-engine slot. If the user explicitly chooses `mode: auto`, also add the
+two grants to the `skillsearch` entry and select its context engine:
+
+```jsonc
+{
+  "plugins": {
+    "entries": {
+      "skillsearch": {
+        "hooks": {
+          "allowConversationAccess": true,
+          "allowPromptInjection": true
+        },
+        "config": { "mode": "auto" }
+      }
+    },
+    "slots": { "contextEngine": "skillsearch" }
+  }
+}
+```
+
+The grants belong under `plugins.entries.skillsearch`, not in a top-level
+`hooks` block. Restart the gateway/app after changing the package or config.
 
 ## DeepSeek Harness
 
@@ -131,11 +186,12 @@ skills twice and ask whether to disable it — do not disable it yourself.
 pip install ./engine-python ./plugin-raven
 ```
 
-Be straight with the user about the current state: the plugin installs
-cleanly, but Raven has no `context_segments` plugin slot yet (it is landing
-upstream), so the plugin will not claim a stage until Raven ships that.
-Raven's own built-in retrieval keeps working today. Configure nothing else;
-report this state and move to verification only for the import check:
+The default `on_demand` mode registers `skill_search` and works today. Be
+straight with the user that `mode: auto` still depends on Raven’s upstream
+`context_segments` slot; until Raven ships it, auto injection cannot claim the
+`skills` stage. Raven’s built-in retrieval keeps working. Configure nothing else
+unless the user requests `auto`; then explain this limitation. Verify the
+packages import:
 
 ```bash
 python -c "import skillsearch, skillsearch_raven; print('import ok')"
@@ -157,8 +213,8 @@ python -c "import skillsearch, skillsearch_raven; print('import ok')"
 Do all of these; the install is done only when every box is ticked.
 
 1. **Plugin discovered**: the host's own listing/log shows the plugin loaded
-   (Hermes: provider list; OpenClaw: plugin log line; DSH: boot log;
-   Raven: the import check above).
+   (Hermes: provider list; OpenClaw 1.x/2.0: plugin log line; DSH: boot log;
+   Raven: the import check and, when available, its tool list).
 2. **Create a test skill** in the configured skills directory:
 
 ```bash
@@ -166,21 +222,43 @@ mkdir -p <skills_dir>/pdf-tables
 printf -- '---\nname: pdf-tables\ndescription: Extract tables from PDF documents, scanned or native, into CSV.\n---\nUse camelot for native PDFs.\n' > <skills_dir>/pdf-tables/SKILL.md
 ```
 
-3. **Positive probe**: start a fresh session in the host and ask
-   *"how do I extract tables from a scanned PDF invoice?"* — confirm a
-   `# Skills` block containing `pdf-tables` reached the context (visible in
-   the reply's behaviour, the host's debug view, or
-   `SKILLSEARCH_GATE_LOG_PATH` on Python hosts).
-4. **Negative probe**: ask *"what's the weather in Beijing?"* — confirm
-   nothing was injected.
+3. **Positive probe** — and *which* probe depends on the mode, because the
+   two modes deliver skills by different routes. Check the configured mode
+   first; if nothing sets `mode`, it is `on_demand`.
+
+   **`on_demand` (the default from 0.3.0)** — start a fresh session and ask
+   *"how do I extract tables from a scanned PDF invoice into CSV?"*. Confirm
+   the agent **called `skill_search`** and that the call returned
+   `pdf-tables` (the host's tool-call display, or its debug view). There is
+   no `# Skills` block in this mode and its absence is correct, not a
+   failure. If the agent answers well without calling the tool, the probe
+   has not passed — it answered from its own knowledge.
+
+   **`auto`** — same question; confirm a `# Skills` block containing
+   `pdf-tables` reached the context (the host's debug view, or
+   `SKILLSEARCH_GATE_LOG_PATH` on Python hosts). Confirm no tool call
+   happened; `skill_search` is not offered in this mode.
+
+4. **Negative probe**: ask *"zxqv-7319, reply with this exact string only."*
+   — in `auto`, confirm nothing was injected; in `on_demand`, confirm
+   `skill_search` was not called. Do not use a weather question: the public
+   catalogues contain real weather skills, so a hit there is correct
+   behaviour and tells you nothing.
 5. **Report**: list every file you created or edited (with the diffs), the
-   probe results, and how to undo everything (the section below).
+   mode you verified, the probe results, and how to undo everything (the
+   section below).
 
 If step 3 fails: check the skills directory path in the config matches
 where you wrote the test skill; check the host was restarted after config
 changes; on Python hosts set `SKILLSEARCH_GATE_LOG_PATH=/tmp/gate.jsonl`
 and re-ask, then read the record to see whether retrieval found nothing or
-the gate rejected it. Report what you find rather than retrying blindly.
+the gate rejected it. In `on_demand`, also check the tool is actually on the
+agent's tool surface before concluding the model chose not to call it.
+Report what you find rather than retrying blindly.
+
+A fuller set of prompts and acceptance conditions — six hosts, both modes,
+failure isolation and upgrade — lives in
+[`tests/host-e2e/cases.md`](tests/host-e2e/cases.md).
 
 ## Uninstall
 
@@ -189,7 +267,9 @@ When the user asks to remove skillsearch:
 1. Remove what install added — Hermes: `$HERMES_HOME/plugins/skillsearch/`
    and the `skillsearch.json`; OpenClaw: the two config keys and the
    `plugin-openclaw` path entry; DSH: the `cordis.yml` row, the tsconfig
-   reference, and `packages/skill/skill-search/`; Raven:
+   reference, and `packages/skill/skill-search/`; OpenClaw 2.0: the
+   `plugin-openclaw2` path plus any `contextEngine` slot and hook grants added
+   for auto mode; Raven:
    `pip uninstall skillsearch skillsearch-raven`.
 2. Offer to delete the bundle cache (`~/.skillsearch/hub`,
    `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles`).

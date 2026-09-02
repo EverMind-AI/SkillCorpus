@@ -66,6 +66,13 @@ PROJECTS = (
         "json",
     ),
     Project(
+        "OpenClaw 2.0",
+        Path("skillcorpus_plugin/plugin-openclaw2/package.json"),
+        Path("skillcorpus_plugin/plugin-openclaw2/README.md"),
+        "@evermind-ai/openclaw2-skillsearch",
+        "json",
+    ),
+    Project(
         "Raven",
         Path("skillcorpus_plugin/plugin-raven/pyproject.toml"),
         Path("skillcorpus_plugin/plugin-raven/README.md"),
@@ -87,9 +94,14 @@ EXPECTED_PLUGIN_DIRS = {
     "engine-typescript",
     "plugin-hermes",
     "plugin-openclaw",
+    "plugin-openclaw2",
     "plugin-raven",
     "plugin-workbuddy",
     "scripts",
+    # Cross-package: the host end-to-end cases and their release reports. Not
+    # a package, and deliberately not under any one plugin, because a case
+    # only means something when the six hosts are judged the same way.
+    "tests",
 }
 
 

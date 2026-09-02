@@ -69,7 +69,8 @@ var DEFAULTS = {
   rrfK: 10,
   indexCachePath: join(DATA_DIR, "index-cache.json"),
   logPath: join(DATA_DIR, "skillsearch.log"),
-  resolvePlaceholders: false
+  resolvePlaceholders: false,
+  mode: "on_demand"
 };
 var ENV_KEYS = {
   skillsDirs: "SKILLSEARCH_SKILLS_DIRS",
@@ -94,7 +95,8 @@ var ENV_KEYS = {
   rrfK: "SKILLSEARCH_RRF_K",
   indexCachePath: "SKILLSEARCH_INDEX_CACHE_PATH",
   logPath: "SKILLSEARCH_LOG_PATH",
-  resolvePlaceholders: "SKILLSEARCH_RESOLVE_PLACEHOLDERS"
+  resolvePlaceholders: "SKILLSEARCH_RESOLVE_PLACEHOLDERS",
+  mode: "SKILLSEARCH_MODE"
 };
 function asList(value) {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -134,6 +136,14 @@ function readConfigDocument(path = join(DATA_DIR, "config.json")) {
     return {};
   }
 }
+function unknownMode(pluginConfig, env = process.env) {
+  const variable = ENV_KEYS.mode;
+  const fromEnv = variable ? env[variable] : void 0;
+  const raw = fromEnv !== void 0 && fromEnv !== "" ? fromEnv : (pluginConfig ?? {}).mode;
+  if (raw === void 0 || raw === null) return void 0;
+  const value = String(raw).trim();
+  return value === "" || value === "auto" || value === "on_demand" ? void 0 : value;
+}
 function loadConfig(document, env = process.env) {
   const source = document ?? {};
   const pick = (key) => {
@@ -168,7 +178,11 @@ function loadConfig(document, env = process.env) {
     rrfK: asNumber(pick("rrfK")) ?? DEFAULTS.rrfK,
     indexCachePath: asText(pick("indexCachePath")) ?? DEFAULTS.indexCachePath,
     logPath: asText(pick("logPath")) ?? DEFAULTS.logPath,
-    resolvePlaceholders: asBoolean(pick("resolvePlaceholders")) ?? DEFAULTS.resolvePlaceholders
+    resolvePlaceholders: asBoolean(pick("resolvePlaceholders")) ?? DEFAULTS.resolvePlaceholders,
+    // An unrecognised value falls back to the default rather than failing the
+    // load: a typo should cost the deployment the mode it wanted, not its
+    // whole plugin config.
+    mode: pick("mode") === "auto" ? "auto" : "on_demand"
   };
 }
 
@@ -561,9 +575,9 @@ var SkillSearchEngine = class {
     this.refs = options.resolveRefs ?? true;
     this.placeholders = options.resolvePlaceholders ?? false;
     this.runtime = {
-      outputDir: options.outputDir,
-      homeDir: options.homeDir,
-      stateDir: options.stateDir
+      ...options.outputDir === void 0 ? {} : { outputDir: options.outputDir },
+      ...options.homeDir === void 0 ? {} : { homeDir: options.homeDir },
+      ...options.stateDir === void 0 ? {} : { stateDir: options.stateDir }
     };
   }
   /** Whether anything is configured to search. */
@@ -1952,7 +1966,9 @@ function log(config, entry) {
   }
 }
 async function runTurn(input, deps = {}) {
-  const config = deps.config ?? loadConfig(readConfigDocument());
+  const document = deps.config ? void 0 : readConfigDocument();
+  const config = deps.config ?? loadConfig(document);
+  const badMode = deps.config ? void 0 : unknownMode(document);
   const startedAt = Date.now();
   let payload = {};
   try {
@@ -1962,9 +1978,10 @@ async function runTurn(input, deps = {}) {
   }
   const query = queryOf(payload);
   let block = "";
+  const injecting = config.mode === "auto";
   let failure = null;
   const sourceDiagnostics = [];
-  if (query) {
+  if (query && injecting) {
     try {
       block = await (deps.retrieveFn ?? retrieveForTurn)(
         query,
@@ -1983,6 +2000,11 @@ async function runTurn(input, deps = {}) {
     prompt: query.slice(0, 120),
     model: payload.model ?? null,
     agent_type: payload.agent_type ?? null,
+    // Present only when someone typed a mode that does not exist. The value
+    // is narrowed to the default rather than rejected, so without this line
+    // the operator gets the opposite mode and no sign of it — and 0.3.0
+    // changed which mode the default is, which makes the silence worse.
+    ...badMode !== void 0 ? { unknown_mode: badMode, mode_used: config.mode } : {},
     skills: selectedSkills(block),
     injected_chars: block.length,
     elapsed_ms: Date.now() - startedAt,

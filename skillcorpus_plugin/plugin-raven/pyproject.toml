@@ -1,6 +1,6 @@
 [project]
 name = "skillsearch-raven"
-version = "0.2.0"
+version = "0.3.0"
 description = "Skill retrieval for Raven: the context segment that claims the `skills` stage."
 readme = "README.md"
 requires-python = ">=3.11"

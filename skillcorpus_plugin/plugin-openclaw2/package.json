@@ -1,0 +1,46 @@
+{
+  "name": "@evermind-ai/openclaw2-skillsearch",
+  "version": "0.3.0",
+  "description": "Skill retrieval for OpenClaw 2.0 as a context engine: local directory, remote catalog, model-gated selection.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/plugin-openclaw2/src/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --outfile=dist/index.js && tsc -p tsconfig.json --emitDeclarationOnly",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "node --import tsx --test \"test/*.test.ts\"",
+    "ci": "npm run typecheck && npm run test && npm run build",
+    "prepack": "npm run clean && npm run build"
+  },
+  "openclaw": {
+    "extensions": [
+      "dist/index.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EverMind-AI/SkillCorpus.git",
+    "directory": "skillcorpus_plugin/plugin-openclaw2"
+  },
+  "homepage": "https://github.com/EverMind-AI/SkillCorpus/tree/main/skillcorpus_plugin/plugin-openclaw2",
+  "bugs": {
+    "url": "https://github.com/EverMind-AI/SkillCorpus/issues"
+  }
+}

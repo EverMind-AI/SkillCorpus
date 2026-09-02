@@ -25,7 +25,7 @@ import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { FinishReason, GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 // Declaration-merges the optional `tools` service this reads through `ctx.get`.
-import type {} from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import { SkillSearchEngine } from './engine.js'
 import type { SkillSource } from './types.js'
 import { LLMGateFilter } from './gate.js'
@@ -139,6 +139,20 @@ export interface Config {
   resolveRefs?: boolean
   /** Expand PathGuard placeholders in trusted skill bodies. Off by default. */
   resolvePlaceholders?: boolean
+  /**
+   * How skills reach the agent.
+   *
+   * - `on_demand` (the default) registers a `skill_search` tool and lets the
+   *   agent decide when it needs one. A long task pays for retrieval at the
+   *   step that needs it and nothing on the turns that do not.
+   * - `auto` searches every turn and injects what it finds, surfacing
+   *   capability the agent did not know to ask for at the cost of running on
+   *   every turn regardless.
+   *
+   * Exclusive: running both would search twice a turn and put the same skill
+   * in front of the model from two directions.
+   */
+  mode?: 'on_demand' | 'auto'
 }
 
 export const Config: z<Config> = z.object({
@@ -164,6 +178,11 @@ export const Config: z<Config> = z.object({
   gateTimeoutMs: z.number().default(20_000),
   resolveRefs: z.boolean().default(true),
   resolvePlaceholders: z.boolean().default(false),
+  // A union, not `z.string()`: the branch below reads `!== 'auto'`, so a
+  // plain string schema turns `mode: "atuo"` into a silent downgrade to
+  // on-demand — the deployment asks for auto and never learns it did not get
+  // it. Narrowed, the loader rejects the typo instead.
+  mode: z.union([z.const('on_demand'), z.const('auto')]).default('on_demand'),
 })
 
 /** Marks the messages this plugin publishes. */
@@ -185,6 +204,39 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
+/**
+ * What the agent reads to decide whether to search.
+ *
+ * In auto mode a weak block costs a turn some tokens. Here this text *is* the
+ * discovery mechanism: an agent only searches if the description told it to.
+ * The in-house-convention clause is not padding — measured on a real host, a
+ * question about an internal template went unanswered until it was named.
+ */
+// Joined with newlines, not spaces: the empty strings above are blank lines,
+// and the dashes are a list. `.join(' ')` flattened the whole thing into one
+// paragraph — the model still called the tool, but the shape the text was
+// written in never reached it.
+const SKILL_SEARCH_DESCRIPTION = [
+  'Search the skill library for a procedure that fits the task at hand, and',
+  'get back the matching skills in full.',
+  '',
+  'A skill is a written workflow for a specific job — filling PDF forms,',
+  'building a slide deck, migrating a schema — including the exact commands,',
+  'files, and in-house conventions it needs.',
+  '',
+  'Reach for it when:',
+  '- a task needs a multi-step procedure you would otherwise improvise;',
+  '- a task names a format, tool, or workflow you would have to guess at;',
+  '- a question asks about an internal convention, template, standard, or',
+  '  "our" way of doing something — a skill is where those are written down,',
+  '  so searching here comes before answering that you do not know.',
+  '',
+  'Search with the words the task actually uses; the query is matched against',
+  'skill names and descriptions. Returns nothing when the library has no fit,',
+  'which is a normal answer and means: proceed on your own.',
+].join('\n')
+
+
 export function apply(ctx: Context, config: Config = {}): void {
   const cfg = Config(config)
   const engine = buildEngine(ctx, cfg)
@@ -192,6 +244,68 @@ export function apply(ctx: Context, config: Config = {}): void {
     ctx.logger('skill-search').info('no sources configured; retrieval is off')
     return
   }
+
+  if ((cfg.mode ?? 'on_demand') !== 'auto') {
+    // On demand. No `agent/pre-step` hook: injecting on every turn is the
+    // other mode, and running both would search twice for one turn.
+    //
+    // `ctx.inject` rather than adding `'tools'` to the module's `inject`
+    // array: entries in that array are *required* services, so listing it
+    // there would stop the plugin loading at all — auto mode included — on a
+    // composition that mounts no tool service. Here the dependency is scoped
+    // to the mode that actually needs it.
+    ctx.inject(['tools'], (toolCtx: Context) => {
+      toolCtx.tools.register(defineTool({
+        name: 'skill_search',
+        description: SKILL_SEARCH_DESCRIPTION,
+        parameters: {
+          query: {
+            type: 'string',
+            required: true,
+            description:
+              'What you need to do, in the task\'s own words — e.g. "extract tables from a scanned PDF invoice".',
+          },
+        },
+        output: {
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              skills: { type: 'string', required: true, description: 'The matching skills, rendered.' },
+              matched: { type: 'boolean', required: true, description: 'Whether anything matched.' },
+            },
+          },
+          render: (_args, value) => [{ type: 'text', text: value.skills }],
+        },
+        async execute(args, exec) {
+          const query = String((args as { query?: unknown }).query ?? '').trim()
+          if (!query) return { skills: 'skill_search needs a query describing the task.', matched: false }
+          // `exec.agent` is optional on the host's contract — a non-agent
+          // caller has none — and `toolNames` was called twice, walking the
+          // tool registry once per branch of its own ternary.
+          const availableTools = toolNames(ctx, exec.agent)
+          try {
+            const skills = await engine.retrieve(query, {
+              signal: exec.signal,
+              ...(availableTools ? { availableTools } : {}),
+            })
+            // A miss is an answer. An empty string would read to a model as a
+            // broken tool rather than as "the library has no fit".
+            return skills
+              ? { skills, matched: true }
+              : { skills: `No skill in the library matches "${query}". Proceed without one.`, matched: false }
+          } catch {
+            // Same rule as the injection path: a failed search costs the turn a
+            // skill, not the turn.
+            return { skills: 'Skill search is unavailable right now. Proceed without a skill.', matched: false }
+          }
+        },
+      }))
+    })
+    ctx.logger('skill-search').info('on-demand mode: the agent calls skill_search')
+    return
+  }
+  ctx.logger('skill-search').info('auto mode: retrieval runs on every turn')
 
   ctx.on('agent/pre-step', async (
     { agent, messages, signal },
@@ -421,7 +535,7 @@ function finishError(finish: FinishReason): Error | undefined {
  * The tools this agent may call, or `undefined` where no tool service is
  * mounted. The gate uses them to reject a skill this agent cannot execute.
  */
-function toolNames(ctx: Context, agent: Agent): readonly string[] | undefined {
+function toolNames(ctx: Context, agent?: Agent): readonly string[] | undefined {
   const tools = ctx.get('tools')
   return tools?.schemas(agent).map(schema => schema.name)
 }

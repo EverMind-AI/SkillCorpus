@@ -39,6 +39,15 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 <br>
 
+## &#128293; 最新动态
+
+- **2026-09-02** 支持 OpenClaw 2.0，并新增更智能的 Skill 注入策略：可选择每轮自动检索，或由主 Agent 按需调用 `skill_search`。
+- **2026-08-27** 支持本地 Skill、EverMind SkillHub、ClawHub 和 skillhub.cn 多源检索，并完成过滤、去重和最终 0–2 条选择。
+- **2026-08-26** 支持 PathGuard 占位符解析和宿主路径适配，正确处理 Skill 文件与 Agent 工作目录。
+- **2026-08-25** 新增面向 WorkBuddy、OpenClaw、Hermes、Raven 和 DeepSeek Harness 的官方 SkillCorpus 插件。
+
+<br>
+
 ## 让 agent 每一轮都更强
 
 在 agent 作答时，真正的区别是一层检索：SkillHub 根据当前任务选出经过审核的过程性知识，
@@ -53,7 +62,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 <tr>
 <td><strong>上下文</strong></td>
 <td>模型自身知识，加上人工维护的 prompt。</td>
-<td>每一轮检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
+<td>自动或按需检索与任务匹配、经过许可审计的 <code>SKILL.md</code>。</td>
 </tr>
 <tr>
 <td><strong>执行</strong></td>
@@ -92,21 +101,27 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## SkillHub 集成
 
-SkillHub 已为下面五个 agent 平台提供逐轮技能检索。点击对应平台，直接查看插件指南：
+SkillHub 已为下面五个 agent 平台提供技能检索。点击对应平台，直接查看插件指南：
 
 <table width="100%">
 <tr>
 <td width="400" align="center"><a href="skillcorpus_plugin/engine-typescript/README.md"><img src="https://avatars.githubusercontent.com/u/148330874?s=200&amp;v=4" alt="DeepSeek Harness" width="72"><br><strong>DeepSeek Harness</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-hermes/README.md"><img src="https://github.com/user-attachments/assets/477eebc4-e615-4425-921e-368d7667e491" alt="Hermes" width="72"><br><strong>Hermes</strong></a></td>
-<td width="400" align="center"><a href="skillcorpus_plugin/plugin-openclaw/README.md"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong></a></td>
+<td width="400" align="center"><img src="https://github.com/user-attachments/assets/01d948fe-1e2b-48e8-9b32-b8057cb3f336" alt="OpenClaw" width="72"><br><strong>OpenClaw</strong><br><a href="skillcorpus_plugin/plugin-openclaw/README.md">1.x</a> / <a href="skillcorpus_plugin/plugin-openclaw2/README.md">2.0</a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-raven/README.md"><img src="https://github.com/user-attachments/assets/27e1ea63-69d4-48b3-a884-7f0355926907" alt="Raven" width="72"><br><strong>Raven</strong></a></td>
 <td width="400" align="center"><a href="skillcorpus_plugin/plugin-workbuddy/README.md"><img src="https://github.com/user-attachments/assets/ab2157dc-90fc-4196-bbf3-87066820f7b4" alt="WorkBuddy" width="72"><br><strong>WorkBuddy</strong></a></td>
 </tr>
 </table>
 
-检索在每一轮、模型作答之前运行：不需要工具调用，不用记技能名字，也不用改宿主代码。
-Raven 插件已经可以安装，但要等 Raven 上游合并 `context_segments` 插槽后才能真正认领
-`skills` 阶段；Raven 自带的检索今天照常工作。
+两种模式，一个开关。**按需检索**（默认）把 `skill_search` 工具交给 agent，由它自己判断：
+长任务只在真正需要的那一步付检索成本，其余轮次不花钱。**`mode: auto`** 是原来的行为——
+每一轮、模型作答之前就检索并注入，不需要工具调用，也不用记技能名字。两者互斥，同时开会
+让同一轮检索两遍。
+
+OpenClaw 分成两个包，因为 2.0 去掉了 1.x 插件所依赖的那个 hook：`plugin-openclaw` 面向
+2026.7.x 及更早，`plugin-openclaw2` 面向 2.0（2026.8.1）及以后。Raven 插件现在就能装、
+按需模式可用；`mode: auto` 要等 Raven 上游合并 `context_segments` 插槽后才能认领 `skills`
+阶段，在那之前是静默失效的。Raven 自带的检索无论哪种情况都照常工作。
 
 > 根据 https://github.com/EverMind-AI/SkillCorpus/blob/main/skillcorpus_plugin/INSTALL.agent.md 安装 SkillCorpus Plugins。
 
