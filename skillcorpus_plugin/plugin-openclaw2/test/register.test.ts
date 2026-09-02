@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { DEFAULTS } from '../src/config.ts'
-import { expandHome, recentUserText, register } from '../src/register.ts'
+import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import { VERSION } from '../src/version.ts'
 import type {
   AgentMessage,
