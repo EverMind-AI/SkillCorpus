@@ -157,6 +157,21 @@ test('engines are cached per workspace rather than shared across agents', async 
   assert.deepEqual(builtFor, [undefined, '/workspace/a', '/workspace/b'])
 })
 
+test('on-demand retrieval keeps an unknown workspace unknown', async () => {
+  const builtFor: Array<string | undefined> = []
+  const { api, tools } = fakeApi({ mode: 'on_demand', skillsDirs: ['/skills'] })
+  register(api, {
+    buildEngineFn: (_config, workspaceDir) => {
+      builtFor.push(workspaceDir)
+      return { enabled: true, retrieve: () => Promise.resolve('') } as never
+    },
+  })
+
+  await tools.get('skill_search')!.execute('call', { query: 'find a skill' }, undefined, undefined)
+
+  assert.deepEqual(builtFor, [undefined])
+})
+
 test('a retrieval that throws costs the turn its skills, not the turn', async () => {
   const { api, hooks, warnings } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
   register(api, {

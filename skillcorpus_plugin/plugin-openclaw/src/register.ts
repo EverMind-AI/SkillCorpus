@@ -215,7 +215,10 @@ export function register(
     // The agent decides when it needs a skill. No hook: injecting on every
     // turn is the other mode, and running both would pay for retrieval twice
     // and put the same skill in front of the model from two directions.
-    api.registerTool(skillSearchTool(engineFor, config, api.logger))
+    // The tool API has no trustworthy session workspace, so reuse the probe
+    // built without one. This leaves workspace-dependent PathGuard
+    // placeholders unresolved instead of expanding them to the gateway cwd.
+    api.registerTool(skillSearchTool(() => probe, config, api.logger))
     api.logger?.info?.('[skillsearch] on-demand mode: the agent calls skill_search')
     return
   }
