@@ -134,8 +134,13 @@ jobs:
         shell: bash
         run: |
           mapfile -d "" files < <(find release-assets -type f -print0 | sort -z)
+          notes_file="docs/releases/${TAG}.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
+          elif [[ -f "$notes_file" ]]; then
+            gh release create "$TAG" "${files[@]}" \
+              --title "SkillCorpus ${TAG#v}" \
+              --notes-file "$notes_file"
           else
             gh release create "$TAG" "${files[@]}" \
               --title "SkillCorpus ${TAG#v}" \
