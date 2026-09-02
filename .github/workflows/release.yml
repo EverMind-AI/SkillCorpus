@@ -1,60 +1,143 @@
-# Publishes the root ``skillcorpus`` package through PyPI Trusted Publishing,
-# then creates a GitHub Release. A tag is the explicit release approval;
-# merging a normal pull request never publishes a package.
+# Builds every release artifact on a release PR or manual run. A vX.Y.Z tag
+# is the explicit publication approval: tag runs also create the GitHub Release
+# and publish the root Python distribution through PyPI Trusted Publishing.
 name: Release
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "pyproject.toml"
+      - "skillcorpus/__init__.py"
+      - "skillcorpus_plugin/**"
+  workflow_dispatch:
   push:
     tags:
-      # GitHub Actions uses glob patterns here, not regular expressions.
-      # The publish job below still requires an exact v<pyproject version> match.
       - "v*"
 
 permissions:
   contents: read
 
 jobs:
-  publish:
-    name: build + publish to PyPI
+  build:
+    name: build release artifacts
     runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Verify tag matches package version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            skillcorpus_plugin/plugin-openclaw/package-lock.json
+            skillcorpus_plugin/plugin-openclaw2/package-lock.json
+            skillcorpus_plugin/plugin-workbuddy/package-lock.json
+
+      - name: Verify release versions
+        shell: bash
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          version="$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
-          test "$tag" = "$version" || {
-            echo "::error::tag v$tag does not match pyproject.toml version $version"
-            exit 1
-          }
-      - run: python -m pip install --upgrade pip build
-      - run: python -m build
-      - run: python scripts/check_package_contents.py dist/*.whl
-      - name: Publish to PyPI with OIDC
-        uses: pypa/gh-action-pypi-publish@release/v1
+          version="$(python3 -c "import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"version\"])")"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            test "$GITHUB_REF_NAME" = "v$version" || {
+              echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+              exit 1
+            }
+          fi
+          python skillcorpus_plugin/scripts/verify_release_versions.py
+
+      - name: Build Python distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          mkdir -p release-assets/python-root release-assets/python-plugins
+          python -m build --outdir release-assets/python-root .
+          python scripts/check_package_contents.py release-assets/python-root/*.whl
+          python -m build --outdir release-assets/python-plugins skillcorpus_plugin/engine-python
+          python -m build --outdir release-assets/python-plugins skillcorpus_plugin/plugin-raven
+          python -m twine check release-assets/python-root/* release-assets/python-plugins/*
+
+      - name: Build TypeScript distributions
+        shell: bash
+        run: |
+          mkdir -p release-assets/npm
+          for package in plugin-openclaw plugin-openclaw2 plugin-workbuddy; do
+            npm ci --prefix "skillcorpus_plugin/$package"
+            npm run --prefix "skillcorpus_plugin/$package" build
+            node skillcorpus_plugin/scripts/verify_npm_package.mjs "skillcorpus_plugin/$package"
+            (
+              cd "skillcorpus_plugin/$package"
+              npm pack --pack-destination "$GITHUB_WORKSPACE/release-assets/npm"
+            )
+          done
+
+      - name: Build complete plugin bundle and checksums
+        shell: bash
+        run: |
+          version="$(python3 -c "import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"version\"])")"
+          tar \
+            --exclude=node_modules \
+            --exclude=__pycache__ \
+            --exclude="*.pyc" \
+            -czf "release-assets/skillcorpus-plugins-v${version}.tar.gz" \
+            .codebuddy-plugin skillcorpus_plugin LICENSE
+          (
+            cd release-assets
+            find . -type f ! -name SHA256SUMS -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+          )
+
+      - name: Verify packaged plugin versions and licenses
+        run: python skillcorpus_plugin/scripts/verify_release_versions.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+          if-no-files-found: error
+
+  publish-pypi:
+    name: publish root package to PyPI
+    if: github.event_name == "push" && github.ref_type == "tag"
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: release-assets/python-root/
 
   github-release:
-    name: create the GitHub Release
-    needs: publish
+    name: create GitHub Release
+    if: github.event_name == "push" && github.ref_type == "tag"
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - name: Create a release if one does not already exist
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
+          mapfile -d "" files < <(find release-assets -type f -print0 | sort -z)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; leaving it unchanged."
-            exit 0
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" \
+              --title "SkillCorpus ${TAG#v}" \
+              --generate-notes
           fi
-          gh release create "$TAG" --title "SkillCorpus ${TAG#v}" --generate-notes
