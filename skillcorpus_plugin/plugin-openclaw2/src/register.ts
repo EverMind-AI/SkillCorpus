@@ -46,6 +46,7 @@ import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { loadConfig, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
 import { skillSearchTool } from './tool.js'
+import { VERSION } from './version.js'
 import type {
   AgentMessage,
   AssembleResult,
@@ -230,7 +231,7 @@ export class SkillSearchContextEngine implements ContextEngine {
   readonly info = {
     id: 'skillsearch',
     name: 'SkillSearch retrieval',
-    version: '0.1.0',
+    version: VERSION,
     ownsCompaction: false,
     // Required in practice: an engine that leaves the fence undeclared is
     // degraded to `legacy` on every turn and `assemble` is never called, with

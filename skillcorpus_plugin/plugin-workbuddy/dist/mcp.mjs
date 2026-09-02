@@ -1927,6 +1927,9 @@ async function retrieveForTurn(query, config, deps = {}, onDiagnostic, workspace
   }
 }
 
+// src/version.ts
+var VERSION = "0.3.0";
+
 // src/mcp.ts
 var PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var SKILL_SEARCH_DESCRIPTION = [
@@ -1975,7 +1978,7 @@ async function handle(message, config, search = (query) => retrieveForTurn(query
     return reply({
       protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
       capabilities: { tools: {} },
-      serverInfo: { name: "skillsearch", version: "0.2.0" }
+      serverInfo: { name: "skillsearch", version: VERSION }
     });
   }
   if (method === "tools/list") {

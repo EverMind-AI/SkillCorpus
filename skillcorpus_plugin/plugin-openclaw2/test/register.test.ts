@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { DEFAULTS } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
+import { VERSION } from '../src/version.ts'
 import type {
   AgentMessage,
   AgentTool,
@@ -309,4 +310,16 @@ test('no sources means the engine reports itself disabled', async () => {
   assert.equal(buildEngine({
     ...DEFAULTS, skillsDirs: [], hubEndpoint: '', clawhubEndpoint: '', skillhubCnEndpoint: '',
   }).enabled, false)
+})
+
+test('the version this package reports is the version it ships', async () => {
+  // Both hosts announce a version to their user, and both announced a wrong
+  // one — the context engine said 0.1.0 and the MCP server 0.2.0, each
+  // against a package that said otherwise. A release bump edits manifests
+  // and forgets a string buried in a source file, so this is the check that
+  // makes the next one loud.
+  const pkg = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version: string }
+  assert.equal(VERSION, pkg.version)
 })

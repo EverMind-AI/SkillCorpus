@@ -18,6 +18,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { DEFAULTS } from '../src/config.ts'
 import { handle, SKILL_SEARCH_TOOL, type Message } from '../src/mcp.ts'
+import { VERSION } from '../src/version.ts'
 
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -280,4 +281,16 @@ test('the shipped bundle stays alive in auto mode, advertising nothing', async (
   await once(child, 'exit')
   child.stdout.destroy()
   child.stderr.destroy()
+})
+
+test('the version this package reports is the version it ships', async () => {
+  // Both hosts announce a version to their user, and both announced a wrong
+  // one — the context engine said 0.1.0 and the MCP server 0.2.0, each
+  // against a package that said otherwise. A release bump edits manifests
+  // and forgets a string buried in a source file, so this is the check that
+  // makes the next one loud.
+  const pkg = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version: string }
+  assert.equal(VERSION, pkg.version)
 })
