@@ -83,23 +83,58 @@ from their current path.
 
 ## Verification — definition of done
 
-Installation is complete only after these checks pass:
+This plugin has two modes and they deliver skills by different routes, so they
+have different definitions of done. **Check which mode is configured before
+verifying anything** — if `config.json` sets no `mode`, it is `on_demand`,
+which has been the default since 0.3.0. Verifying the hook log on an
+`on_demand` install checks a path that is deliberately inert and proves
+nothing.
+
+Step 1 applies to both:
 
 1. **Discovered after restart:** the plugin still appears installed and enabled.
    Some WorkBuddy builds create a live `.in_use/<pid>` marker in the install
    directory; treat that marker as optional diagnostic evidence, not as a
    requirement.
-2. **Hook runs:** create a fresh task and ask a skill-related question. Confirm
+
+### `on_demand` (the default)
+
+The tool reaches the model over a local stdio MCP server, which WorkBuddy
+launches from the plugin manifest. There is no per-turn injection in this mode.
+
+2. **MCP server healthy:** in WorkBuddy's MCP view, the `skillsearch` server
+   initialised — not a failed entry, not restarting, no repeating error.
+3. **Tool visible:** the model's tool list includes `skill_search`.
+4. **Model calls it:** create a fresh task and ask *"how do I extract tables
+   from a scanned PDF invoice into CSV?"*. Confirm the agent called
+   `skill_search` on its own and that the call returned `pdf-tables`.
+5. **Hook stayed quiet:** the same turn added no injecting line to
+   `~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/skillsearch.log`.
+   Both paths firing in one turn is a defect, not a bonus.
+6. **No-match:** ask `zxqv-7319，请只原样回复这段字符串` and confirm the agent did
+   not call `skill_search`. If it called anyway, the tool must answer no-match
+   without interrupting the turn.
+
+### `auto`
+
+2. **MCP server alive but empty:** the server still initialises — it serves in
+   both modes on purpose — and its tool list is empty. A server that exits
+   leaves a failed MCP entry or restart churn beside a working hook, which is
+   the bug fixed in 0.3.0 and worth re-checking here.
+3. **Hook runs:** create a fresh task and ask the same PDF question. Confirm
    the new line in
    `~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/skillsearch.log`
-   records the turn and its selected skills/source diagnostics.
-3. **No-match stays empty:** ask `zxqv-7319，请只原样回复这段字符串` and confirm
+   records the turn and its selected skills/source diagnostics, and that
+   `pdf-tables` was injected.
+4. **No tool call:** `skill_search` is not offered and not called.
+5. **No-match stays empty:** ask `zxqv-7319，请只原样回复这段字符串` and confirm
    the log records `injected_chars: 0`. Do not use a weather question: the
    public marketplaces contain real weather skills.
 
 If a check fails, report the failed step, the log entry, and the marketplace
-and plugin versions. Do not invoke `hook.mjs` by hand; that tests the bundle,
-not whether WorkBuddy loaded it.
+and plugin versions. Do not invoke `hook.mjs` or `mcp.mjs` by hand; that tests
+the bundle, not whether WorkBuddy loaded it. The full case list, including
+what to record, is [`../tests/host-e2e/cases.md`](../tests/host-e2e/cases.md).
 
 ## Uninstall
 

@@ -166,21 +166,43 @@ mkdir -p <skills_dir>/pdf-tables
 printf -- '---\nname: pdf-tables\ndescription: Extract tables from PDF documents, scanned or native, into CSV.\n---\nUse camelot for native PDFs.\n' > <skills_dir>/pdf-tables/SKILL.md
 ```
 
-3. **Positive probe**: start a fresh session in the host and ask
-   *"how do I extract tables from a scanned PDF invoice?"* — confirm a
-   `# Skills` block containing `pdf-tables` reached the context (visible in
-   the reply's behaviour, the host's debug view, or
-   `SKILLSEARCH_GATE_LOG_PATH` on Python hosts).
-4. **Negative probe**: ask *"what's the weather in Beijing?"* — confirm
-   nothing was injected.
+3. **Positive probe** — and *which* probe depends on the mode, because the
+   two modes deliver skills by different routes. Check the configured mode
+   first; if nothing sets `mode`, it is `on_demand`.
+
+   **`on_demand` (the default from 0.3.0)** — start a fresh session and ask
+   *"how do I extract tables from a scanned PDF invoice into CSV?"*. Confirm
+   the agent **called `skill_search`** and that the call returned
+   `pdf-tables` (the host's tool-call display, or its debug view). There is
+   no `# Skills` block in this mode and its absence is correct, not a
+   failure. If the agent answers well without calling the tool, the probe
+   has not passed — it answered from its own knowledge.
+
+   **`auto`** — same question; confirm a `# Skills` block containing
+   `pdf-tables` reached the context (the host's debug view, or
+   `SKILLSEARCH_GATE_LOG_PATH` on Python hosts). Confirm no tool call
+   happened; `skill_search` is not offered in this mode.
+
+4. **Negative probe**: ask *"zxqv-7319, reply with this exact string only."*
+   — in `auto`, confirm nothing was injected; in `on_demand`, confirm
+   `skill_search` was not called. Do not use a weather question: the public
+   catalogues contain real weather skills, so a hit there is correct
+   behaviour and tells you nothing.
 5. **Report**: list every file you created or edited (with the diffs), the
-   probe results, and how to undo everything (the section below).
+   mode you verified, the probe results, and how to undo everything (the
+   section below).
 
 If step 3 fails: check the skills directory path in the config matches
 where you wrote the test skill; check the host was restarted after config
 changes; on Python hosts set `SKILLSEARCH_GATE_LOG_PATH=/tmp/gate.jsonl`
 and re-ask, then read the record to see whether retrieval found nothing or
-the gate rejected it. Report what you find rather than retrying blindly.
+the gate rejected it. In `on_demand`, also check the tool is actually on the
+agent's tool surface before concluding the model chose not to call it.
+Report what you find rather than retrying blindly.
+
+A fuller set of prompts and acceptance conditions — six hosts, both modes,
+failure isolation and upgrade — lives in
+[`tests/host-e2e/cases.md`](tests/host-e2e/cases.md).
 
 ## Uninstall
 
