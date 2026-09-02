@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.3.0
+## Unreleased
+
+## 0.3.0 — 2026-09-02
 
 ### Changed — read this before upgrading
 
@@ -34,7 +36,7 @@
   slot it claims is not upstream, and Raven ignores manifest keys it does not
   know. On-demand does not depend on it.
 
-## Unreleased
+## 0.2.0 — 2026-08-27
 
 ### Added
 
