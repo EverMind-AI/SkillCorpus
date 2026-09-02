@@ -16,8 +16,8 @@ import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { DEFAULTS, loadConfig } from '../src/config.ts'
-import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
+import { DEFAULTS } from '../src/config.ts'
+import { expandHome, recentUserText, register } from '../src/register.ts'
 import { VERSION } from '../src/version.ts'
 import type {
   AgentMessage,
@@ -354,14 +354,20 @@ test('a source that is down is reported, not swallowed', async () => {
   // A closed port: the engine treats one failing source as empty and keeps
   // the others, which is right — but nothing was consuming the report, so an
   // unreachable catalogue and an empty one looked identical from outside.
-  const { api, warnings } = fakeApi({
+  const { api, tools, warnings } = fakeApi({
     mode: 'on_demand',
     skillsDirs: [await skillsDir()],
     hubEndpoint: 'http://127.0.0.1:1',
   })
   register(api)
-  const engine = buildEngine(loadConfig(api.pluginConfig), undefined, api.logger)
-  await engine.retrieve('extract tables from a scanned PDF invoice', {})
+  // Through the registered tool, not `buildEngine` directly. Building the
+  // engine here would pass the logger by hand and pass even if `register`
+  // never wired one — which is exactly the hole this had on the 1.x package,
+  // where the logger reached the per-workspace engines and not the probe the
+  // on-demand tool actually uses.
+  await tools.get('skill_search')!.execute(
+    'call', { query: 'extract tables from a scanned PDF invoice' }, undefined, undefined,
+  )
 
   const complaint = warnings.find(message => message.includes('source hub failed'))
   assert.ok(complaint, `expected a source warning, got ${JSON.stringify(warnings)}`)
