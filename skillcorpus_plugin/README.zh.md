@@ -194,6 +194,7 @@ plugin-hermes/       Hermes 插件    · 基于 engine-python
 plugin-raven/        Raven 插件     · 基于 engine-python
 plugin-openclaw/     OpenClaw ≤2026.7.x 插件 · 基于 engine-typescript
 plugin-openclaw2/    OpenClaw 2.0 插件       · 基于 engine-typescript
+tests/host-e2e/      六宿主 × 两模式的端到端用例与各版本结果报告
 INSTALL.agent.md     你的 agent 执行的安装剧本
 ```
 
@@ -224,7 +225,7 @@ git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
 npm --prefix plugin-openclaw run check:host
 ```
 
-其余只能靠真实宿主：这里每个插件都装进过宿主、由宿主自己的加载器端到端驱动——根目录的 `verify-raven.py` 把 Raven 路径一路驱动到宿主自己的 `ContextAssembler`。
+其余只能靠真实宿主，这一层单独成目录：[`tests/host-e2e/`](tests/host-e2e) 把 prompt、语料和判定条件都固定下来，让不同版本之间的结果可比。[`cases.md`](tests/host-e2e/cases.md) 是六宿主 × 两模式的用例清单，[`reports/`](tests/host-e2e/reports) 是每个版本实际跑出来的结果——没跑的项也写进去。Hermes、Raven、DeepSeek Harness 可以无头驱动，各有脚本；OpenClaw 与 WorkBuddy 是手工步骤。
 
 **测试过的版本**：Python 3.11–3.13 · Node 18+（CI 用 22）· WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw（向下验证至 2026.3.8） · DeepSeek Harness workspace `main` · Raven 等上游插槽。
 

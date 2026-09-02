@@ -98,6 +98,10 @@ EXPECTED_PLUGIN_DIRS = {
     "plugin-raven",
     "plugin-workbuddy",
     "scripts",
+    # Cross-package: the host end-to-end cases and their release reports. Not
+    # a package, and deliberately not under any one plugin, because a case
+    # only means something when the six hosts are judged the same way.
+    "tests",
 }
 
 

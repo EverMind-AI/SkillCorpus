@@ -218,6 +218,7 @@ plugin-hermes/       Hermes plugin    over engine-python
 plugin-raven/        Raven plugin     over engine-python
 plugin-openclaw/     OpenClaw ≤2026.7.x plugin  over engine-typescript
 plugin-openclaw2/    OpenClaw 2.0 plugin        over engine-typescript
+tests/host-e2e/      the six-host, two-mode cases and their release reports
 INSTALL.agent.md     the install playbook your agent follows
 ```
 
@@ -249,7 +250,7 @@ git clone --depth 1 https://github.com/openclaw/openclaw.git ../openclaw-host
 npm --prefix plugin-openclaw run check:host
 ```
 
-Only a real checkout closes the rest: every plugin here has been installed into its host and driven through that host's own loader end to end — `verify-raven.py` in the root drives the Raven path through the host's own `ContextAssembler`.
+Only a real host closes the rest, and that layer has its own directory: [`tests/host-e2e/`](tests/host-e2e) fixes the prompts, the corpus and the pass conditions so a result from one release is comparable with the next. [`cases.md`](tests/host-e2e/cases.md) is the six-host, two-mode case list; [`reports/`](tests/host-e2e/reports) is what actually happened, per release, gaps included. Hermes, Raven and the DeepSeek Harness can be driven headlessly and have scripts; OpenClaw and WorkBuddy are manual steps.
 
 **Tested against**: Python 3.11–3.13 · Node 18+ (CI on 22) · WorkBuddy 5.3.13 · hermes-agent `main` · OpenClaw 2026.3.8 – 2026.7.x and OpenClaw 2.0 (2026.8.1) · DeepSeek Harness workspace `main` · Raven pending its upstream slot.
 
