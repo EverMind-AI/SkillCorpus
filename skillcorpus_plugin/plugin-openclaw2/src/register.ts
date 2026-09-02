@@ -49,7 +49,7 @@ import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescri
 import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
-import { loadConfig, type SkillSearchConfig } from './config.js'
+import { loadConfig, unknownMode, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
 import { skillSearchTool } from './tool.js'
 import { VERSION } from './version.js'
@@ -79,7 +79,11 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
-export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): SkillSearchEngine {
+export function buildEngine(
+  config: SkillSearchConfig,
+  workspaceDir?: string,
+  logger?: PluginLogger,
+): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(dir => isAbsolute(dir) || dir)
@@ -123,6 +127,18 @@ export function buildEngine(config: SkillSearchConfig, workspaceDir?: string): S
   return new SkillSearchEngine(
     {
       sources,
+      // Without this a source that is down is invisible here. The engine
+      // already reports it — one failing source leaves the others usable, by
+      // design — but nothing was consuming the report, so "the catalogue was
+      // unreachable all afternoon" and "the catalogue had nothing" looked
+      // identical from the outside. Only diagnostics carrying an error are
+      // logged; the successful ones are per-turn noise.
+      onDiagnostic: diagnostic => {
+        if (diagnostic.error === undefined) return
+        logger?.warn?.(
+          `[skillsearch] source ${diagnostic.source} failed at ${diagnostic.stage}: ${diagnostic.error}`,
+        )
+      },
       // Two independent switches over one model. Configuring a model used
       // to turn both on together, leaving no way to keep the query cleaning
       // and drop the gate.
@@ -360,10 +376,18 @@ export function register(
   deps: { buildEngineFn?: typeof buildEngine } = {},
 ): void {
   const config = loadConfig(api.pluginConfig)
+  const asked = unknownMode(api.pluginConfig)
+  if (asked !== undefined) {
+    // Narrowed, not rejected — but said out loud. Without this the operator
+    // who typed `atuo` gets the opposite mode and no indication of it.
+    api.logger?.warn?.(
+      `[skillsearch] unknown mode ${JSON.stringify(asked)}; running in ${config.mode}`,
+    )
+  }
   const build = deps.buildEngineFn ?? buildEngine
 
   // Probed without a workspace: `enabled` depends only on the sources.
-  const probe = build(config)
+  const probe = build(config, undefined, api.logger)
   if (!probe.enabled) {
     api.logger?.info?.('[skillsearch] no sources configured; retrieval is off')
     return
@@ -372,7 +396,7 @@ export function register(
   if (config.mode === 'auto') {
     // The real engines are built per workspace by this factory.
     api.registerContextEngine('skillsearch', (ctx: ContextEngineFactoryContext) =>
-      new SkillSearchContextEngine(build(config, ctx?.workspaceDir), config, api.logger))
+      new SkillSearchContextEngine(build(config, ctx?.workspaceDir, api.logger), config, api.logger))
     api.logger?.info?.('[skillsearch] auto mode: retrieval runs on every turn')
     return
   }
@@ -386,7 +410,7 @@ export function register(
   // built here would expand it to the host process's own on a multi-agent
   // host or a session working elsewhere.
   api.registerTool(skillSearchTool(
-    workspaceDir => build(config, workspaceDir),
+    workspaceDir => build(config, workspaceDir, api.logger),
     config,
     api.logger,
   ))

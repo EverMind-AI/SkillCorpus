@@ -75,7 +75,7 @@ RUN_TIMEOUT_S = 600.0
 
 
 def write_profile(profile_dir: Path, generation: int, mode: str, skills: Path,
-                  workspace: Path, model: dict) -> None:
+                  workspace: Path, model: dict, *, broken_source: bool = False) -> None:
     """The profile's `openclaw.json`, carrying the plugin and its gates."""
     # `parents[3]`, not `[2]`: the chain starts at this file, so it runs
     # scripts -> host-e2e -> tests -> skillcorpus_plugin.
@@ -98,9 +98,9 @@ def write_profile(profile_dir: Path, generation: int, mode: str, skills: Path,
                         "gate": False,
                         "topK": 1,
                         # Every remote catalogue off — see `e2e_hermes.py`.
-                        "hubEndpoint": "",
-                        "clawhubEndpoint": "",
-                        "skillhubCnEndpoint": "",
+                        # Under `--broken-source` the first one points at a
+                        # closed port instead, which is case P5.
+                        **_e2e.camel(_e2e.source_endpoints(broken=broken_source)),
                     },
                 }
             },
@@ -252,6 +252,14 @@ def main() -> int:
                     help="OpenClaw profile name; state is isolated under "
                          "~/.openclaw-<name> and ~/.openclaw is never touched")
     ap.add_argument("--case", default="p1", choices=sorted(_e2e.CASES))
+    ap.add_argument("--broken-source", action="store_true",
+                    help="case P5: point one remote catalogue at a closed port "
+                         "and check the local corpus, the turn and the log all "
+                         "survive it")
+    ap.add_argument("--mode-typo", default=None, metavar="VALUE",
+                    help="case P4: write this as the `mode` instead of the real "
+                         "one, and check the host logs the narrowing rather "
+                         "than silently running the opposite mode")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.openclaw:
@@ -271,7 +279,8 @@ def main() -> int:
         # makes "the body arrived" unanswerable. The tool result names the
         # directory, so the agent still finds it the moment retrieval works.
         skills = _e2e.corpus()
-        write_profile(profile_dir, args.generation, mode, skills, workspace, model)
+        write_profile(profile_dir, args.generation, args.mode_typo or mode, skills,
+                      workspace, model, broken_source=args.broken_source)
         session_id = str(uuid.uuid4())
         try:
             out = run(Path(args.openclaw), args.profile, prompt, session_id)

@@ -126,6 +126,9 @@ class SkillSearchProvider(MemoryProvider):
         self._host = host
         self._adapter: Any = None
         self._home: str | None = None
+        # `_mode` is read on every turn; this keeps an unrecognised value to
+        # one log line instead of one per turn.
+        self._warned_mode = False
 
     @property
     def name(self) -> str:
@@ -229,7 +232,23 @@ class SkillSearchProvider(MemoryProvider):
 
     @property
     def _mode(self) -> str:
-        return "auto" if str(load_config(self._home).get("mode", "")).strip() == "auto" else "on_demand"
+        """``auto`` or ``on_demand``; anything unrecognised means the default.
+
+        Narrowed rather than raised — a typo should cost the deployment the
+        mode it asked for, not its retrieval — but logged, because handing
+        back the opposite mode with no signal is the failure shape this plugin
+        family keeps getting caught by, and 0.3.0 changed which mode the
+        default is. Logged once per instance: this property is read on every
+        turn and a line per turn is noise, not a signal.
+        """
+        raw = load_config(self._home).get("mode")
+        asked = "" if raw is None else str(raw).strip()
+        if asked not in ("", "auto", "on_demand"):
+            if not self._warned_mode:
+                self._warned_mode = True
+                logger.warning("[skillsearch] unknown mode %r; running in on_demand", asked)
+            return "on_demand"
+        return "auto" if asked == "auto" else "on_demand"
 
     def get_config_schema(self) -> list[dict[str, Any]]:
         """The fields `hermes memory setup` prompts for."""

@@ -83,6 +83,48 @@ CASES = {
 }
 
 
+def dead_port() -> int:
+    """A port nothing is listening on, for case P5.
+
+    Bound and released rather than picked from a range: a hardcoded port that
+    something else happens to be using turns the failure-isolation case into a
+    test of whatever answered.
+    """
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+def source_endpoints(*, broken: bool = False) -> dict[str, str]:
+    """The three remote catalogue endpoints, in Python-side spelling.
+
+    @param broken - point the first one at a closed local port and leave the
+      other two blank. This is case P5: the local corpus and the healthy
+      sources have to keep working, the turn has to complete, and the failure
+      has to be diagnosable without leaking a credential.
+    """
+    if not broken:
+        return {"hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
+    return {
+        "hub_endpoint": f"http://127.0.0.1:{dead_port()}",
+        "clawhub_endpoint": "",
+        "skillhub_cn_endpoint": "",
+    }
+
+
+def camel(endpoints: dict[str, str]) -> dict[str, str]:
+    """The same endpoints under the names the TypeScript packages read."""
+    return {
+        "hubEndpoint": endpoints["hub_endpoint"],
+        "clawhubEndpoint": endpoints["clawhub_endpoint"],
+        "skillhubCnEndpoint": endpoints["skillhub_cn_endpoint"],
+    }
+
+
 def corpus(root: Path | None = None) -> Path:
     """Write the fixture and return the directory to configure as `skills_dir`.
 

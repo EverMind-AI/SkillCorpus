@@ -93,7 +93,7 @@ def host_supports_auto() -> bool:
 
 
 def run(mode: str, skills: Path, workspace: Path, model: dict, prompt: str,
-        timeout_s: float) -> dict:
+        timeout_s: float, *, broken_source: bool = False) -> dict:
     from raven.agent.loop import AgentLoop
     from raven.cli._plugin_stack import build_plugin_registry, build_plugin_tools
     from raven.config import RavenConfig
@@ -109,9 +109,9 @@ def run(mode: str, skills: Path, workspace: Path, model: dict, prompt: str,
         "mode": mode,
         "skills_dir": str(skills),
         # Every remote catalogue off — see the note in `e2e_hermes.py`.
-        "hub_endpoint": "",
-        "clawhub_endpoint": "",
-        "skillhub_cn_endpoint": "",
+        # Under `--broken-source` the first one points at a closed port
+        # instead, which is case P5.
+        **_e2e.source_endpoints(broken=broken_source),
         "top_k": 1,
         # `build_plugin_tools` has no skillsearch special case, so the tool
         # half only gets a model channel if the config slice carries one.
@@ -217,6 +217,10 @@ def main() -> int:
     ap.add_argument("--case", default="p1", choices=sorted(_e2e.CASES),
                     help="which case in cases.md to run; each swaps the prompt "
                          "and what the verdict requires")
+    ap.add_argument("--broken-source", action="store_true",
+                    help="case P5: point one remote catalogue at a closed port "
+                         "and check the local corpus, the turn and the log all "
+                         "survive it")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
@@ -250,7 +254,8 @@ def main() -> int:
         skills = _e2e.corpus(workspace)
         try:
             out = run(mode, skills, workspace, model,
-                      _e2e.CASES[args.case]["prompt"], args.timeout)
+                      _e2e.CASES[args.case]["prompt"], args.timeout,
+                      broken_source=args.broken_source)
         except Exception as err:  # a host that will not start is the finding
             print(f"  {mode:10} host failed: {type(err).__name__}: {err}")
             results[mode] = {"mode": mode, "error": f"{type(err).__name__}: {err}"}

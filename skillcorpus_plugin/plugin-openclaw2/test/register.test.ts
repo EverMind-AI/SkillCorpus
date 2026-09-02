@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { DEFAULTS } from '../src/config.ts'
+import { DEFAULTS, loadConfig } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import { VERSION } from '../src/version.ts'
 import type {
@@ -322,4 +322,48 @@ test('the version this package reports is the version it ships', async () => {
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ) as { version: string }
   assert.equal(VERSION, pkg.version)
+})
+
+test('a mode nobody recognises is narrowed, and said out loud', async () => {
+  const { api, engines, tools, warnings } = fakeApi({
+    mode: 'atuo',
+    skillsDirs: [await skillsDir()],
+  })
+  register(api)
+
+  // Narrowed to the default rather than failing the load: a typo must not
+  // cost the deployment its retrieval.
+  assert.ok(tools.has('skill_search'), 'on-demand is what an unknown mode falls back to')
+  assert.equal(engines.size, 0, 'and the context engine must not also claim the slot')
+
+  // But not silently. Without the warning the operator gets the opposite
+  // mode of the one they typed and no indication of it.
+  const complaint = warnings.find(message => message.includes('unknown mode'))
+  assert.ok(complaint, `expected a warning, got ${JSON.stringify(warnings)}`)
+  assert.match(complaint, /"atuo"/)
+  assert.match(complaint, /on_demand/)
+})
+
+test('a valid mode draws no complaint', async () => {
+  const { api, warnings } = fakeApi({ mode: 'auto', skillsDirs: [await skillsDir()] })
+  register(api)
+  assert.equal(warnings.filter(m => m.includes('unknown mode')).length, 0)
+})
+
+test('a source that is down is reported, not swallowed', async () => {
+  // A closed port: the engine treats one failing source as empty and keeps
+  // the others, which is right — but nothing was consuming the report, so an
+  // unreachable catalogue and an empty one looked identical from outside.
+  const { api, warnings } = fakeApi({
+    mode: 'on_demand',
+    skillsDirs: [await skillsDir()],
+    hubEndpoint: 'http://127.0.0.1:1',
+  })
+  register(api)
+  const engine = buildEngine(loadConfig(api.pluginConfig), undefined, api.logger)
+  await engine.retrieve('extract tables from a scanned PDF invoice', {})
+
+  const complaint = warnings.find(message => message.includes('source hub failed'))
+  assert.ok(complaint, `expected a source warning, got ${JSON.stringify(warnings)}`)
+  assert.ok(!complaint.includes('apiKey'), 'a diagnostic must not carry a credential')
 })

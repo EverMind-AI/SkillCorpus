@@ -232,9 +232,19 @@ def _mode(cfg_map: dict[str, Any]) -> str:
     """``auto`` or ``on_demand``; anything unrecognised means the default.
 
     A typo should cost the deployment the mode it asked for, not its
-    retrieval — so this narrows rather than raising.
+    retrieval — so this narrows rather than raising. It does not narrow
+    *quietly*: an unrecognised value is logged with the mode actually used,
+    because handing back the opposite mode with no signal is the failure shape
+    this plugin family keeps getting caught by, and 0.3.0 changed which mode
+    the default is.
     """
-    return "auto" if str(cfg_map.get("mode", "")).strip() == "auto" else "on_demand"
+    raw = cfg_map.get("mode")
+    asked = "" if raw is None else str(raw).strip()
+    if asked not in ("", "auto", "on_demand"):
+        used = "on_demand"
+        log.warning("unknown mode %r; running in %s", asked, used)
+        return used
+    return "auto" if asked == "auto" else "on_demand"
 
 
 def _build_search(ctx: Any) -> tuple[Any, dict[str, Any]] | None:

@@ -145,9 +145,27 @@ Both modes, on every host. Not a separate prompt: read it off the P1 runs.
 - In `on_demand`, the per-turn injection channel is empty on every turn.
 - In one turn, automatic injection and a tool retrieval never both happen.
 
-This is why the two modes are a `union` of two literals and not a free string:
-a typo like `"atuo"` must be rejected at config load, not silently downgraded
-to the default. Check the host's error surface for the typo, once per host.
+### The typo half
+
+`mode: "atuo"` must never leave a deployment running the opposite mode with no
+signal. That is one requirement with three legitimate shapes, and which one you
+get is the host's decision, not the plugin's:
+
+- **Rejected by the host.** Both OpenClaw generations declare `mode` as an enum
+  in the plugin manifest, so the host fails config validation before the plugin
+  loads. Measured: `must be equal to one of the allowed values (allowed:
+  "on_demand", "auto")`.
+- **Rejected by the plugin.** The DeepSeek Harness config is a union of two
+  literals, so the harness refuses the value.
+- **Narrowed by the plugin, and logged.** Hermes, Raven and WorkBuddy have no
+  host schema to validate against, so the plugin falls back to the default —
+  a typo should cost the deployment the mode it asked for, not its retrieval —
+  and logs what was asked for beside what ran.
+
+So the check is: **either the load fails, or a log line names the bad value.**
+Silence is the failure. Note that the environment override is not covered by
+any host schema, so `SKILLSEARCH_MODE=atuo` is the path that reaches the plugin
+even on the hosts that validate their config files — worth checking separately.
 
 ## P5 — Failure isolation
 
@@ -162,7 +180,16 @@ enough — and leave the others and the local corpus alone.
   token or authorization header.
 
 Retrieval fails open by design: a broken source and an empty result reach the
-model the same way, as "carry on".
+model the same way, as "carry on". Which is exactly why the third condition
+matters and is the one that has failed. Both engines *report* a failing source;
+whether an adapter **consumes** that report is per-package, and the two
+OpenClaw packages did not — so an unreachable catalogue and an empty one looked
+identical from outside. Run this per host, not per engine: the engine is shared
+and the wiring is not.
+
+Both scripts that support it take `--broken-source`, which points one catalogue
+at a port it just closed. A hardcoded port that something happens to be using
+would turn this into a test of whatever answered.
 
 ## P6 — Restart and upgrade
 

@@ -260,6 +260,35 @@ export function readConfigDocument(path = join(DATA_DIR, 'config.json')): Record
 }
 
 /**
+ * The `mode` a deployment asked for, when it is not one that exists.
+ *
+ * `loadConfig` narrows an unrecognised value to the default rather than
+ * failing the load — a typo should cost the deployment the mode it wanted, not
+ * its retrieval. But *silently* handing back the opposite mode is the exact
+ * failure shape this plugin family keeps getting caught by, and 0.3.0 made it
+ * worse by flipping which mode the default is. So the narrowing stays and this
+ * exists to make it audible: the caller logs what was asked for and what it
+ * got instead.
+ *
+ * Reads with the same precedence as `loadConfig`, environment first, so a
+ * typo in `SKILLSEARCH_MODE` is reported rather than the config's valid value.
+ *
+ * @returns the offending string, or `undefined` when the value is absent or
+ *   already valid.
+ */
+export function unknownMode(
+  pluginConfig: Record<string, unknown> | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const variable = ENV_KEYS.mode
+  const fromEnv = variable ? env[variable] : undefined
+  const raw = fromEnv !== undefined && fromEnv !== '' ? fromEnv : (pluginConfig ?? {}).mode
+  if (raw === undefined || raw === null) return undefined
+  const value = String(raw).trim()
+  return value === '' || value === 'auto' || value === 'on_demand' ? undefined : value
+}
+
+/**
  * Resolve one configuration from the document and the environment.
  *
  * @param document - what `readConfigDocument` returned.

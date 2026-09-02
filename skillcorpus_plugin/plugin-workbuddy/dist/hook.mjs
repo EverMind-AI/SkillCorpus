@@ -136,6 +136,14 @@ function readConfigDocument(path = join(DATA_DIR, "config.json")) {
     return {};
   }
 }
+function unknownMode(pluginConfig, env = process.env) {
+  const variable = ENV_KEYS.mode;
+  const fromEnv = variable ? env[variable] : void 0;
+  const raw = fromEnv !== void 0 && fromEnv !== "" ? fromEnv : (pluginConfig ?? {}).mode;
+  if (raw === void 0 || raw === null) return void 0;
+  const value = String(raw).trim();
+  return value === "" || value === "auto" || value === "on_demand" ? void 0 : value;
+}
 function loadConfig(document, env = process.env) {
   const source = document ?? {};
   const pick = (key) => {
@@ -1958,7 +1966,9 @@ function log(config, entry) {
   }
 }
 async function runTurn(input, deps = {}) {
-  const config = deps.config ?? loadConfig(readConfigDocument());
+  const document = deps.config ? void 0 : readConfigDocument();
+  const config = deps.config ?? loadConfig(document);
+  const badMode = deps.config ? void 0 : unknownMode(document);
   const startedAt = Date.now();
   let payload = {};
   try {
@@ -1990,6 +2000,11 @@ async function runTurn(input, deps = {}) {
     prompt: query.slice(0, 120),
     model: payload.model ?? null,
     agent_type: payload.agent_type ?? null,
+    // Present only when someone typed a mode that does not exist. The value
+    // is narrowed to the default rather than rejected, so without this line
+    // the operator gets the opposite mode and no sign of it — and 0.3.0
+    // changed which mode the default is, which makes the silence worse.
+    ...badMode !== void 0 ? { unknown_mode: badMode, mode_used: config.mode } : {},
     skills: selectedSkills(block),
     injected_chars: block.length,
     elapsed_ms: Date.now() - startedAt,

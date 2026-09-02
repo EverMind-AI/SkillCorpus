@@ -343,3 +343,34 @@ def test_the_endpoint_keys_are_declared_in_the_manifest() -> None:
     schema = MANIFEST["plugin"]["config_schema"]
     for key in ("model", "model_base_url", "model_api_key", "model_timeout_s"):
         assert key in schema, key
+
+
+def test_unknown_mode_narrows_to_the_default_and_says_so(caplog):
+    """A typo must not cost retrieval, and must not pass unnoticed either.
+
+    Narrowing is deliberate: `mode: "atuo"` should leave the deployment with
+    working retrieval, not a failed plugin load. But it lands on the opposite
+    mode from the one that was typed, and 0.3.0 changed which mode the default
+    is — so silence here is how an operator ends up with auto injection they
+    asked for and never got.
+    """
+    import logging
+
+    from skillsearch_raven import _mode
+
+    with caplog.at_level(logging.WARNING, logger="skillsearch_raven"):
+        assert _mode({"mode": "atuo"}) == "on_demand"
+    assert any("unknown mode" in record.message for record in caplog.records), caplog.records
+    assert any("atuo" in record.getMessage() for record in caplog.records)
+
+
+def test_a_recognised_mode_is_quiet(caplog):
+    import logging
+
+    from skillsearch_raven import _mode
+
+    with caplog.at_level(logging.WARNING, logger="skillsearch_raven"):
+        assert _mode({"mode": "auto"}) == "auto"
+        assert _mode({"mode": "on_demand"}) == "on_demand"
+        assert _mode({}) == "on_demand"
+    assert [r for r in caplog.records if "unknown mode" in r.message] == []

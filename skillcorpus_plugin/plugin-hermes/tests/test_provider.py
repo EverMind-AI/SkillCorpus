@@ -274,3 +274,30 @@ def test_on_demand_publishes_skill_search(tmp_path: Path) -> None:
     assert "No skill" in provider.handle_tool_call("skill_search", {"query": "kubernetes ingress"})
     assert "needs a query" in provider.handle_tool_call("skill_search", {"query": "  "})
     assert "Unknown tool" in provider.handle_tool_call("nope", {"query": "x"})
+
+
+def test_unknown_mode_narrows_to_the_default_and_says_so(tmp_path, caplog):
+    """Same contract as the other hosts: narrow, but do not go quiet.
+
+    `_mode` is read on every turn, so the warning is emitted once per instance
+    rather than once per turn — a line per turn would be noise nobody reads.
+    """
+    import logging
+
+    (tmp_path / "skillsearch.json").write_text(
+        json.dumps({"mode": "atuo", "skills_dir": str(tmp_path / "skills")}),
+        encoding="utf-8",
+    )
+    provider = plugin.SkillSearchProvider()
+    provider._home = str(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        assert provider._mode == "on_demand"
+        assert provider._mode == "on_demand"
+
+    complaints = [r for r in caplog.records if "unknown mode" in r.getMessage()]
+    assert len(complaints) == 1, [r.getMessage() for r in caplog.records]
+    assert "atuo" in complaints[0].getMessage()
+
+    # An unknown mode must leave the on-demand surface intact, not strip it.
+    assert [s["name"] for s in provider.get_tool_schemas()] == ["skill_search"]
