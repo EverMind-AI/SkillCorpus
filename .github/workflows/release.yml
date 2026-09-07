@@ -129,7 +129,8 @@ jobs:
           if-no-files-found: error
 
   required:
-    name: Release required
+    # A skipped manual run must not replace a PR's required build result.
+    name: ${{ github.event_name == 'pull_request' && 'Release required' || 'Release validation' }}
     if: always() && github.event_name == 'pull_request'
     needs: build
     runs-on: ubuntu-latest
