@@ -1,8 +1,8 @@
 """Block oversized files introduced or enlarged by the current change.
 
-This mirrors the local ``check-added-large-files`` hook, but covers modified
-files too. The check compares the working tree to the merge base, so CI must
-check out full history (``fetch-depth: 0``).
+Pull requests and local checks compare against the merge base. Pushes audit
+the whole tracked tree: origin/main already points at HEAD after a main push,
+so comparing those two would silently check nothing.
 """
 
 from __future__ import annotations
@@ -66,6 +66,12 @@ def changed_paths(root: Path, base_ref: str) -> list[str]:
     return sorted(paths)
 
 
+def all_paths(root: Path) -> list[str]:
+    tracked = _git(root, "ls-files", "-z")
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard", "-z")
+    return sorted({path for path in (tracked + untracked).split("\0") if path})
+
+
 def is_exempt(path: str, prefixes: Sequence[str] = EXEMPT_PREFIXES) -> bool:
     normalised = path.replace("\\", "/")
     return normalised in EXEMPT_PATHS or any(
@@ -92,12 +98,18 @@ def find_violations(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", help="ref to diff against")
+    parser.add_argument(
+        "--all", action="store_true", help="audit the complete tracked tree"
+    )
     args = parser.parse_args(argv)
 
     root = _repo_root()
     base_ref = args.base or default_base_ref()
+    full_scan = args.all or (
+        not args.base and os.environ.get("GITHUB_EVENT_NAME") == "push"
+    )
     try:
-        paths = changed_paths(root, base_ref)
+        paths = all_paths(root) if full_scan else changed_paths(root, base_ref)
     except BaseRefError as exc:
         print(
             f"Repository file-size check could not run: {exc}\n"
@@ -108,8 +120,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     violations = find_violations(paths, root=root)
     if not violations:
         print(
-            f"Repository file-size check passed ({len(paths)} changed file(s) vs "
-            f"{base_ref}, ceiling {MAX_KB} KB)."
+            f"Repository file-size check passed ({len(paths)} file(s), "
+            f"{'full tree' if full_scan else 'vs ' + base_ref}, ceiling {MAX_KB} KB)."
         )
         return 0
 

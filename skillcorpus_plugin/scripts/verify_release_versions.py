@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import tarfile
@@ -31,6 +32,7 @@ versions = {
         re.MULTILINE,
     ).group(1),
     "engine-python": text_version("engine-python/pyproject.toml", r'^version = "([^"]+)"'),
+    "engine-typescript": json.loads((ROOT / "engine-typescript/package.json").read_text())["version"],
     "raven": text_version("plugin-raven/pyproject.toml", r'^version = "([^"]+)"'),
     "hermes": text_version("plugin-hermes/plugin.yaml", r'^version: "([^"]+)"'),
     "openclaw": json.loads((ROOT / "plugin-openclaw/package.json").read_text())["version"],
@@ -77,7 +79,20 @@ wrong = {name: version for name, version in versions.items() if version != EXPEC
 if wrong:
     raise SystemExit(f"release versions must all be {EXPECTED}: {wrong}")
 
-for dist in (ROOT / "engine-python/dist", ROOT / "plugin-raven/dist"):
+parser = argparse.ArgumentParser(description="Verify source versions and built Python plugin licenses")
+parser.add_argument("--dist-dir", type=Path, help="directory containing the built Python plugins")
+args = parser.parse_args()
+dist_dirs = (args.dist_dir,) if args.dist_dir else (ROOT / "engine-python/dist", ROOT / "plugin-raven/dist")
+if args.dist_dir:
+    expected_archives = {
+        f"{name}-{EXPECTED}{suffix}"
+        for name in ("skillsearch", "skillsearch_raven")
+        for suffix in ("-py3-none-any.whl", ".tar.gz")
+    }
+    missing = expected_archives - {path.name for path in args.dist_dir.glob("*")}
+    if missing:
+        raise SystemExit(f"missing built Python plugins: {sorted(missing)}")
+for dist in dist_dirs:
     for archive in dist.glob("*"):
         if archive.suffix == ".whl":
             with zipfile.ZipFile(archive) as package:
