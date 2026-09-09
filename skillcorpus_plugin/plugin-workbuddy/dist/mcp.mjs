@@ -142,7 +142,7 @@ function loadConfig(document, env = process.env) {
   const pick = (key) => {
     const variable = ENV_KEYS[key];
     const fromEnv = variable ? env[variable] : void 0;
-    return fromEnv !== void 0 && fromEnv !== "" ? fromEnv : source[key];
+    return fromEnv !== void 0 && fromEnv.trim() !== "" ? fromEnv : source[key];
   };
   return {
     skillsDirs: asList(pick("skillsDirs")) ?? DEFAULTS.skillsDirs,

@@ -226,7 +226,14 @@ export function loadConfig(
   const pick = <K extends keyof SkillSearchConfig>(key: K): unknown => {
     const variable = ENV_KEYS[key]
     const fromEnv = variable ? env[variable] : undefined
-    return fromEnv !== undefined && fromEnv !== '' ? fromEnv : document[key]
+    // Whitespace-only counts as unset, not as an override. A variable holding
+    // spaces is indistinguishable from an absent one to whoever set it, and
+    // treating it as a value is destructive rather than merely odd: for
+    // `SKILLSEARCH_SKILLS_DIRS` it emptied the list, taking the host's own
+    // skills directory with it — and, since a host with no directory of its
+    // own does not join the shared library, the cross-agent sharing too. The
+    // Python port already read it this way.
+    return fromEnv !== undefined && fromEnv.trim() !== '' ? fromEnv : document[key]
   }
 
   return {
