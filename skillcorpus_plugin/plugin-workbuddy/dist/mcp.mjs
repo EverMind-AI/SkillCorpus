@@ -938,9 +938,11 @@ function now(clock = () => /* @__PURE__ */ new Date()) {
   return `${clock().toISOString().slice(0, 19)}+00:00`;
 }
 function slugDir(root, source, slug) {
-  const safeSource = String(source).replace(/[^A-Za-z0-9\-_]/g, "_").slice(0, 40);
-  const safeSlug = String(slug).replace(/[^A-Za-z0-9\-_.@]/g, "_").slice(0, 120);
-  return join4(root, `${safeSource}__${safeSlug || "skill"}`);
+  const sanitise = (text2, allowed, limit) => [...String(text2)].map((character) => allowed.test(character) ? character : "_").join("").slice(0, limit);
+  const safeSource = sanitise(source, /^[A-Za-z0-9\-_]$/, 40);
+  const safeSlug = sanitise(slug, /^[A-Za-z0-9\-_.@]$/, 120);
+  const digest = createHash2("sha256").update(identity(source, slug), "utf8").digest("hex").slice(0, 8);
+  return join4(root, `${safeSource}__${safeSlug || "skill"}__${digest}`);
 }
 function writeMarker(skillDir, origin) {
   const payload = {

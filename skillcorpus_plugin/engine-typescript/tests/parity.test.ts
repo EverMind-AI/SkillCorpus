@@ -12,7 +12,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -823,4 +823,58 @@ test('an update replaces in place, and a failed one leaves the old version worki
   await writeFile(join(dest, 'SKILL.md'), '---\nname: pdf-tables\n---\n\nthe version that works\n')
   assert.throws(() => { provenance.swapIntoPlace(join(root, 'never-extracted'), dest) })
   assert.match(readFileSync(join(dest, 'SKILL.md'), 'utf8'), /the version that works/)
+})
+
+test('a bundle that wraps the skill is still listed and removable', async () => {
+  // The shape a real catalogue actually sends. Hub bundles wrap the whole
+  // skill in one directory, so the `SKILL.md` — and the marker beside it,
+  // which is where the scanner reads it — sits one level below the directory
+  // the install created. Listing only the top level found nothing, so dedup
+  // worked while every management call was blind.
+  //
+  // Found against the live catalogue on the Python side, and this port had
+  // exactly the same bug: no hand-built fixture has a wrapper, so both suites
+  // were green. That is why it is asserted in both.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-wrapped-'))
+  const dest = provenance.slugDir(root, 'hub', 'extract-tables-from-pdf')
+  const body = join(dest, 'extract-tables-from-pdf')
+  await mkdir(body, { recursive: true })
+  await writeFile(join(body, 'SKILL.md'), '---\nname: extract-tables-from-pdf\n---\n\nbody\n')
+  provenance.writeMarker(body, marker('hub', 'extract-tables-from-pdf'))
+
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin), ['hub/extract-tables-from-pdf'])
+  // The *outer* directory, or uninstalling leaves an empty husk behind.
+  assert.equal(provenance.findInstalled(root, 'hub/extract-tables-from-pdf'), dest)
+  assert.equal(provenance.uninstall(root, 'hub/extract-tables-from-pdf'), true)
+  assert.equal(existsSync(dest), false)
+  assert.deepEqual(provenance.listInstalled(root), [])
+})
+
+test('a skill bundled inside another skill is not treated as an install', async () => {
+  // One level down, not arbitrary depth — otherwise a skill that ships another
+  // skill could be uninstalled out from under the one that owns it.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-nested-'))
+  const deep = join(root, 'handwritten', 'vendor', 'nested')
+  await mkdir(deep, { recursive: true })
+  provenance.writeMarker(deep, marker('hub', 'nested'))
+  assert.deepEqual(provenance.listInstalled(root), [])
+})
+
+test('slugDir matches the Python port, character for character', () => {
+  // Both ports install into the same directory on one machine, so a
+  // disagreement puts one skill in two directories — the duplication identity
+  // dedup exists to prevent. It stayed invisible because each suite only ever
+  // compared a port with itself; the non-ASCII and astral cases in the fixture
+  // are where they actually drifted.
+  const fixtures = JSON.parse(
+    readFileSync(new URL('./fixtures-slugdir.json', import.meta.url), 'utf8'),
+  ) as { cases: Array<{ source: string; slug: string; dir: string }> }
+
+  for (const item of fixtures.cases) {
+    assert.equal(
+      provenance.slugDir('/r', item.source, item.slug).slice(3),
+      item.dir,
+      `${item.source}/${item.slug}`,
+    )
+  }
 })

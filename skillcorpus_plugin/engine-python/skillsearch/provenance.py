@@ -148,6 +148,17 @@ def now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+#: ASCII only, deliberately. A directory name computed from a catalogue slug
+#: has to come out identical in both ports and on all three platforms, and
+#: "which characters are alphanumeric" does not agree across them: Python's
+#: ``str.isalnum`` is Unicode-aware, so `中文技能` survives it, while the
+#: TypeScript port's character class is ASCII and turns the same slug into
+#: underscores. One skill would then occupy two directories in the shared
+#: library — the exact duplication identity dedup exists to prevent.
+_SAFE_SOURCE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+_SAFE_SLUG = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.@")
+
+
 def slug_dir(root: str | os.PathLike[str], source: str, slug: str) -> Path:
     """Where a skill from ``source`` lands under ``root``.
 
@@ -155,13 +166,21 @@ def slug_dir(root: str | os.PathLike[str], source: str, slug: str) -> Path:
     there rather than accumulating copies, which is what keeps the shared
     directory from growing a second ranked copy of everything.
 
-    The name is sanitised because a slug comes from a catalogue and reaches
-    the filesystem — anything outside the allow-list becomes ``_``, so a slug
-    of ``../../etc`` cannot escape ``root``.
+    The name is sanitised because a slug comes from a catalogue and reaches the
+    filesystem — anything outside the ASCII allow-list becomes ``_``, so
+    ``../../etc`` cannot escape ``root``.
+
+    Sanitising alone is lossy, so the identity's digest is appended. Without it
+    two different skills collide whenever their slugs differ only in characters
+    the allow-list drops — every all-CJK slug sanitises to the same string of
+    underscores — and one would silently overwrite the other. With it the map
+    from identity to directory is injective, which is what "one directory per
+    identity" has to mean.
     """
-    safe_source = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(source))[:40]
-    safe_slug = "".join(c if c.isalnum() or c in "-_.@" else "_" for c in str(slug))[:120]
-    return Path(root) / f"{safe_source}__{safe_slug or 'skill'}"
+    safe_source = "".join(c if c in _SAFE_SOURCE else "_" for c in str(source))[:40]
+    safe_slug = "".join(c if c in _SAFE_SLUG else "_" for c in str(slug))[:120]
+    digest = hashlib.sha256(identity(source, slug).encode("utf-8")).hexdigest()[:8]
+    return Path(root) / f"{safe_source}__{safe_slug or 'skill'}__{digest}"
 
 
 def _entries(root: str | os.PathLike[str]) -> list[tuple[Path, Origin]]:

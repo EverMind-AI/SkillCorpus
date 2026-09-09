@@ -93,9 +93,26 @@ export function now(clock: () => Date = () => new Date()): string {
  * `../../etc` cannot escape `root`.
  */
 export function slugDir(root: string, source: string, slug: string): string {
-  const safeSource = String(source).replace(/[^A-Za-z0-9\-_]/g, '_').slice(0, 40)
-  const safeSlug = String(slug).replace(/[^A-Za-z0-9\-_.@]/g, '_').slice(0, 120)
-  return join(root, `${safeSource}__${safeSlug || 'skill'}`)
+  // ASCII only, deliberately, and matching the Python port character for
+  // character. "Which characters are alphanumeric" does not agree across the
+  // two: Python's `str.isalnum` is Unicode-aware, so a CJK slug survives it
+  // there and becomes underscores here. One skill would then occupy two
+  // directories in the shared library — the exact duplication identity dedup
+  // exists to prevent.
+  // Spread rather than `replace`, so iteration is by code point. A regex walks
+  // UTF-16 code units, so an astral character like an emoji is two of them and
+  // becomes *two* underscores here against Python's one — the ports would
+  // disagree again, one character further along than the last time.
+  const sanitise = (text: string, allowed: RegExp, limit: number): string =>
+    [...String(text)].map(character => (allowed.test(character) ? character : '_')).join('').slice(0, limit)
+  const safeSource = sanitise(source, /^[A-Za-z0-9\-_]$/, 40)
+  const safeSlug = sanitise(slug, /^[A-Za-z0-9\-_.@]$/, 120)
+  // Sanitising alone is lossy, so the identity's digest is appended: without
+  // it two skills collide whenever their slugs differ only in dropped
+  // characters — every all-CJK slug sanitises to the same underscores — and
+  // one would silently overwrite the other.
+  const digest = createHash('sha256').update(identity(source, slug), 'utf8').digest('hex').slice(0, 8)
+  return join(root, `${safeSource}__${safeSlug || 'skill'}__${digest}`)
 }
 
 /**
@@ -176,6 +193,40 @@ function directoriesIn(root: string): string[] {
 }
 
 /**
+ * Every install under `root`, as `[top-level directory, marker]`.
+ *
+ * The two are not always the same directory, which is what makes this more
+ * than a `readdir`. Catalogue bundles usually wrap the whole skill in one
+ * directory, so the `SKILL.md` — and therefore the marker, which lives beside
+ * it because that is what the scanner reads — sits one level below the
+ * directory the install created. Uninstalling has to remove the outer one, or
+ * an empty husk stays behind.
+ *
+ * One level and no further. A marker deeper than that was not written by this
+ * code, and treating arbitrary depth as an install would let a skill that
+ * ships another skill be uninstalled out from under its owner.
+ */
+function entries(root: string): Array<[string, Origin]> {
+  const out: Array<[string, Origin]> = []
+  for (const name of directoriesIn(root)) {
+    const outer = join(root, name)
+    const marker = readMarker(outer)
+    if (marker) {
+      out.push([outer, marker])
+      continue
+    }
+    for (const child of directoriesIn(outer)) {
+      const nested = readMarker(join(outer, child))
+      if (nested) {
+        out.push([outer, nested])
+        break
+      }
+    }
+  }
+  return out
+}
+
+/**
  * Every skill this plugin installed under `root`, sorted by identity.
  *
  * A walk rather than an index read: the directory is the truth, so a skill the
@@ -183,19 +234,20 @@ function directoriesIn(root: string): string[] {
  * explain.
  */
 export function listInstalled(root: string): Origin[] {
-  const out: Origin[] = []
-  for (const name of directoriesIn(root)) {
-    const marker = readMarker(join(root, name))
-    if (marker) out.push(marker)
-  }
-  return out.sort((a, b) => (a.origin < b.origin ? -1 : a.origin > b.origin ? 1 : 0))
+  return entries(root)
+    .map(([, marker]) => marker)
+    .sort((a, b) => (a.origin < b.origin ? -1 : a.origin > b.origin ? 1 : 0))
 }
 
-/** The directory holding an installed skill, by identity. */
+/**
+ * The directory to remove for an installed skill, by identity.
+ *
+ * The directory the install *created*, not the one holding the `SKILL.md` —
+ * see `entries`.
+ */
 export function findInstalled(root: string, origin: string): string | undefined {
-  for (const name of directoriesIn(root)) {
-    const path = join(root, name)
-    if (readMarker(path)?.origin === origin) return path
+  for (const [directory, marker] of entries(root)) {
+    if (marker.origin === origin) return directory
   }
   return undefined
 }

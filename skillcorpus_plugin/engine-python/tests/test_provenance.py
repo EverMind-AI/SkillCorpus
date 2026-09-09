@@ -304,3 +304,17 @@ def test_a_skill_bundled_inside_another_skill_is_not_treated_as_an_install(tmp_p
     deep.mkdir(parents=True)
     provenance.write_marker(deep, _origin(slug="nested"))
     assert provenance.list_installed(tmp_path) == []
+
+
+FIXTURES = Path(__file__).resolve().parents[2] / "engine-typescript" / "tests" / "fixtures-slugdir.json"
+
+
+@pytest.mark.parametrize("case", json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"], ids=lambda c: c["dir"])
+def test_slug_dir_matches_the_typescript_port(case: dict, tmp_path: Path) -> None:
+    """Both ports install into the same directory on one machine.
+
+    A disagreement puts one skill in two directories, which is exactly the
+    duplication identity dedup exists to prevent — and it stayed invisible
+    because each suite only ever compared a port with itself.
+    """
+    assert provenance.slug_dir(tmp_path, case["source"], case["slug"]).name == case["dir"]
