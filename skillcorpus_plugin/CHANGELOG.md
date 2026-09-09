@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+## 0.4.0 — unreleased
+
+### Added
+
+- **A shared skills library.** Every host now also reads
+  `~/.evermind-skillsearch/skills/` and registers its own skills directory in
+  `~/.evermind-skillsearch/registry.json`, so a skill you have in one agent is
+  visible to the others. Nothing is hardcoded about which agents you run: each
+  writes the directory it actually resolved at startup, and reads the table
+  back.
+- **Retrieved skills are kept.** A skill downloaded from a catalogue used to be
+  extracted for one turn and thrown away. It now lands in the shared library
+  with a `.skillsearch-origin.json` recording where it came from, one directory
+  per skill rather than per version, and removals append to
+  `uninstalled.log`.
+- **Changes to the shared directory take effect on the next turn**, with no
+  restart. A host's own directory keeps that host's existing behaviour.
+- `skills_dirs` and `SKILLSEARCH_SKILLS_DIRS` on Raven and Hermes, which had
+  only a single `skills_dir` and no environment override while the engine
+  supported several roots all along.
+
+### Changed
+
+- An unrecognised `mode` is still narrowed to the default rather than failing
+  the load, but it is now **logged** with the value that was asked for. On both
+  OpenClaw generations the host rejects a bad value outright, so this covers
+  the three hosts with no schema to validate against, and the environment
+  override on all of them.
+- A source that is down is reported through the host's logger on both OpenClaw
+  packages. The engine always emitted the diagnostic; nothing consumed it, so
+  an unreachable catalogue and an empty one were indistinguishable.
+- A whitespace-only environment variable now counts as unset on the TypeScript
+  side, matching Python. It previously emptied `skillsDirs`, taking the host's
+  own skills directory — and with it the shared library — silently.
+
+### Notes
+
+- Two switches, deliberately opposite: `enabled` in the registry is "the others
+  cannot see me"; `shareSkills` / `share_skills` in a host's own config is "I
+  cannot see the others".
+- `~/.evermind-skillsearch/` is shared. Uninstalling one agent should remove
+  that agent's line from the registry, not the directory.
+
 ## 0.3.0 — 2026-09-02
 
 ### Changed — read this before upgrading

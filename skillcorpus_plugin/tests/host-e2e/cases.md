@@ -114,6 +114,19 @@ templates and "our" way of doing things — the one saying that searching here
 comes *before* answering that you do not know. Changing that paragraph means
 re-running this case on at least two hosts.
 
+**It has since failed a second way, which is worse.** On WorkBuddy 5.4.7 with
+that host's default model, the reply named a skill that does not exist —
+`scanned-pdf-invoice-ocr` — without ever calling `skill_search`. "I don't know"
+is at least legible as a miss; a fabricated skill name reads as though
+retrieval worked. So the assertion is on the fixture's facts and on the tool
+call, never on the reply merely sounding like it found something.
+
+The same run showed the clause is not enough on every model: an explicit
+instruction to call the tool did trigger it, so the tool exists and works and
+the description is what did not carry. Whether that is answered by rewording
+the description or by recommending `auto` on that host is a product decision,
+not a test one — it is recorded in `reports/workbuddy-shared-skills.md`.
+
 ## P3 — No match
 
 Both modes. Deliberately not a weather question: the public catalogues carry
@@ -339,6 +352,19 @@ MD
 
 Then start WorkBuddy and run one ordinary turn, so the plugin loads.
 
+### Which of these need a second agent
+
+Five of the nine do not, and saying so matters: the first run of this checklist
+left S2, S5, S6, S7 and S9 blank as "not executed" on a machine that had only
+WorkBuddy, when all five were verifiable there.
+
+| Needs only WorkBuddy | Needs a second agent with the plugin |
+| --- | --- |
+| S1, S2, S5, S7, S9, and S6's *survives-a-restart* half | S3, S4, and S6's *hides-it-from-the-other* half |
+
+S8 is covered against the real catalogue by `e2e_install.py` and does not need
+repeating here.
+
 ### Steps
 
 1. **It registered.** `cat ~/.evermind-skillsearch/registry.json` — there is a
@@ -359,21 +385,29 @@ Then start WorkBuddy and run one ordinary turn, so the plugin loads.
    INCONCLUSIVE rather than a failure — rerun it; see the verdicts in
    `README.md`.
 
-4. **S4 — the other direction.** Put a skill in WorkBuddy's *own* skills
-   directory, then open another agent that has this plugin and ask for it
-   there. It should be found without that agent being told anything.
+4. **S2 — found once, not twice.** Ask the same question again in a fresh
+   task. The skill appears in the answer exactly once. This is the case that
+   installing into a scanned directory could break: the local copy and the
+   catalogue's own entry are one skill and must collapse into one hit.
 
-5. **S6 — the user's switch holds.** Set `enabled: false` on the `workbuddy`
-   line in `registry.json`. The other agent stops finding WorkBuddy's skills.
-   Restart WorkBuddy, then read the file again: **still `false`**. A host
-   re-registering must never undo this, or the file is not editable.
+5. **S6, the half that needs nobody else — the flag survives a restart.** Set
+   `enabled: false` on the `workbuddy` line in `registry.json`, fully quit and
+   reopen WorkBuddy, then read the file again: **still `false`**. A host
+   re-registering must never undo it, or the file is not editable. *(The other
+   half — that another agent stops seeing WorkBuddy's skills — needs a second
+   agent.)*
 
-6. **S9 — a broken registry costs sharing, not the turn.** Replace
+6. **S4 — the other direction.** *(Second agent required.)* Put a skill in
+   WorkBuddy's *own* skills directory, then open another agent that has this
+   plugin and ask for it there. It should be found without that agent being
+   told anything.
+
+7. **S9 — a broken registry costs sharing, not the turn.** Replace
    `registry.json` with `{ this is not json`, then ask anything. The turn
    completes normally and retrieval still works from WorkBuddy's own
    directory. Restore the file afterwards.
 
-7. **S7 — removal leaves a record.** After anything has been installed by
+8. **S7 — removal leaves a record.** After anything has been installed by
    retrieval, remove it and check `~/.evermind-skillsearch/uninstalled.log`:
    one JSON line per removal, with the origin, the version and a timestamp.
 

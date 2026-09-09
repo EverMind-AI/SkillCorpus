@@ -13,7 +13,9 @@ way of deciding PASS, so a result from one release is comparable with the next.
   hosts and two modes; **S1–S9** are the shared skills library, which is about
   hosts seeing each other and therefore needs two of them running.
 - [`reports/`](reports) — what actually happened. `0.3.0.md` is a release;
-  `shared-skills.md` is a feature's acceptance.
+  `shared-skills.md` is a feature's acceptance, script-driven;
+  `workbuddy-shared-skills.md` is the same feature on the one host that has no
+  headless path, so it is a person's observations rather than script output.
 - [`scripts/`](scripts) — the five hosts that can be driven headlessly.
 
 ## Three layers, and what each one is worth
