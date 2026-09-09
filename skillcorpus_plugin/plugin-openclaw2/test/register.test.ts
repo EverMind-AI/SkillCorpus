@@ -15,7 +15,16 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mkdtempSync } from 'node:fs'
 import test from 'node:test'
+
+// Every suite in this package builds a real engine, and building one now
+// registers this host in the shared registry — under the user's home
+// directory. A test must never write there: it pollutes the machine it runs
+// on and, worse, makes the result depend on whatever the developer happens to
+// have installed. Pointed at a scratch directory before anything imports the
+// modules under test.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { DEFAULTS } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import { VERSION } from '../src/version.ts'

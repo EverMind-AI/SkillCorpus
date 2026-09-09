@@ -31,6 +31,7 @@ import type { SkillSource } from './types.js'
 import { LLMGateFilter } from './gate.js'
 import { HubSkillSource, SkillHubClient } from './hub-source.js'
 import { LocalSkillSource } from './local-source.js'
+import { scanDirs } from './shared.js'
 import { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
 import { QueryRewriter } from './rewriter.js'
 
@@ -57,6 +58,7 @@ export { resolveRefs } from './refs.js'
 export interface Config {
   /** Directories scanned for `SKILL.md`. Relative paths resolve against cwd. */
   skillsDirs?: string[]
+  shareSkills?: boolean
   /** Remote catalog base URL. Empty disables the remote source. */
   hubEndpoint?: string
   /** Bearer token the catalog requires, if any. */
@@ -157,6 +159,10 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   skillsDirs: z.array(z.string()).default(['.dsh/skills']),
+  // Join the cross-host shared library. Off stops this host reading the
+  // others; to stop the others reading this one, set `enabled: false` on
+  // its line in the shared registry.json.
+  shareSkills: z.boolean().default(true),
   hubEndpoint: z.string().default('https://skillhub.evermind.ai'),
   hubApiKey: z.string().default(''),
   clawhubEndpoint: z.string().default('https://clawhub.ai'),
@@ -340,11 +346,11 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = cfg.skillsDirs ?? []
-  if (dirs.length > 0) {
-    const local = new LocalSkillSource(
-      dirs.map(path => ({ path, name: 'local' })),
-      { indexBody: cfg.indexBody ?? false },
-    )
+  // Registers this harness's skills directory so the other four hosts can
+  // scan it, and appends the shared directory plus whatever they registered.
+  const roots = scanDirs('deepseek-harness', dirs, cfg.shareSkills)
+  if (roots.length > 0) {
+    const local = new LocalSkillSource(roots, { indexBody: cfg.indexBody ?? false })
     local.weight = cfg.weightLocal ?? 1.0
     sources.push(local)
   }

@@ -26,6 +26,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from skillsearch import shared
 from skillsearch.config import SearchConfig
 from skillsearch.engine import SkillSearch
 
@@ -161,6 +162,15 @@ def load_config(hermes_home: str) -> SearchConfig:
     raw.setdefault("state_dir", hermes_home)
     # Off by default: only a trusted PathGuard corpus may expand placeholders.
     raw.setdefault("resolve_placeholders", False)
+    # Join the shared library: register this agent's skills directory so the
+    # other hosts can scan it, and fold theirs plus the shared directory into
+    # `extra_dirs`. `skills_dirs` and `SKILLSEARCH_SKILLS_DIRS` come along —
+    # Hermes had neither, while the engine has supported several roots all
+    # along.
+    if shared.opted_in(raw.get("share_skills")):
+        extras = shared.extra_dirs_for("hermes", raw.get("skills_dir"), raw.get("skills_dirs"))
+        if extras:
+            raw["extra_dirs"] = list(raw.get("extra_dirs") or []) + extras
     return SearchConfig.from_mapping(raw)
 
 

@@ -8,11 +8,18 @@
  */
 
 import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
+
+// Building an engine registers this host in the shared registry, under the
+// user's home directory. A test must never write there: it pollutes the
+// machine and makes the result depend on whatever the developer has
+// installed. Redirected before anything under test is imported.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { createChatModel } from '../src/model.ts'
 import { register } from '../src/register.ts'
 import type {

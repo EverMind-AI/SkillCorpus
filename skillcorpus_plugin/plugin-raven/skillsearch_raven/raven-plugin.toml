@@ -30,7 +30,17 @@ mode           = { type = "string",  default = "on_demand" }
 # Sources. With neither a skills directory nor a catalog endpoint there is
 # nothing to retrieve, and the segment declines its slot.
 skills_dir     = { type = "string",  default = "skills" }
+# Extra roots, beyond `skills_dir`. A list, or one comma-separated string;
+# `SKILLSEARCH_SKILLS_DIRS` overrides either, matching the TypeScript hosts.
+# The engine has always supported several roots — this is the key that lets a
+# Raven deployment ask for them.
+skills_dirs    = { type = "array",   default = [] }
 builtin_dir    = { type = "string",  default = "" }
+# Whether this agent joins the cross-host shared library: scanning the shared
+# skills directory and the directories other hosts registered. Turning it off
+# stops this agent reading the others; to stop the others reading *this*
+# agent, set `enabled: false` on its line in the shared registry.json.
+share_skills   = { type = "boolean", default = true }
 scan_depth     = { type = "integer", default = 5 }
 hub_endpoint   = { type = "string",  default = "https://skillhub.evermind.ai" }
 hub_api_key    = { type = "string",  default = "" }

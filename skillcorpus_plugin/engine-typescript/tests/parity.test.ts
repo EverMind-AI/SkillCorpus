@@ -12,6 +12,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { readFileSync, statSync } from 'node:fs'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +24,7 @@ import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolvePlaceholders, resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
+import { readRegistry, registerHost, registeredDirs, sharedDirs, sharedRoot } from '../src/shared.ts'
 import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
@@ -539,4 +541,97 @@ test('Kubernetes is not mangled by plural normalization', () => {
   candidate.meta.description = 'Manage Kubernetes deployments'
   assert.deepEqual(queryTerms('kubernetes deployment'), ['kubernetes', 'deployment'])
   assert.equal(checkKeywordRelevance('kubernetes deployment', candidate).passed, true)
+})
+
+// ---------------------------------------------------------------------------
+// the host registry, against the fixture the Python suite also reads
+
+const registryFixtures = JSON.parse(
+  readFileSync(new URL('./fixtures-registry.json', import.meta.url), 'utf8'),
+) as {
+  cases: Array<{ why: string; document: unknown; expected: unknown[] }>
+  unparseable: string[]
+}
+
+test('the registry parses the same as the Python port', async () => {
+  // A Python host and a TypeScript host write this same file on one machine
+  // and read each other's writes, so a disagreement here is not cosmetic —
+  // it splits a user's agents apart with nothing logged.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-registry-'))
+  for (const [index, item] of registryFixtures.cases.entries()) {
+    const path = join(root, `case-${index}.json`)
+    await writeFile(path, JSON.stringify(item.document))
+    assert.deepEqual(readRegistry(path), item.expected, item.why)
+  }
+})
+
+test('an unparseable registry reads as empty in both ports', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-registry-bad-'))
+  for (const [index, text] of registryFixtures.unparseable.entries()) {
+    const path = join(root, `bad-${index}.json`)
+    await writeFile(path, text)
+    assert.deepEqual(readRegistry(path), [], JSON.stringify(text))
+  }
+})
+
+test('the shared root is one expression, and SKILLSEARCH_HOME overrides it', () => {
+  assert.ok(sharedRoot({}).endsWith('.evermind-skillsearch'))
+  assert.equal(sharedRoot({ SKILLSEARCH_HOME: '/tmp/elsewhere' }), '/tmp/elsewhere')
+  // Blank is not an override: an unset-looking variable must not point the
+  // five hosts at the process's current directory.
+  assert.ok(sharedRoot({ SKILLSEARCH_HOME: '   ' }).endsWith('.evermind-skillsearch'))
+})
+
+test('registering is idempotent and never overwrites the user’s enabled', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-register-'))
+  const registry = join(root, 'registry.json')
+  const skills = join(root, 'skills')
+  await mkdir(skills)
+
+  registerHost('openclaw2', skills, registry)
+  const stamped = statSync(registry).mtimeNs
+  // The short circuit WorkBuddy's per-turn hook depends on: one read, no write.
+  registerHost('openclaw2', skills, registry)
+  assert.equal(statSync(registry).mtimeNs, stamped)
+
+  const document = JSON.parse(readFileSync(registry, 'utf8')) as { hosts: Array<{ enabled: boolean }> }
+  document.hosts[0].enabled = false
+  await writeFile(registry, JSON.stringify(document))
+
+  const moved = join(root, 'moved')
+  await mkdir(moved)
+  const entries = registerHost('openclaw2', moved, registry)
+  assert.equal(entries.length, 1)
+  assert.equal(entries[0].dir, moved)
+  assert.equal(entries[0].enabled, false, 'a host restart must not undo the user’s choice')
+})
+
+test('scanning skips disabled entries, dead directories, and our own', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-dirs-'))
+  const registry = join(root, 'registry.json')
+  const mine = join(root, 'mine')
+  const theirs = join(root, 'theirs')
+  await mkdir(mine)
+  await mkdir(theirs)
+  await writeFile(registry, JSON.stringify({
+    hosts: [
+      { id: 'openclaw2', dir: mine, enabled: true },
+      { id: 'hermes', dir: theirs, enabled: true },
+      { id: 'raven', dir: theirs, enabled: false },
+      { id: 'gone', dir: join(root, 'never-existed'), enabled: true },
+    ],
+  }))
+
+  assert.deepEqual(registeredDirs('openclaw2', registry), [[theirs, 'hermes']])
+  assert.equal(registeredDirs('openclaw2', registry, { includeSelf: true }).length, 2)
+
+  // `sharedDirs` also drops a directory two hosts both registered, which is a
+  // real configuration: OpenClaw 1 and 2 share `~/.openclaw/skills`.
+  const env = { SKILLSEARCH_HOME: join(root, 'no-shared-root-here') }
+  assert.deepEqual(sharedDirs('openclaw2', mine, registry, env), [[theirs, 'hermes']])
+})
+
+test('sharedDirs never throws', () => {
+  // A registry path that cannot exist. Sharing degrades; the turn does not.
+  assert.deepEqual(sharedDirs('raven', '\0bad', '\0also-bad', {}), [])
 })

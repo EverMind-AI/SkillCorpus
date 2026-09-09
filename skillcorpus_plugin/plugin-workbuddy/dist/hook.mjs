@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // src/hook.ts
-import { appendFileSync, mkdirSync as mkdirSync2 } from "node:fs";
+import { appendFileSync, mkdirSync as mkdirSync3 } from "node:fs";
 import { dirname as dirname3 } from "node:path";
 
 // src/config.ts
@@ -70,6 +70,7 @@ var DEFAULTS = {
   indexCachePath: join(DATA_DIR, "index-cache.json"),
   logPath: join(DATA_DIR, "skillsearch.log"),
   resolvePlaceholders: false,
+  shareSkills: true,
   mode: "on_demand"
 };
 var ENV_KEYS = {
@@ -96,6 +97,7 @@ var ENV_KEYS = {
   indexCachePath: "SKILLSEARCH_INDEX_CACHE_PATH",
   logPath: "SKILLSEARCH_LOG_PATH",
   resolvePlaceholders: "SKILLSEARCH_RESOLVE_PLACEHOLDERS",
+  shareSkills: "SKILLSEARCH_SHARE_SKILLS",
   mode: "SKILLSEARCH_MODE"
 };
 function asList(value) {
@@ -182,13 +184,14 @@ function loadConfig(document, env = process.env) {
     // An unrecognised value falls back to the default rather than failing the
     // load: a typo should cost the deployment the mode it wanted, not its
     // whole plugin config.
+    shareSkills: asBoolean(pick("shareSkills")) ?? DEFAULTS.shareSkills,
     mode: pick("mode") === "auto" ? "auto" : "on_demand"
   };
 }
 
 // src/retrieve.ts
-import { homedir as homedir2 } from "node:os";
-import { join as join8 } from "node:path";
+import { homedir as homedir3 } from "node:os";
+import { join as join9 } from "node:path";
 
 // ../engine-typescript/src/engine.ts
 import { createHash } from "node:crypto";
@@ -1484,13 +1487,165 @@ function errorMessage2(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// ../engine-typescript/src/shared.ts
+import { mkdirSync, mkdtempSync, readFileSync as readFileSync2, renameSync, rmSync, statSync as statSync2, writeFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { isAbsolute as isAbsolute2, join as join6, resolve as resolve2 } from "node:path";
+var HOME_ENV = "SKILLSEARCH_HOME";
+var NOTE = "To exclude a directory, set its `enabled` to false. Deleting the line does not work \u2014 that agent re-registers it on its next start.";
+function expandHome(path, home = homedir2()) {
+  if (path === "~") return home;
+  if (path.startsWith("~/")) return join6(home, path.slice(2));
+  return path;
+}
+function sharedRoot(env = process.env) {
+  const override = (env[HOME_ENV] ?? "").trim();
+  if (override) return expandHome(override);
+  return join6(homedir2(), ".evermind-skillsearch");
+}
+function sharedSkillsDir(env = process.env) {
+  return join6(sharedRoot(env), "skills");
+}
+function registryPath(env = process.env) {
+  return join6(sharedRoot(env), "registry.json");
+}
+function isDirectory2(path) {
+  try {
+    return statSync2(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function readRegistry(path, env = process.env) {
+  const target = path ?? registryPath(env);
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync2(target, "utf8"));
+  } catch {
+    return [];
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const hosts = raw.hosts;
+  if (!Array.isArray(hosts)) return [];
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of hosts) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item;
+    const id = String(record.id ?? "").trim();
+    const dir = String(record.dir ?? "").trim();
+    if (!id || !dir || seen.has(id)) continue;
+    seen.add(id);
+    entries.push({ id, dir, enabled: record.enabled == null ? true : Boolean(record.enabled) });
+  }
+  return entries;
+}
+function writeRegistry(entries, path) {
+  const payload = {
+    _note: NOTE,
+    hosts: entries.map((entry) => ({ id: entry.id, dir: entry.dir, enabled: entry.enabled }))
+  };
+  let staging;
+  try {
+    const parent = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+    mkdirSync(parent, { recursive: true });
+    staging = mkdtempSync(join6(parent, ".registry-"));
+    const scratch = join6(staging, "registry.json");
+    writeFileSync(scratch, `${JSON.stringify(payload, null, 2)}
+`, "utf8");
+    renameSync(scratch, path);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (staging) {
+      try {
+        rmSync(staging, { recursive: true, force: true });
+      } catch {
+      }
+    }
+  }
+}
+function registerHost(hostId, skillsDir, path, env = process.env) {
+  const target = path ?? registryPath(env);
+  const entries = readRegistry(target, env);
+  const id = String(hostId ?? "").trim();
+  if (!id || !skillsDir) return entries;
+  let wanted;
+  try {
+    wanted = resolve2(expandHome(skillsDir));
+  } catch {
+    return entries;
+  }
+  if (!isAbsolute2(wanted)) return entries;
+  const index = entries.findIndex((entry) => entry.id === id);
+  const existing = index >= 0 ? entries[index] : void 0;
+  if (existing) {
+    if (existing.dir === wanted) return entries;
+    entries[index] = { id, dir: wanted, enabled: existing.enabled };
+  } else {
+    entries.push({ id, dir: wanted, enabled: true });
+  }
+  writeRegistry(entries, target);
+  return entries;
+}
+function registeredDirs(hostId = "", path, options = {}, env = process.env) {
+  const out = [];
+  for (const entry of readRegistry(path, env)) {
+    if (!entry.enabled) continue;
+    if (entry.id === hostId && !options.includeSelf) continue;
+    if (!isDirectory2(entry.dir)) continue;
+    out.push([entry.dir, entry.id]);
+  }
+  return out;
+}
+function sharedDirs(hostId, skillsDir, path, env = process.env) {
+  try {
+    registerHost(hostId, skillsDir, path, env);
+    const dirs = [];
+    const shared = sharedSkillsDir(env);
+    if (isDirectory2(shared)) dirs.push([shared, "shared"]);
+    let own;
+    if (skillsDir) {
+      try {
+        own = resolve2(expandHome(skillsDir));
+      } catch {
+        own = void 0;
+      }
+    }
+    for (const [dir, name] of registeredDirs(hostId, path, {}, env)) {
+      if (dir === own || dirs.some(([seen]) => seen === dir)) continue;
+      dirs.push([dir, name]);
+    }
+    return dirs;
+  } catch {
+    return [];
+  }
+}
+function scanDirs(hostId, ownDirs, share = true, path, env = process.env) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (dir, name) => {
+    if (!dir || seen.has(dir)) return;
+    seen.add(dir);
+    out.push({ path: dir, name });
+  };
+  for (const dir of ownDirs) add(dir, "local");
+  if (!share) return out;
+  try {
+    for (const [dir, name] of sharedDirs(hostId, ownDirs[0], path, env)) add(dir, name);
+  } catch {
+  }
+  return out;
+}
+
 // src/cached-local-source.ts
-import { mkdirSync, readFileSync as readFileSync2, readdirSync, renameSync, statSync as statSync2, writeFileSync } from "node:fs";
-import { dirname as dirname2, join as join7 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync3, readdirSync, renameSync as renameSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname2, join as join8 } from "node:path";
 
 // ../engine-typescript/src/local-source.ts
 import { readFile as readFile2, readdir as readdir2 } from "node:fs/promises";
-import { basename, join as join6 } from "node:path";
+import { basename, join as join7 } from "node:path";
 
 // ../engine-typescript/src/bm25.ts
 var TOKEN_RE = /[a-z0-9]{2,}|[一-鿿]+/g;
@@ -1679,9 +1834,9 @@ async function* walk(root, maxDepth) {
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) stack.push({ dir: join6(dir, entry.name), depth: depth + 1 });
+        if (!SKIP_DIRS.has(entry.name)) stack.push({ dir: join7(dir, entry.name), depth: depth + 1 });
       } else if (entry.name === SKILL_FILE) {
-        yield join6(dir, entry.name);
+        yield join7(dir, entry.name);
       }
     }
   }
@@ -1737,7 +1892,7 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
   }
   read() {
     try {
-      const parsed = JSON.parse(readFileSync2(this.cachePath, "utf8"));
+      const parsed = JSON.parse(readFileSync3(this.cachePath, "utf8"));
       if (!parsed || typeof parsed !== "object") return void 0;
       const file = parsed;
       if (file.version !== 1 || typeof file.fingerprint !== "string") return void 0;
@@ -1748,10 +1903,10 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
   }
   write(file) {
     try {
-      mkdirSync(dirname2(this.cachePath), { recursive: true });
+      mkdirSync2(dirname2(this.cachePath), { recursive: true });
       const temp = `${this.cachePath}.${process.pid}.tmp`;
-      writeFileSync(temp, JSON.stringify(file));
-      renameSync(temp, this.cachePath);
+      writeFileSync2(temp, JSON.stringify(file));
+      renameSync2(temp, this.cachePath);
     } catch {
     }
   }
@@ -1766,11 +1921,11 @@ function collect(dir, depth, out) {
   }
   for (const entry of entries) {
     if (SKIP_DIRS2.has(entry.name)) continue;
-    const path = join7(dir, entry.name);
+    const path = join8(dir, entry.name);
     if (entry.isDirectory()) collect(path, depth - 1, out);
     else if (entry.name === SKILL_FILE2) {
       try {
-        out.push(`${path}:${statSync2(path).mtimeMs}`);
+        out.push(`${path}:${statSync3(path).mtimeMs}`);
       } catch {
       }
     }
@@ -1813,18 +1968,19 @@ function createChatModel(options) {
 }
 
 // src/retrieve.ts
-function expandHome(path, home = homedir2()) {
+function expandHome2(path, home = homedir3()) {
   if (path === "~") return home;
-  if (path.startsWith("~/")) return join8(home, path.slice(2));
+  if (path.startsWith("~/")) return join9(home, path.slice(2));
   return path;
 }
 function buildEngine(config, onDiagnostic, workspaceDir) {
   const sources = [];
-  const dirs = config.skillsDirs.map((dir) => expandHome(dir)).filter(Boolean);
-  if (dirs.length > 0) {
+  const dirs = config.skillsDirs.map((dir) => expandHome2(dir)).filter(Boolean);
+  const roots = scanDirs("workbuddy", dirs, config.shareSkills);
+  if (roots.length > 0) {
     const local = new CachedLocalSkillSource(
-      dirs.map((path) => ({ path, name: "local" })),
-      { indexBody: config.indexBody, cachePath: expandHome(config.indexCachePath) }
+      roots,
+      { indexBody: config.indexBody, cachePath: expandHome2(config.indexCachePath) }
     );
     local.weight = config.localWeight;
     sources.push(local);
@@ -1836,7 +1992,7 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
       // Outside every scanned directory. `~/.workbuddy-ai/plugins/cache` is
       // one of the defaults, so a bundle extracted under it would come back
       // as a local skill on the next scan.
-      cacheDir: expandHome(config.bundleCacheDir) || join8(homedir2(), ".workbuddy-ai", "skillsearch-bundles")
+      cacheDir: expandHome2(config.bundleCacheDir) || join9(homedir3(), ".workbuddy-ai", "skillsearch-bundles")
     });
     const hub = new HubSkillSource(client);
     hub.weight = config.hubWeight;
@@ -1849,7 +2005,7 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
   ]) {
     if (!endpoint) continue;
     const marketplace = new MarketplaceClient(kind, endpoint, {
-      cacheDir: expandHome(config.bundleCacheDir) || join8(homedir2(), ".workbuddy-ai", "skillsearch-bundles"),
+      cacheDir: expandHome2(config.bundleCacheDir) || join9(homedir3(), ".workbuddy-ai", "skillsearch-bundles"),
       // ClawHub measured 4–5s on the supported route. Give search headroom,
       // but leave time under the hook's global deadline for body hydration.
       timeoutMs: Math.max(1, Math.min(config.timeoutMs, 6500)),
@@ -1905,8 +2061,8 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
       // is ~/.workbuddy-ai; the agent's writable output is its workspace,
       // falling back to the hook process's cwd when the payload reports none.
       outputDir: workspaceDir || process.cwd(),
-      homeDir: homedir2(),
-      stateDir: join8(homedir2(), ".workbuddy-ai"),
+      homeDir: homedir3(),
+      stateDir: join9(homedir3(), ".workbuddy-ai"),
       resolvePlaceholders: config.resolvePlaceholders
     }
   );
@@ -1959,7 +2115,7 @@ function resultFor(block) {
 function log(config, entry) {
   if (!config.logPath) return;
   try {
-    mkdirSync2(dirname3(config.logPath), { recursive: true });
+    mkdirSync3(dirname3(config.logPath), { recursive: true });
     appendFileSync(config.logPath, `${JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), ...entry })}
 `);
   } catch {

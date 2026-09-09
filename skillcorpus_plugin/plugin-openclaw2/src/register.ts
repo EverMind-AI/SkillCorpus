@@ -48,6 +48,7 @@ import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
 import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
+import { scanDirs } from '../../engine-typescript/src/shared.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { loadConfig, unknownMode, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
@@ -87,11 +88,12 @@ export function buildEngine(
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(dir => isAbsolute(dir) || dir)
-  if (dirs.length > 0) {
-    sources.push(new LocalSkillSource(
-      dirs.map(path => ({ path, name: 'local' })),
-      { indexBody: config.indexBody },
-    ))
+  // Registers this host's own directory so the other four can scan it, and
+  // appends the shared directory plus whatever they registered. Returns
+  // `dirs` unchanged when the deployment opted out or anything went wrong.
+  const roots = scanDirs('openclaw2', dirs, config.shareSkills)
+  if (roots.length > 0) {
+    sources.push(new LocalSkillSource(roots, { indexBody: config.indexBody }))
   }
 
   let client: SkillHubClient | undefined

@@ -146,7 +146,15 @@ def _check_projects() -> list[str]:
 
 
 def _check_plugin_dirs() -> list[str]:
-    actual = {path.name for path in PLUGIN_ROOT.iterdir() if path.is_dir()}
+    # Dot-directories are never packages — `.ruff_cache`, `.pytest_cache` and
+    # friends appear wherever a tool was invoked from. They are gitignored, but
+    # this walks the working tree rather than the index, so an ignored
+    # directory still failed the gate and read as a missing inventory entry.
+    actual = {
+        path.name
+        for path in PLUGIN_ROOT.iterdir()
+        if path.is_dir() and not (path.name.startswith(".") and path.name != ".github")
+    }
     unexpected = sorted(actual - EXPECTED_PLUGIN_DIRS)
     missing = sorted(EXPECTED_PLUGIN_DIRS - actual)
     failures = [

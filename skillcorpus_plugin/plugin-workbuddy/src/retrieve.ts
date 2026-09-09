@@ -14,6 +14,7 @@ import { SkillSearchEngine, type SourceDiagnostic } from '../../engine-typescrip
 import { LLMGateFilter } from '../../engine-typescript/src/gate.js'
 import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-source.js'
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
+import { scanDirs } from '../../engine-typescript/src/shared.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import { CachedLocalSkillSource } from './cached-local-source.js'
@@ -42,9 +43,19 @@ export function buildEngine(
   const sources: SkillSource[] = []
 
   const dirs = config.skillsDirs.map(dir => expandHome(dir)).filter(Boolean)
-  if (dirs.length > 0) {
+  // Registers this host's own directory so the other four can scan it, and
+  // appends the shared directory plus whatever they registered.
+  //
+  // This host reaches here twice with very different lifecycles: the MCP
+  // server builds once and lives, but the `UserPromptSubmit` hook is a fresh
+  // process **every turn**, so "at startup" here means "every turn", on the
+  // turn's hot path, inside an 8s budget, where a throw blocks the user's
+  // message. `scanDirs` is built for that: the steady state is one small file
+  // read and no write, and it swallows everything.
+  const roots = scanDirs('workbuddy', dirs, config.shareSkills)
+  if (roots.length > 0) {
     const local = new CachedLocalSkillSource(
-      dirs.map(path => ({ path, name: 'local' })),
+      roots,
       { indexBody: config.indexBody, cachePath: expandHome(config.indexCachePath) },
     )
     // Set here rather than upstream: preferring the catalog is this host's

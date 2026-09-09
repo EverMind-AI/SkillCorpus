@@ -72,6 +72,18 @@ export interface SkillSearchConfig {
    * the agent never thinks to search — which its tool description exists to
    * prevent.
    */
+  /**
+   * Join the cross-host shared library: scan the shared skills directory and
+   * the directories the other hosts registered, and register this host's own
+   * so they can scan it.
+   *
+   * Off stops this host reading the others. It does **not** stop the others
+   * reading this one — that switch is `enabled` on this host's line in the
+   * shared `registry.json`, and the two are deliberately separate because
+   * users conflate them.
+   */
+  readonly shareSkills: boolean
+
   readonly mode: 'on_demand' | 'auto'
 }
 
@@ -94,6 +106,7 @@ export const DEFAULTS: SkillSearchConfig = {
   timeoutMs: 8000,
   availableTools: [],
   resolvePlaceholders: false,
+  shareSkills: true,
   mode: 'on_demand',
 }
 
@@ -117,6 +130,7 @@ const ENV_KEYS: Partial<Record<keyof SkillSearchConfig, string>> = {
   timeoutMs: 'SKILLSEARCH_TIMEOUT_MS',
   availableTools: 'SKILLSEARCH_AVAILABLE_TOOLS',
   resolvePlaceholders: 'SKILLSEARCH_RESOLVE_PLACEHOLDERS',
+  shareSkills: 'SKILLSEARCH_SHARE_SKILLS',
   mode: 'SKILLSEARCH_MODE',
 }
 
@@ -239,6 +253,7 @@ export function loadConfig(
     // An unrecognised value falls back to the default rather than failing the
     // load: a typo should cost the deployment the mode it wanted, not its
     // whole plugin config.
+    shareSkills: asBoolean(pick('shareSkills')) ?? DEFAULTS.shareSkills,
     mode: pick('mode') === 'auto' ? 'auto' : 'on_demand',
   }
 }
