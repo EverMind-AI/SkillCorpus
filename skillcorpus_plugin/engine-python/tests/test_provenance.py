@@ -268,3 +268,39 @@ def test_the_marker_is_json_a_person_can_read(tmp_path: Path) -> None:
     assert document["source"] == "hub"
     assert document["skill_version"] == "1.0"
     assert "_note" in document and "uninstall" in document["_note"]
+
+
+def test_a_bundle_that_wraps_the_skill_is_still_listed_and_removable(tmp_path: Path) -> None:
+    """The shape a real catalogue actually sends.
+
+    Hub bundles wrap the whole skill in one directory, so the `SKILL.md` — and
+    the marker beside it, which is where the scanner reads it — sits one level
+    below the directory the install created. Listing only the top level found
+    nothing, so dedup worked while every management call was blind. Caught by
+    running against the live catalogue; no hand-built fixture has a wrapper.
+    """
+    dest = provenance.slug_dir(tmp_path, "hub", "extract-tables-from-pdf")
+    body = dest / "extract-tables-from-pdf"
+    body.mkdir(parents=True)
+    (body / "SKILL.md").write_text("---\nname: extract-tables-from-pdf\n---\n\nbody\n", encoding="utf-8")
+    provenance.write_marker(body, _origin(slug="extract-tables-from-pdf"))
+
+    assert [o.origin for o in provenance.list_installed(tmp_path)] == ["hub/extract-tables-from-pdf"]
+    # The *outer* directory, or uninstalling leaves an empty husk behind.
+    assert provenance.find_installed(tmp_path, "hub/extract-tables-from-pdf") == dest
+    assert provenance.uninstall(tmp_path, "hub/extract-tables-from-pdf") is True
+    assert not dest.exists()
+    assert provenance.list_installed(tmp_path) == []
+
+
+def test_a_skill_bundled_inside_another_skill_is_not_treated_as_an_install(tmp_path: Path) -> None:
+    """One level down, not arbitrary depth.
+
+    Otherwise a skill that ships another skill in its own tree could be
+    uninstalled out from under the one that owns it.
+    """
+    outer = tmp_path / "handwritten"
+    deep = outer / "vendor" / "nested"
+    deep.mkdir(parents=True)
+    provenance.write_marker(deep, _origin(slug="nested"))
+    assert provenance.list_installed(tmp_path) == []

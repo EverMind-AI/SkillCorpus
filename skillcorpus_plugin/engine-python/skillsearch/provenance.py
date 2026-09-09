@@ -164,14 +164,21 @@ def slug_dir(root: str | os.PathLike[str], source: str, slug: str) -> Path:
     return Path(root) / f"{safe_source}__{safe_slug or 'skill'}"
 
 
-def list_installed(root: str | os.PathLike[str]) -> list[Origin]:
-    """Every skill this plugin installed under ``root``, sorted by identity.
+def _entries(root: str | os.PathLike[str]) -> list[tuple[Path, Origin]]:
+    """Every install under ``root``, as ``(top-level directory, marker)``.
 
-    A walk rather than an index read: the directory is the truth, so a skill a
-    user deleted by hand is simply gone rather than a stale row nobody can
-    explain.
+    The two paths are not always the same directory, which is what makes this
+    more than an ``iterdir``. Catalogue bundles usually wrap the whole skill in
+    one directory, so the ``SKILL.md`` — and therefore the marker, which lives
+    beside it because that is what the scanner reads — sits one level below the
+    directory the install created. Uninstalling has to remove the outer one, or
+    an empty husk stays behind.
+
+    Only one level down. A marker deeper than that is not something this code
+    wrote, and treating an arbitrary depth as an install would let a skill
+    bundled inside another skill be uninstalled out from under it.
     """
-    out: list[Origin] = []
+    out: list[tuple[Path, Origin]] = []
     try:
         entries = sorted(Path(root).iterdir(), key=lambda p: p.name)
     except OSError:
@@ -181,22 +188,41 @@ def list_installed(root: str | os.PathLike[str]) -> list[Origin]:
             continue
         marker = read_marker(entry)
         if marker is not None:
-            out.append(marker)
-    return sorted(out, key=lambda o: o.origin)
+            out.append((entry, marker))
+            continue
+        try:
+            nested = sorted(entry.iterdir(), key=lambda p: p.name)
+        except OSError:
+            continue
+        for child in nested:
+            if not child.is_dir():
+                continue
+            marker = read_marker(child)
+            if marker is not None:
+                out.append((entry, marker))
+                break
+    return out
+
+
+def list_installed(root: str | os.PathLike[str]) -> list[Origin]:
+    """Every skill this plugin installed under ``root``, sorted by identity.
+
+    A walk rather than an index read: the directory is the truth, so a skill a
+    user deleted by hand is simply gone rather than a stale row nobody can
+    explain.
+    """
+    return sorted((marker for _, marker in _entries(root)), key=lambda o: o.origin)
 
 
 def find_installed(root: str | os.PathLike[str], origin: str) -> Path | None:
-    """The directory holding an installed skill, by identity."""
-    try:
-        entries = sorted(Path(root).iterdir(), key=lambda p: p.name)
-    except OSError:
-        return None
-    for entry in entries:
-        if not entry.is_dir():
-            continue
-        marker = read_marker(entry)
-        if marker is not None and marker.origin == origin:
-            return entry
+    """The directory to remove for an installed skill, by identity.
+
+    The directory the install *created*, not the one holding the ``SKILL.md``
+    — see `_entries`.
+    """
+    for directory, marker in _entries(root):
+        if marker.origin == origin:
+            return directory
     return None
 
 
