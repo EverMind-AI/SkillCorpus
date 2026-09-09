@@ -369,8 +369,14 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   const dirs = cfg.skillsDirs ?? []
   // Registers this harness's skills directory so the other four hosts can
   // scan it, and appends the shared directory plus whatever they registered.
-  const installRoot = installRootFor(cfg.shareSkills)
-  const roots = scanDirs('deepseek-harness', dirs, cfg.shareSkills)
+  // `?? true` because this reaches `buildEngine` through the exported
+  // `Config` type, where the field is optional — the zod default only applies
+  // to config the harness parsed. Without it the harness's own type-check
+  // fails, which is how this was found: the repository suites never compile
+  // this file against that interface.
+  const share = cfg.shareSkills ?? true
+  const installRoot = installRootFor(share)
+  const roots = scanDirs('deepseek-harness', dirs, share)
   if (roots.length > 0) {
     const local = new LocalSkillSource(roots, { indexBody: cfg.indexBody ?? false })
     local.weight = cfg.weightLocal ?? 1.0

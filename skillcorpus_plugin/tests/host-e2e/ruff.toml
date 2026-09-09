@@ -40,3 +40,5 @@ ignore = [
 # Runs two host CLIs and an interpreter, all named by the operator. Running
 # them is the script.
 "scripts/e2e_shared.py" = ["S603"]
+# Drives every host CLI and interpreter the operator named. That is the script.
+"scripts/e2e_shared_hosts.py" = ["S603"]
