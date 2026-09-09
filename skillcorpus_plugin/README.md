@@ -204,7 +204,7 @@ A skill with no description at all can only be found by its name. (`index_body: 
 
 ## Uninstall
 
-Reverse of install, nothing hidden: remove the plugin directory / pip packages, delete the config keys you added, and optionally the bundle cache directory listed above. Each plugin README has the exact paths, and the agent playbook has an [uninstall section](INSTALL.agent.md#uninstall) — "remove skillsearch" works too.
+Reverse of install, nothing hidden: remove the plugin directory / pip packages, delete the config keys you added, and optionally the bundle cache directory listed above. **`~/.evermind-skillsearch/` is the exception — leave it unless this is your last agent**: it is shared, so deleting it while another agent still has the plugin takes that agent's library with it. The narrow cleanup is removing this host's line from `registry.json`. Each plugin README has the exact paths, and the agent playbook has an [uninstall section](INSTALL.agent.md#uninstall) — "remove skillsearch" works too.
 
 ## How it works
 

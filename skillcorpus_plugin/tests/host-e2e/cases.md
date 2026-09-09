@@ -309,3 +309,76 @@ inconclusive at all.
 fails open, so an unreachable service and an empty result look identical from
 outside. The install cases report BLOCKED in that situation rather than a red
 that a rerun clears.
+
+## WorkBuddy, by hand
+
+The one host with no headless path, so S1–S9 are steps rather than a script.
+Nothing here is exotic — it is the same corpus and the same questions the
+scripts use, driven through the UI.
+
+**Both of its paths reach the shared library, and they have different
+lifecycles.** `UserPromptSubmit` is a fresh process every turn; the MCP server
+starts with the session and lives. Both call `scanDirs`, so both register —
+which is why step 2 exists: on the hook path "at startup" means "every turn",
+on the turn's hot path, inside an 8-second budget.
+
+### Setup
+
+```bash
+mkdir -p ~/.evermind-skillsearch/skills/rotate-signing-keys
+cat > ~/.evermind-skillsearch/skills/rotate-signing-keys/SKILL.md <<'MD'
+---
+name: rotate-signing-keys
+description: Rotate the service signing keys and re-issue downstream credentials safely.
+---
+
+House procedure: stage the new key under the `Narwhal-KMS-4` alias and keep the
+previous one live until the `Quokka Cutover` window closes.
+MD
+```
+
+Then start WorkBuddy and run one ordinary turn, so the plugin loads.
+
+### Steps
+
+1. **It registered.** `cat ~/.evermind-skillsearch/registry.json` — there is a
+   `workbuddy` entry, `enabled: true`, and `dir` is WorkBuddy's real skills
+   directory as an absolute path. If the entry is missing, stop: without it the
+   other agents cannot see this one, which is half the feature.
+
+2. **It does not rewrite the registry every turn.** Note the file's mtime, run
+   three or four more turns, check it again. Unchanged. This is the short
+   circuit the per-turn hook depends on — a write per turn is both a cost on
+   the hot path and a race with four other agents.
+
+3. **S5 — the shared skill is retrievable.** Ask *"What is our internal
+   procedure for rotating signing keys?"* in a fresh task. In the default
+   `on_demand` mode the agent should call `skill_search`; the answer must
+   mention `Narwhal-KMS-4` and `Quokka Cutover`, which exist nowhere else. If
+   the model answers "I don't know" without calling the tool, that is
+   INCONCLUSIVE rather than a failure — rerun it; see the verdicts in
+   `README.md`.
+
+4. **S4 — the other direction.** Put a skill in WorkBuddy's *own* skills
+   directory, then open another agent that has this plugin and ask for it
+   there. It should be found without that agent being told anything.
+
+5. **S6 — the user's switch holds.** Set `enabled: false` on the `workbuddy`
+   line in `registry.json`. The other agent stops finding WorkBuddy's skills.
+   Restart WorkBuddy, then read the file again: **still `false`**. A host
+   re-registering must never undo this, or the file is not editable.
+
+6. **S9 — a broken registry costs sharing, not the turn.** Replace
+   `registry.json` with `{ this is not json`, then ask anything. The turn
+   completes normally and retrieval still works from WorkBuddy's own
+   directory. Restore the file afterwards.
+
+7. **S7 — removal leaves a record.** After anything has been installed by
+   retrieval, remove it and check `~/.evermind-skillsearch/uninstalled.log`:
+   one JSON line per removal, with the origin, the version and a timestamp.
+
+### What to record
+
+Host version, plugin version, the commit, and for each step what you saw —
+following the same fields as the other reports. A step that could not be run
+is written down with the reason rather than left out.
