@@ -396,6 +396,10 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   return new SkillSearchEngine(
     {
       sources,
+      // Re-fingerprinted before every retrieval so a skill installed by
+      // another agent, or dragged in by hand, shows up next turn instead of
+      // after a restart. Only the shared directory — see `watch.ts`.
+      watchDirs: roots.filter(root => root.name === 'shared').map(root => root.path),
       ...(model && wantsRewrite
         ? {
           rewriter: new QueryRewriter(model, {

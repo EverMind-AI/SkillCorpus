@@ -214,9 +214,11 @@ class SkillSearch:
         from skillsearch.sources.local_source import LocalSkillSource
 
         cfg = self._cfg
+        # Declared out here so the watch below can ask what was scanned even
+        # when the host handed us its own store and this stayed empty.
+        roots: list[tuple[Any, str]] = []
         if store is None:
             root = cfg.resolved_skills_dir()
-            roots: list[tuple[Any, str]] = []
             if root and root.is_dir():
                 roots.append((root, "local"))
             from pathlib import Path
@@ -238,6 +240,20 @@ class SkillSearch:
             store = DirectorySkillStore(roots, max_depth=cfg.scan_depth)
 
         self._store = store
+        # Watch the shared directory, and only it — see `watch.py`. Set up
+        # here because this is the one place that knows the scan exists, and
+        # `_revalidate` is what drops it.
+        from skillsearch.shared import shared_skills_dir
+        from skillsearch.watch import DirectoryWatch
+
+        # Only when the shared directory is actually one of the roots: a host
+        # that opted out, or one that brought its own store, gets no walk.
+        try:
+            shared_dir = str(shared_skills_dir())
+            watched = [shared_dir] if any(str(path) == shared_dir for path, _ in roots) else []
+        except Exception:  # a watch is an optimisation, never a failure mode
+            watched = []
+        self._watch = DirectoryWatch(watched, max_depth=cfg.scan_depth)
         self._local_pool = LocalPool(store, index_body=cfg.index_body)
         return LocalSkillSource(
             pool=self._local_pool,
@@ -267,6 +283,22 @@ class SkillSearch:
 
     # ── The entry point ──────────────────────────────────────────────
 
+    def _revalidate(self) -> None:
+        """Drop the cached scan when the shared directory changed.
+
+        The scan is built once and kept, and no adapter calls
+        :meth:`invalidate` — so without this a skill installed in one agent
+        stays invisible in the others until they restart, which is the whole
+        premise of a shared library.
+
+        Scoped to the shared directory alone. Watching every root would put a
+        per-turn walk on deployments that are not using this, and the other
+        hosts' directories keep whatever behaviour they already had.
+        """
+        watch = getattr(self, "_watch", None)
+        if watch is not None and watch.changed():
+            self.invalidate()
+
     async def retrieve(
         self,
         query: str,
@@ -274,6 +306,7 @@ class SkillSearch:
         history: list[dict[str, Any]] | None = None,
     ) -> str:
         """Return the block to inject, or ``""`` when there is nothing."""
+        self._revalidate()
         if self._router is None or not (query or "").strip():
             return ""
         try:

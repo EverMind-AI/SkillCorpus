@@ -225,3 +225,116 @@ def test_registry_parses_the_same_as_the_typescript_port(case: dict, registry: P
 def test_unparseable_registries_read_as_empty_in_both_ports(text: str, registry: Path) -> None:
     registry.write_text(text, encoding="utf-8")
     assert shared.read_registry(registry) == []
+
+
+# ---------------------------------------------------------------------------
+# noticing a changed shared directory without a restart
+
+
+def test_the_watch_reports_no_change_on_its_first_look(tmp_path: Path) -> None:
+    """Constructing a watch must not throw away a scan that was just built."""
+    from skillsearch.watch import DirectoryWatch
+
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "SKILL.md").write_text("---\nname: a\n---\n")
+    watch = DirectoryWatch([tmp_path])
+    assert watch.changed() is False
+    assert watch.changed() is False
+
+
+def test_the_watch_notices_an_added_edited_or_removed_skill(tmp_path: Path) -> None:
+    from skillsearch.watch import DirectoryWatch
+
+    first = tmp_path / "a"
+    first.mkdir()
+    skill = first / "SKILL.md"
+    skill.write_text("---\nname: a\n---\n")
+    watch = DirectoryWatch([tmp_path])
+    watch.changed()
+
+    second = tmp_path / "b"
+    second.mkdir()
+    (second / "SKILL.md").write_text("---\nname: b\n---\n")
+    assert watch.changed() is True, "an added skill"
+    assert watch.changed() is False, "and then it settles"
+
+    os.utime(skill, ns=(1_000_000_000_000, 1_000_000_000_000))
+    assert watch.changed() is True, "an edited skill"
+
+    (second / "SKILL.md").unlink()
+    assert watch.changed() is True, "a removed skill"
+
+
+def test_the_watch_ignores_files_that_are_not_skills(tmp_path: Path) -> None:
+    from skillsearch.watch import DirectoryWatch
+
+    watch = DirectoryWatch([tmp_path])
+    watch.changed()
+    (tmp_path / "notes.md").write_text("not a skill")
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "SKILL.md").write_text("---\nname: x\n---\n")
+    assert watch.changed() is False
+
+
+def test_an_empty_watch_is_free_and_silent(tmp_path: Path) -> None:
+    """A host that opted out, or brought its own store, gets no walk."""
+    from skillsearch.watch import DirectoryWatch
+
+    watch = DirectoryWatch([])
+    assert watch.active is False
+    assert watch.changed() is False
+
+
+def test_the_watch_never_raises_on_a_missing_directory(tmp_path: Path) -> None:
+    from skillsearch.watch import DirectoryWatch
+
+    watch = DirectoryWatch([tmp_path / "never-existed"])
+    assert watch.changed() is False
+
+
+@pytest.mark.asyncio
+async def test_a_skill_dropped_into_the_shared_directory_is_found_next_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Acceptance 5, end to end through the engine.
+
+    The user drags a skill into the shared directory while the agent is
+    running. Before this, the scan was built once and kept for the life of the
+    engine, so it took a restart — which for a *shared* library is fatal: a
+    skill installed in one agent stayed invisible in the others.
+    """
+    from skillsearch.config import SearchConfig
+    from skillsearch.engine import SkillSearch
+    from skillsearch import shared
+
+    root = tmp_path / "home"
+    monkeypatch.setenv(shared.HOME_ENV, str(root))
+    shared_skills = root / "skills"
+    shared_skills.mkdir(parents=True)
+
+    own = tmp_path / "own"
+    own.mkdir()
+
+    engine = SkillSearch(SearchConfig.from_mapping({
+        "skills_dir": str(own),
+        "extra_dirs": [{"path": str(shared_skills), "name": "shared"}],
+        "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": "",
+        "top_k": 3,
+    }))
+
+    assert await engine.retrieve("extract tables from a scanned PDF invoice") == ""
+
+    # The user drops one in. No restart, no invalidate() call by anyone.
+    dropped = shared_skills / "pdf-tables"
+    dropped.mkdir()
+    (dropped / "SKILL.md").write_text(
+        "---\nname: pdf-tables\n"
+        "description: Extract tables from PDF documents, scanned or native, into CSV.\n"
+        "---\n\nOCR scanned pages before extracting tables.\n",
+        encoding="utf-8",
+    )
+
+    block = await engine.retrieve("extract tables from a scanned PDF invoice")
+    assert "pdf-tables" in block
+    # And exactly once — the shared directory is scanned by one source, not two.
+    assert block.count("### Skill: pdf-tables") == 1

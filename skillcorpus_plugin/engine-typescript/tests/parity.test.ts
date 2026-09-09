@@ -13,7 +13,7 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync, statSync } from 'node:fs'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -25,6 +25,7 @@ import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolvePlaceholders, resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
 import { readRegistry, registerHost, registeredDirs, sharedDirs, sharedRoot } from '../src/shared.ts'
+import { DirectoryWatch } from '../src/watch.ts'
 import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
@@ -634,4 +635,69 @@ test('scanning skips disabled entries, dead directories, and our own', async () 
 test('sharedDirs never throws', () => {
   // A registry path that cannot exist. Sharing degrades; the turn does not.
   assert.deepEqual(sharedDirs('raven', '\0bad', '\0also-bad', {}), [])
+})
+
+// ---------------------------------------------------------------------------
+// noticing a changed shared directory without a restart
+
+test('the watch is quiet on its first look, then tracks the tree', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-'))
+  await mkdir(join(root, 'a'))
+  await writeFile(join(root, 'a', 'SKILL.md'), '---\nname: a\n---\n')
+
+  const watch = new DirectoryWatch([root])
+  // Constructing a watch must not throw away a scan that was just built.
+  assert.equal(watch.changed(), false)
+  assert.equal(watch.changed(), false)
+
+  await mkdir(join(root, 'b'))
+  await writeFile(join(root, 'b', 'SKILL.md'), '---\nname: b\n---\n')
+  assert.equal(watch.changed(), true, 'an added skill')
+  assert.equal(watch.changed(), false, 'and then it settles')
+
+  await writeFile(join(root, 'a', 'SKILL.md'), '---\nname: a\n---\nedited\n')
+  assert.equal(watch.changed(), true, 'an edited skill')
+
+  await rm(join(root, 'b'), { recursive: true })
+  assert.equal(watch.changed(), true, 'a removed skill')
+})
+
+test('the watch ignores what the scanner ignores, and costs nothing when empty', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-skip-'))
+  const watch = new DirectoryWatch([root])
+  watch.changed()
+
+  await writeFile(join(root, 'notes.md'), 'not a skill')
+  await mkdir(join(root, '.git'))
+  await writeFile(join(root, '.git', 'SKILL.md'), '---\nname: x\n---\n')
+  assert.equal(watch.changed(), false, 'a fingerprint tracking different files from the scan would invent changes')
+
+  // A host that opted out, or brought its own store, gets no walk at all.
+  const idle = new DirectoryWatch([])
+  assert.equal(idle.active, false)
+  assert.equal(idle.changed(), false)
+  assert.equal(new DirectoryWatch([join(root, 'never-existed')]).changed(), false)
+})
+
+test('a skill dropped into a watched directory is found on the next retrieval', async () => {
+  // The feature's headline, end to end: no restart, and nobody calling
+  // `invalidate()` by hand.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-e2e-'))
+  const local = new LocalSkillSource([{ path: root, name: 'shared' }], {})
+  const engine = new SkillSearchEngine({ sources: [local], watchDirs: [root] }, { topK: 3 })
+
+  assert.equal(await engine.retrieve('extract tables from a scanned PDF invoice'), '')
+
+  await mkdir(join(root, 'pdf-tables'))
+  await writeFile(
+    join(root, 'pdf-tables', 'SKILL.md'),
+    '---\nname: pdf-tables\n'
+    + 'description: Extract tables from PDF documents, scanned or native, into CSV.\n'
+    + '---\n\nOCR scanned pages before extracting tables.\n',
+  )
+
+  const block = await engine.retrieve('extract tables from a scanned PDF invoice')
+  assert.match(block, /pdf-tables/)
+  // Exactly once: the shared directory is scanned by one source, not two.
+  assert.equal(block.split('### Skill: pdf-tables').length - 1, 1)
 })

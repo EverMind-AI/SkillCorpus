@@ -15,8 +15,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _isolated_shared_root(tmp_path_factory: pytest.TempPathFactory,
-                          monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolated_shared_root(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
     root: Path = tmp_path_factory.mktemp("skillsearch-home")
     monkeypatch.setenv("SKILLSEARCH_HOME", str(root))
     # A test that wants extra directories asks for them; inheriting the

@@ -91,6 +91,10 @@ export function buildEngine(
   return new SkillSearchEngine(
     {
       sources,
+      // Re-fingerprinted before every retrieval so a skill installed by
+      // another agent, or dragged in by hand, shows up next turn instead of
+      // after a restart. Only the shared directory — see `watch.ts`.
+      watchDirs: roots.filter(root => root.name === 'shared').map(root => root.path),
       // Without this a source that is down is invisible here. The engine
       // already reports it — one failing source leaves the others usable, by
       // design — but nothing was consuming the report, so "the catalogue was
