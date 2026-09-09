@@ -32,8 +32,8 @@
  */
 
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 /**
  * Inside the skill's own directory. Dotted so a host's own scanner ignores it,
@@ -304,9 +304,94 @@ export function swapIntoPlace(staging: string, dest: string): void {
  * Moved aside and then deleted, so a half-finished delete cannot leave a
  * directory the scanner still reads as a skill.
  */
-export function uninstall(root: string, origin: string): boolean {
+/** Beside the registry, one level up from the skills directory. Append-only. */
+export const LOG = 'uninstalled.log'
+
+/**
+ * Where removals are recorded, given the skills directory.
+ *
+ * A sibling of the skills directory rather than a file inside it: anything
+ * under `skills/` is walked by the scanner, and a log growing there would be
+ * one more thing every host reads every turn for no reason.
+ */
+export function uninstallLog(root: string): string {
+  return join(dirname(root), LOG)
+}
+
+/**
+ * Append one removal to the log. `false` if it could not be written.
+ *
+ * Installing puts files on someone's disk, so removing them has to leave
+ * something behind — otherwise a user who wants to know what this plugin ever
+ * put on this machine has no way to find out, and a skill that vanished is
+ * indistinguishable from one that was never there.
+ *
+ * JSON Lines, appended, never rewritten: an append-only file cannot lose an
+ * earlier entry to a crash halfway through. `listInstalled` stays the
+ * authority on what is *present*; this answers what *was*.
+ */
+export function recordUninstall(root: string, removed: Origin, logPath?: string): boolean {
+  const target = logPath ?? uninstallLog(root)
+  const entry = {
+    removed_at: now(),
+    version: 1,
+    origin: removed.origin,
+    source: removed.source,
+    slug: removed.slug,
+    skill_version: removed.version,
+    sha256: removed.sha256,
+    installed_at: removed.installedAt,
+  }
+  try {
+    mkdirSync(dirname(target), { recursive: true })
+    appendFileSync(target, `${JSON.stringify(entry)}\n`, 'utf8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Every removal recorded, oldest first. Unreadable lines are skipped.
+ *
+ * A corrupt line costs that one record rather than the whole history, which
+ * matters for an append-only file several processes write.
+ */
+export function readUninstalled(root: string, logPath?: string): Array<Record<string, unknown>> {
+  const target = logPath ?? uninstallLog(root)
+  let text: string
+  try {
+    text = readFileSync(target, 'utf8')
+  } catch {
+    return []
+  }
+  const out: Array<Record<string, unknown>> = []
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const record: unknown = JSON.parse(line)
+      if (record && typeof record === 'object' && !Array.isArray(record)) {
+        out.push(record as Record<string, unknown>)
+      }
+    } catch {
+      // One bad line, not the whole history.
+    }
+  }
+  return out
+}
+
+/**
+ * Remove an installed skill by identity. `false` if it was not there.
+ *
+ * Moved aside and then deleted, so a half-finished delete cannot leave a
+ * directory the scanner still reads as a skill. The removal is recorded after
+ * the directory is gone: a log entry for a skill still on disk is a puzzle,
+ * while a skill removed with no entry is a hole in the history.
+ */
+export function uninstall(root: string, origin: string, logPath?: string): boolean {
   const found = findInstalled(root, origin)
   if (!found) return false
+  const removed = entries(root).find(([directory]) => directory === found)?.[1]
   const retired = scratchName(found, 'removing')
   try {
     renameSync(found, retired)
@@ -314,5 +399,6 @@ export function uninstall(root: string, origin: string): boolean {
     return false
   }
   rmSync(retired, { recursive: true, force: true })
+  if (removed) recordUninstall(root, removed, logPath)
   return true
 }

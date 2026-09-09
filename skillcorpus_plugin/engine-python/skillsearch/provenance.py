@@ -278,19 +278,87 @@ def swap_into_place(staging: str | os.PathLike[str], dest: str | os.PathLike[str
         shutil.rmtree(retired, ignore_errors=True)
 
 
-def uninstall(root: str | os.PathLike[str], origin: str) -> bool:
+#: Beside the registry, one level up from the skills directory. Append-only.
+LOG = "uninstalled.log"
+
+
+def uninstall_log(root: str | os.PathLike[str]) -> Path:
+    """Where removals are recorded, given the skills directory.
+
+    A sibling of the skills directory rather than a file inside it: anything
+    under ``skills/`` is walked by the scanner, and a log that grows there
+    would be one more thing every host reads every turn for no reason.
+    """
+    return Path(root).parent / LOG
+
+
+def record_uninstall(root: str | os.PathLike[str], removed: Origin, log_path: Path | None = None) -> bool:
+    """Append one removal to the log. ``False`` if it could not be written.
+
+    Installing puts files on someone's disk, so removing them has to leave
+    something behind — otherwise a user who wants to know what this plugin
+    ever put on this machine has no way to find out, and a skill that vanished
+    is indistinguishable from one that was never there.
+
+    JSON Lines, appended, never rewritten. A log that is only ever appended to
+    cannot lose an earlier entry to a crash halfway through, and `list_installed`
+    stays the authority on what is *present* — this answers a different
+    question, which is what *was*.
+    """
+    target = log_path or uninstall_log(root)
+    entry = {"removed_at": now(), **removed.as_json()}
+    entry.pop("_note", None)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError:
+        return False
+    return True
+
+
+def read_uninstalled(root: str | os.PathLike[str], log_path: Path | None = None) -> list[dict[str, object]]:
+    """Every removal recorded, oldest first. Unreadable lines are skipped.
+
+    A corrupt line costs that one record rather than the whole history, which
+    matters for an append-only file that several processes write.
+    """
+    target = log_path or uninstall_log(root)
+    out: list[dict[str, object]] = []
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(record, dict):
+            out.append(record)
+    return out
+
+
+def uninstall(root: str | os.PathLike[str], origin: str, log_path: Path | None = None) -> bool:
     """Remove an installed skill by identity. ``False`` if it was not there.
 
     Moved aside and then deleted, so a half-finished delete cannot leave a
-    directory the scanner still reads as a skill.
+    directory the scanner still reads as a skill. The removal is recorded
+    first: a log entry for a skill that is still on disk is a puzzle, while a
+    skill removed with no entry is a hole in the history.
     """
     found = find_installed(root, origin)
     if found is None:
         return False
+    removed = next((m for d, m in _entries(root) if d == found), None)
     retired = found.with_name(f"{found.name}.removing-{os.getpid()}-{os.urandom(4).hex()}")
     try:
         os.replace(found, retired)
     except OSError:
         return False
     shutil.rmtree(retired, ignore_errors=True)
+    if removed is not None:
+        record_uninstall(root, removed, log_path)
     return True

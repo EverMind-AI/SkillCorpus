@@ -924,8 +924,8 @@ import { join as join6 } from "node:path";
 
 // ../engine-typescript/src/provenance.ts
 import { createHash as createHash2 } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync as readFileSync2, readdirSync as readdirSync2, renameSync, rmSync, statSync as statSync3, writeFileSync } from "node:fs";
-import { join as join4 } from "node:path";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync as readFileSync2, readdirSync as readdirSync2, renameSync, rmSync, statSync as statSync3, writeFileSync } from "node:fs";
+import { dirname as dirname2, join as join4 } from "node:path";
 var MARKER = ".skillsearch-origin.json";
 var NOTE = "Written by the skillsearch plugin. Delete the directory to uninstall.";
 function identity(source, slug) {
@@ -1908,7 +1908,7 @@ function scanDirs(hostId, ownDirs, share = true, path, env = process.env) {
 
 // src/cached-local-source.ts
 import { mkdirSync as mkdirSync3, readFileSync as readFileSync4, readdirSync as readdirSync3, renameSync as renameSync3, statSync as statSync5, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname2, join as join10 } from "node:path";
+import { dirname as dirname3, join as join10 } from "node:path";
 
 // ../engine-typescript/src/local-source.ts
 import { readFile as readFile2, readdir as readdir2 } from "node:fs/promises";
@@ -2174,7 +2174,7 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
   }
   write(file) {
     try {
-      mkdirSync3(dirname2(this.cachePath), { recursive: true });
+      mkdirSync3(dirname3(this.cachePath), { recursive: true });
       const temp = `${this.cachePath}.${process.pid}.tmp`;
       writeFileSync3(temp, JSON.stringify(file));
       renameSync3(temp, this.cachePath);

@@ -135,11 +135,48 @@ Honest accounting, because retrieval runs on your conversation:
 
 - **Local-only setup (after explicitly disabling the three remote endpoints)** — nothing. Scanning, ranking and injection are all in-process.
 - **Default installation** — EverMind SkillHub, ClawHub, and skillhub.cn are enabled; the retrieval query is sent to all three services. Set any endpoint field to an empty string to disable that source. With no `model`, no LLM gate runs: source safety checks and the EverMind lexical relevance guard still apply.
-- **EverMind SkillHub** — selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, into a cache directory outside every scanned skills dir (`~/.workbuddy-ai/skillsearch-bundles`, `~/.skillsearch/hub`, `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles` by default).
+- **EverMind SkillHub** — selected skills' bodies and bundles are downloaded from it. Bundles are unzipped with path-traversal rejection, an extension allowlist, and 8 MiB/file, 64 MiB/archive caps, and are **kept** in the shared skills library (`~/.evermind-skillsearch/skills/`) rather than discarded after the turn. Each keeps a `.skillsearch-origin.json` saying what it is and when it arrived, removals are appended to `~/.evermind-skillsearch/uninstalled.log`, and `shareSkills: false` / `share_skills: false` puts a host back on the old throwaway cache.
 - **Marketplace body fetches** — up to two candidates per enabled marketplace are downloaded and safely extracted before the optional LLM gate, because those APIs expose the skill body through the bundle. A rejected candidate may therefore remain in the cache, but the plugin never executes it automatically.
 - **With `model` set** — the rewriter sees your message (truncated to 2,000 chars); the gate sees your message plus candidate names, descriptions and 300-char body excerpts. Both go to the model *you* configured, through the host's own provider where the host offers one.
 
 Downloaded skills are third-party content that the model is instructed to follow. ClawHub and skillhub.cn entries are not covered by SkillCorpus’s repository-license audit; review their upstream terms before redistribution. The gate can reject skills that assume unavailable tools or environments, but it only exists when a model is configured.
+
+## The shared skills library
+
+By default every host scans one directory of its own, so a skill you have in
+one agent is invisible to the other four. From 0.4.0 they also share one:
+
+```text
+~/.evermind-skillsearch/
+├── registry.json      which agent keeps its skills where
+├── uninstalled.log    what was removed, and when
+└── skills/            what retrieval installed, one directory per skill
+```
+
+Nothing is hardcoded about *your* agents. Each host writes the skills
+directory it actually resolved into `registry.json` when it starts, and reads
+the others back — so the set is exactly "the agents that also have this plugin",
+and moving your skills directory is picked up on the next start.
+
+`registry.json` is meant to be edited. To stop other agents reading one
+directory, set its `enabled` to `false`; deleting the line does not work,
+because that agent re-registers on its next start. That is the opposite switch
+from `shareSkills` / `share_skills` in a host's own config, which stops *that
+host* reading everyone else:
+
+| You want | Set |
+| --- | --- |
+| others not to see my skills | `enabled: false` on my line in `registry.json` |
+| me not to see theirs | `shareSkills: false` in my own host config |
+
+Changes to the shared directory take effect **on the next turn**, with no
+restart — drop a skill in by hand and the next question can find it. Changes
+inside a host's own directory keep that host's existing behaviour, which for
+four of the five still means restarting.
+
+`SKILLSEARCH_HOME` moves the root. Treat it as advanced: a GUI-launched agent
+never reads your shell profile, so the two would disagree about where the
+library is.
 
 ## Make your skills findable
 

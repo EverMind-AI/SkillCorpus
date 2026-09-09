@@ -878,3 +878,38 @@ test('slugDir matches the Python port, character for character', () => {
     )
   }
 })
+
+test('uninstalling leaves a record, appended and never rewritten', async () => {
+  // Acceptance 7's middle clause, which was missing from both ports.
+  // Installing puts files on someone's disk; removing them has to leave
+  // something behind, or a skill that vanished is indistinguishable from one
+  // that was never installed.
+  const home = await mkdtemp(join(tmpdir(), 'skillsearch-log-'))
+  const root = join(home, 'skills')
+  await mkdir(root)
+
+  for (const slug of ['a', 'b', 'c']) {
+    await installed(root, 'hub', slug, '1.0')
+    assert.equal(provenance.uninstall(root, `hub/${slug}`), true)
+  }
+
+  // Beside the registry, not inside `skills/` — the scanner walks that.
+  assert.equal(provenance.uninstallLog(root), join(home, 'uninstalled.log'))
+  const records = provenance.readUninstalled(root)
+  assert.deepEqual(records.map(r => r.origin), ['hub/a', 'hub/b', 'hub/c'])
+  assert.equal(records[0].skill_version, '1.0')
+  assert.ok(records[0].removed_at)
+
+  // A corrupt line costs that record, not the history.
+  const log = provenance.uninstallLog(root)
+  await writeFile(log, `${readFileSync(log, 'utf8')}{not json\n{"origin":"hub/d"}\n`)
+  assert.deepEqual(provenance.readUninstalled(root).map(r => r.origin),
+                   ['hub/a', 'hub/b', 'hub/c', 'hub/d'])
+
+  // A removal that did not happen is not recorded.
+  const fresh = await mkdtemp(join(tmpdir(), 'skillsearch-log2-'))
+  const emptyRoot = join(fresh, 'skills')
+  await mkdir(emptyRoot)
+  assert.equal(provenance.uninstall(emptyRoot, 'hub/never-installed'), false)
+  assert.deepEqual(provenance.readUninstalled(emptyRoot), [])
+})

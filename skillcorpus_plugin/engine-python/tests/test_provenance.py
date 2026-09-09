@@ -318,3 +318,88 @@ def test_slug_dir_matches_the_typescript_port(case: dict, tmp_path: Path) -> Non
     because each suite only ever compared a port with itself.
     """
     assert provenance.slug_dir(tmp_path, case["source"], case["slug"]).name == case["dir"]
+
+
+def test_uninstalling_leaves_a_record(tmp_path: Path) -> None:
+    """Acceptance 7's middle clause, which was missing entirely.
+
+    Installing puts files on someone's disk. Removing them has to leave
+    something behind, or a user asking "what did this thing ever put here"
+    has no way to find out, and a skill that vanished is indistinguishable
+    from one that was never installed.
+    """
+    root = tmp_path / "skills"
+    root.mkdir()
+    _install(root, "hub", "pdf-tables", "1.0")
+
+    assert provenance.uninstall(root, "hub/pdf-tables") is True
+
+    # Beside the registry, not inside `skills/` — the scanner walks that.
+    log = provenance.uninstall_log(root)
+    assert log == tmp_path / "uninstalled.log"
+    records = provenance.read_uninstalled(root)
+    assert len(records) == 1
+    assert records[0]["origin"] == "hub/pdf-tables"
+    assert records[0]["skill_version"] == "1.0"
+    assert records[0]["removed_at"]
+    assert records[0]["installed_at"]
+
+
+def test_the_log_is_appended_never_rewritten(tmp_path: Path) -> None:
+    """An append-only file cannot lose an earlier entry to a crash."""
+    root = tmp_path / "skills"
+    root.mkdir()
+    for slug in ("a", "b", "c"):
+        _install(root, "hub", slug)
+        provenance.uninstall(root, f"hub/{slug}")
+    assert [r["origin"] for r in provenance.read_uninstalled(root)] == ["hub/a", "hub/b", "hub/c"]
+
+
+def test_a_corrupt_line_costs_one_record_not_the_history(tmp_path: Path) -> None:
+    root = tmp_path / "skills"
+    root.mkdir()
+    _install(root, "hub", "a")
+    provenance.uninstall(root, "hub/a")
+    log = provenance.uninstall_log(root)
+    log.write_text(log.read_text() + "{not json\n" + '{"origin": "hub/b"}\n', encoding="utf-8")
+    assert [r["origin"] for r in provenance.read_uninstalled(root)] == ["hub/a", "hub/b"]
+
+
+def test_a_removal_that_did_not_happen_is_not_recorded(tmp_path: Path) -> None:
+    root = tmp_path / "skills"
+    root.mkdir()
+    assert provenance.uninstall(root, "hub/never-installed") is False
+    assert provenance.read_uninstalled(root) == []
+
+
+@pytest.mark.asyncio
+async def test_an_uninstalled_skill_stops_being_retrievable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Acceptance 7's last clause, asserted by retrieving rather than by
+    looking at the disk — the ledger being empty and the engine still
+    answering are different facts."""
+    from skillsearch import shared
+
+    monkeypatch.setenv(shared.HOME_ENV, str(tmp_path / "home"))
+    shared_skills = shared.shared_skills_dir()
+    shared_skills.mkdir(parents=True)
+    _install(shared_skills, "hub", "pdf-tables")
+
+    engine = SkillSearch(
+        SearchConfig.from_mapping(
+            {
+                "skills_dir": str(tmp_path / "own"),
+                "extra_dirs": [{"path": str(shared_skills), "name": "shared"}],
+                "hub_endpoint": "",
+                "clawhub_endpoint": "",
+                "skillhub_cn_endpoint": "",
+                "top_k": 5,
+            }
+        )
+    )
+    assert "pdf-tables" in await engine.retrieve("extract tables from a PDF into CSV")
+
+    assert provenance.uninstall(shared_skills, "hub/pdf-tables") is True
+
+    # No restart, no invalidate() by hand — the directory watch notices.
+    assert "pdf-tables" not in await engine.retrieve("extract tables from a PDF into CSV")
+    assert [r["origin"] for r in provenance.read_uninstalled(shared_skills)] == ["hub/pdf-tables"]
