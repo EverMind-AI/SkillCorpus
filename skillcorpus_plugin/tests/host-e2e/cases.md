@@ -248,3 +248,64 @@ empty" is the assertion; "process exits" is the bug.
 
 The older WorkBuddy verification notes checked the hook log, which is an
 `auto`-mode check. It is not a completion standard for the default.
+
+---
+
+# S1–S9 — the shared skills library
+
+A second family of cases, from `skillsearch-shared-skills-spec.md`. They are
+numbered as that document numbers them, so a result here can be read against
+it line by line.
+
+These differ from P1–P6 in what they are about. P1–P6 ask whether *one* host
+retrieves correctly; these ask whether the hosts can see **each other**, which
+means at least two of them have to be running and the evidence lives in files
+on disk rather than in one turn's transcript.
+
+## The corpus
+
+Three fixtures, and the reason there are three rather than one is a mistake
+worth not repeating. They must not compete: the hosts run with `topK: 1`, so
+two skills on the same subject means the case measures which one ranked higher
+rather than what it set out to measure.
+
+| Fixture | Lives in | Facts | Used by |
+| --- | --- | --- | --- |
+| `invoice-audit` | host A's own directory | `Wombat-Ledger-7`, `Tapir Threshold` | S4 |
+| `rotate-signing-keys` | the shared directory | `Narwhal-KMS-4`, `Quokka Cutover` | S5, and the per-host probe |
+| whatever the catalogue returns for "extract tables from a PDF" | installed by retrieval | its own frontmatter name | S1, S2, S3, S7, S8 |
+
+## The cases
+
+| # | The claim | How it is verified | Script |
+| --- | --- | --- | --- |
+| S1 | a retrieved skill appears under `<shared root>/skills/` | install for real from EverMind SkillHub, then read the ledger | `e2e_install.py` |
+| S2 | the next turn finds it locally, **exactly once**, no restart | retrieve twice on one engine, count the heading; then again on a freshly built engine | `e2e_install.py` |
+| S3 | agent B retrieves what agent A installed | Raven installs from the catalogue; OpenClaw — other host, other language port, own process — is then asked | `e2e_shared.py` |
+| S4 | a skill in A's own directory is retrievable in B | Raven registers its directory; OpenClaw is asked the question only that skill answers | `e2e_shared.py` |
+| S5 | a skill dropped in by hand reaches the hosts next turn, no restart | write into the shared directory mid-run, ask again | `e2e_shared.py`, `e2e_shared_hosts.py` |
+| S6 | `enabled: false` hides A from B, **and survives A restarting** | edit the registry, ask B, re-register A, read the flag back | `e2e_shared.py` |
+| S7 | uninstall → directory gone, **a record kept**, not retrievable | remove through the Python port, observe from the TypeScript host, read `uninstalled.log` | `e2e_shared.py`, `e2e_install.py` |
+| S8 | a failed update leaves the previous version working | install for real, then update to an absent version from a dead endpoint | `e2e_install.py` |
+| S9 | a corrupt registry costs sharing, not retrieval | write `{ this is not json` and ask again | `e2e_shared.py` |
+
+`e2e_shared_hosts.py` runs the narrower question — *does this host join at
+all* — separately against each of the five headless hosts, because the
+registration is wired at six different call sites and a fix applied to one is
+not a fix applied to the others. Three bugs on this branch were exactly that.
+
+## Two things about judging these
+
+**Registration and retrieval are separate verdicts.** A host that registers but
+whose model never called `skill_search` has not failed — in on-demand mode the
+model decides, and one that answers from memory leaves the wiring untested
+rather than broken. That is reported as INCONCLUSIVE. A host that does not
+register *is* a failure: the others then cannot see it, which is half the
+feature. Both OpenClaw generations also get an engine probe — the plugin's own
+`buildEngine`, no model in the loop — so the wiring verdict cannot come out
+inconclusive at all.
+
+**A catalogue that answered with nothing is not a failed install.** Retrieval
+fails open, so an unreachable service and an empty result look identical from
+outside. The install cases report BLOCKED in that situation rather than a red
+that a rerun clears.
