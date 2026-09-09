@@ -41,4 +41,4 @@ ignore = [
 # them is the script.
 "scripts/e2e_shared.py" = ["S603"]
 # Drives every host CLI and interpreter the operator named. That is the script.
-"scripts/e2e_shared_hosts.py" = ["S603"]
+"scripts/e2e_shared_hosts.py" = ["S603", "S607"]  # also resolves npx from PATH

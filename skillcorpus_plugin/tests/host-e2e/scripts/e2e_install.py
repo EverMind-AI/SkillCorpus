@@ -15,10 +15,13 @@ Covers, from the spec's list:
     2  the next turn finds it locally, **exactly once**, with no restart
     7  uninstalling removes it, and it stops being retrievable
 
-Acceptance 8 — a failed update leaves the old version working — is not here.
-It is a property of the swap primitive, not of the catalogue, and forcing a
-real download to fail halfway would be theatre; `engine-python/tests` and
-`engine-typescript/tests` assert it directly on `swap_into_place`.
+    8  a failed update leaves the previous version installed and working
+
+Acceptance 8 is here after all. The unit tests drive `swap_into_place` with a
+staging directory that does not exist, which proves the primitive; this drives
+a real update of a really-installed skill whose download really fails, which
+is the path a user hits. The two are not the same test — everything between
+"decide to update" and "swap" is only covered by the second.
 
 Usage:
 
@@ -38,6 +41,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _e2e
 
 #: The default in every host's config, and a service that answers without a
 #: key. Overridable so this can be pointed at a staging deployment.
@@ -174,6 +178,67 @@ def main() -> int:
     check("a newly built engine sees it too, and still once",
           name != "" and turns["third"].count(heading) == 1,
           f"{turns['third'].count(heading)}x in an engine with no cached scan")
+
+    # -- Acceptance 8: an update that fails leaves the old one working -----
+    #
+    # A real installed skill, a real update attempt, a download that really
+    # fails. The unit tests cover the swap primitive; nothing covered the
+    # decision path in front of it, which is where a half-written directory
+    # would come from.
+    before_dir = provenance.find_installed(shared_skills, origin)
+    before_body = ""
+    if before_dir is not None:
+        for candidate in (before_dir, *sorted(p for p in before_dir.iterdir() if p.is_dir())):
+            if (candidate / "SKILL.md").is_file():
+                before_body = (candidate / "SKILL.md").read_text(encoding="utf-8")
+                break
+
+    failed_as_expected = False
+    if before_dir is not None:
+        # Same skill, a version the marker does not have, and an endpoint that
+        # nothing is listening on — so the update is attempted and the download
+        # is what fails.
+        dead = f"http://127.0.0.1:{_e2e.dead_port()}"
+
+        async def attempt() -> None:
+            from skillsearch.hub_client import SkillHubClient
+
+            client = SkillHubClient(dead, cache_dir=home / "cache", install_root=shared_skills)
+            try:
+                await client.install(installed[0].slug,
+                                     prefetched_meta={"slug": installed[0].slug,
+                                                      "version": "999.0",
+                                                      "skill_md": ""})
+            finally:
+                await client.aclose()
+
+        try:
+            asyncio.run(attempt())
+        except Exception:  # the failure is the point
+            failed_as_expected = True
+
+    after_dir = provenance.find_installed(shared_skills, origin)
+    after_body = ""
+    if after_dir is not None:
+        for candidate in (after_dir, *sorted(p for p in after_dir.iterdir() if p.is_dir())):
+            if (candidate / "SKILL.md").is_file():
+                after_body = (candidate / "SKILL.md").read_text(encoding="utf-8")
+                break
+
+    check("a failed update leaves the previous version installed and working",
+          failed_as_expected and after_dir == before_dir and after_body == before_body
+          and bool(before_body),
+          f"download failed as expected: {failed_as_expected}; "
+          f"directory unchanged: {after_dir == before_dir}; "
+          f"body unchanged: {after_body == before_body} ({len(before_body)} chars)")
+
+    # No half-written directory left behind, which is the other way this can
+    # go wrong: a staging directory that survives is picked up by the scanner.
+    leftovers = sorted(p.name for p in shared_skills.iterdir()
+                       if p.is_dir() and (".incoming-" in p.name or ".retiring-" in p.name))
+    check("and no half-written directory is left behind",
+          not leftovers,
+          f"leftovers: {leftovers}" if leftovers else "none")
 
     # -- Acceptance 7 ------------------------------------------------------
     removed = [o.origin for o in installed if provenance.uninstall(shared_skills, o.origin)]

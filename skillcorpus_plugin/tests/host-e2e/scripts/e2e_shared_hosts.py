@@ -27,10 +27,16 @@ all, and a model that answers from memory instead leaves the wiring untested
 rather than broken. Measured: OpenClaw 1.x failed this exactly once that way,
 and driving its engine directly returned the shared skill in full.
 
-So a host that registers but whose model did not reach for the tool is
-reported as INCONCLUSIVE, not FAIL, and the run says which. A host that does
-not register is a real failure — it means the others cannot see it, which is
-half the feature gone.
+So the model-facing turn is not the only evidence. Each OpenClaw generation
+also gets an **engine probe**: the plugin's own `buildEngine`, given the same
+config the host profile carries, asked to retrieve. That answers "is the shared
+library wired into this host's engine" with no model in the loop, so it cannot
+come out INCONCLUSIVE.
+
+The two together say what a single one cannot. A host passes on the engine
+probe and registration; the model-facing turn is reported beside it as the
+end-to-end observation, and a model that answered from memory instead is noted
+rather than counted against the wiring.
 
 Usage:
 
@@ -93,6 +99,46 @@ def python_host(kind: str, checkout: Path, site: str, python: str, home: Path,
     return {"returncode": proc.returncode,
             "stdout": proc.stdout[-4000:],
             "stderr": proc.stderr[-2000:]}
+
+
+def openclaw_engine_probe(generation: int, own: Path, home: Path) -> bool:
+    """Retrieve through the plugin's own engine, with no model in the loop.
+
+    The model-facing turn answers "did this agent use the shared library",
+    which is the real question but is not deterministic: in on-demand mode the
+    model decides whether to call `skill_search`, and one that answers from
+    memory instead leaves the wiring untested. This answers the narrower
+    question the wiring actually owns — "can this host's engine see the shared
+    directory" — and it is the same code path the tool would have used.
+
+    Written to a file rather than passed with `-c` because the plugin sources
+    are ESM with top-level imports and `tsx -e` compiles to CJS, which refuses
+    the top-level await this needs.
+    """
+    package = "plugin-openclaw2" if generation == 2 else "plugin-openclaw"
+    root = Path(__file__).resolve().parents[3] / package
+    script = home / "engine-probe.ts"
+    script.write_text(
+        f"import {{ buildEngine }} from {str(root / 'src' / 'register.ts')!r}\n"
+        f"import {{ loadConfig }} from {str(root / 'src' / 'config.ts')!r}\n"
+        "async function main() {\n"
+        f"  const cfg = loadConfig({{ skillsDirs: [{str(own)!r}], hubEndpoint: '',\n"
+        "    clawhubEndpoint: '', skillhubCnEndpoint: '', topK: 3 }, process.env)\n"
+        "  const engine = buildEngine(cfg, undefined, undefined)\n"
+        f"  const block = await engine.retrieve({_e2e.SHARED_PROMPT!r}, {{}})\n"
+        "  console.log(block)\n"
+        "}\n"
+        "void main()\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "HOME": str(home),
+           "SKILLSEARCH_HOME": str(home / ".evermind-skillsearch")}
+    try:
+        proc = subprocess.run(["npx", "--yes", "tsx", str(script)], capture_output=True,
+                              text=True, timeout=180, check=False, env=env, cwd=str(root))
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return all(fact in proc.stdout for fact in _e2e.SHARED_FACTS)
 
 
 def main() -> int:
@@ -166,11 +212,14 @@ def main() -> int:
         seen = "\n".join(turn["tool_results"]) + "\n" + turn["reply"]
         ids = registered(home)
         names = [c["name"] for c in turn["tool_calls"]]
+        by_model = all(fact in seen for fact in _e2e.SHARED_FACTS)
+        by_engine = openclaw_engine_probe(generation, own, home)
         check(label,
               host_id in ids,
-              all(fact in seen for fact in _e2e.SHARED_FACTS),
+              by_engine,
               "skill_search" in names,
-              f"registry={ids} tools={names} reply={turn['reply'][:140]!r}"
+              f"registry={ids} engine_probe={by_engine} model_found={by_model} "
+              f"tools={names} reply={turn['reply'][:120]!r}"
               + ("" if proc.returncode == 0 else f" stderr={proc.stderr[-300:]}"))
 
     # -- the DeepSeek Harness ---------------------------------------------
