@@ -303,9 +303,9 @@ async def test_a_skill_dropped_into_the_shared_directory_is_found_next_turn(
     engine, so it took a restart — which for a *shared* library is fatal: a
     skill installed in one agent stayed invisible in the others.
     """
+    from skillsearch import shared
     from skillsearch.config import SearchConfig
     from skillsearch.engine import SkillSearch
-    from skillsearch import shared
 
     root = tmp_path / "home"
     monkeypatch.setenv(shared.HOME_ENV, str(root))
@@ -315,12 +315,18 @@ async def test_a_skill_dropped_into_the_shared_directory_is_found_next_turn(
     own = tmp_path / "own"
     own.mkdir()
 
-    engine = SkillSearch(SearchConfig.from_mapping({
-        "skills_dir": str(own),
-        "extra_dirs": [{"path": str(shared_skills), "name": "shared"}],
-        "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": "",
-        "top_k": 3,
-    }))
+    engine = SkillSearch(
+        SearchConfig.from_mapping(
+            {
+                "skills_dir": str(own),
+                "extra_dirs": [{"path": str(shared_skills), "name": "shared"}],
+                "hub_endpoint": "",
+                "clawhub_endpoint": "",
+                "skillhub_cn_endpoint": "",
+                "top_k": 3,
+            }
+        )
+    )
 
     assert await engine.retrieve("extract tables from a scanned PDF invoice") == ""
 

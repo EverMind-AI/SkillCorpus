@@ -322,6 +322,12 @@ def extra_dirs_for(
         seen.add(resolved)
         out.append({"path": resolved, "name": name, "enabled": True})
 
+    if not skills_dir:
+        # A deployment that configured no skills directory is saying it has no
+        # local skills, and joining the shared library would contradict that:
+        # the shared directory alone would make the engine "enabled" and start
+        # it scanning on a deployment that asked for none of this.
+        return out
     try:
         # The host's own main directory is scanned separately by the engine,
         # so it only goes in `seen` — enough to keep the registry from adding

@@ -161,6 +161,7 @@ class SkillSearch:
                     timeout_s=cfg.hub_timeout_s,
                     download_timeout_s=cfg.hub_download_timeout_s,
                     cache_dir=cfg.resolved_cache_dir(),
+                    install_root=self._install_root(),
                 )
             sources.append(
                 HubSkillSource(
@@ -185,6 +186,7 @@ class SkillSearch:
                     kind,
                     endpoint,
                     cache_dir=cfg.resolved_cache_dir(),
+                    install_root=self._install_root(),
                     timeout_s=cfg.marketplace_timeout_s,
                     download_timeout_s=cfg.marketplace_download_timeout_s,
                 )
@@ -282,6 +284,25 @@ class SkillSearch:
         return rewriter, gate
 
     # ── The entry point ──────────────────────────────────────────────
+
+    def _install_root(self):
+        """Where a retrieved skill is kept, or ``None`` to use the cache.
+
+        The shared skills directory when the deployment opted in — created
+        here rather than lazily, because a directory that does not exist is
+        not scanned, and a skill installed into an unscanned directory is the
+        exact bug this feature exists to fix.
+        """
+        if not self._cfg.install_to_shared:
+            return None
+        try:
+            from skillsearch.shared import shared_skills_dir
+
+            root = shared_skills_dir()
+            root.mkdir(parents=True, exist_ok=True)
+        except Exception:  # sharing is never worth a failed turn
+            return None
+        return root
 
     def _revalidate(self) -> None:
         """Drop the cached scan when the shared directory changed.

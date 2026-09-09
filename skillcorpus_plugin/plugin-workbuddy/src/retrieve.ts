@@ -8,13 +8,14 @@
  * @module
  */
 
+import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { SkillSearchEngine, type SourceDiagnostic } from '../../engine-typescript/src/engine.js'
 import { LLMGateFilter } from '../../engine-typescript/src/gate.js'
 import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-source.js'
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
-import { scanDirs } from '../../engine-typescript/src/shared.js'
+import { scanDirs, sharedSkillsDir } from '../../engine-typescript/src/shared.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
 import { CachedLocalSkillSource } from './cached-local-source.js'
@@ -35,6 +36,26 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
+/**
+ * Where a retrieved skill is kept, or `undefined` to use the cache.
+ *
+ * The shared skills directory when the deployment opted in, created here
+ * rather than lazily: a directory that does not exist is not scanned, and a
+ * skill installed into an unscanned directory is the exact bug this feature
+ * exists to fix.
+ */
+function installRootFor(share: boolean): string | undefined {
+  if (!share) return undefined
+  try {
+    const root = sharedSkillsDir()
+    mkdirSync(root, { recursive: true })
+    return root
+  } catch {
+    // Sharing is never worth a failed turn.
+    return undefined
+  }
+}
+
 export function buildEngine(
   config: SkillSearchConfig,
   onDiagnostic?: (diagnostic: SourceDiagnostic) => void,
@@ -52,6 +73,7 @@ export function buildEngine(
   // turn's hot path, inside an 8s budget, where a throw blocks the user's
   // message. `scanDirs` is built for that: the steady state is one small file
   // read and no write, and it swallows everything.
+  const installRoot = installRootFor(config.shareSkills)
   const roots = scanDirs('workbuddy', dirs, config.shareSkills)
   if (roots.length > 0) {
     const local = new CachedLocalSkillSource(
@@ -67,6 +89,7 @@ export function buildEngine(
   let client: SkillHubClient | undefined
   if (config.hubEndpoint) {
     client = new SkillHubClient(config.hubEndpoint, {
+      ...(installRoot ? { installRoot } : {}),
       ...(config.hubApiKey ? { apiKey: config.hubApiKey } : {}),
       // Outside every scanned directory. `~/.workbuddy-ai/plugins/cache` is
       // one of the defaults, so a bundle extracted under it would come back
@@ -86,6 +109,7 @@ export function buildEngine(
   ] as const) {
     if (!endpoint) continue
     const marketplace = new MarketplaceClient(kind, endpoint, {
+      ...(installRoot ? { installRoot } : {}),
       cacheDir: expandHome(config.bundleCacheDir)
         || join(homedir(), '.workbuddy-ai', 'skillsearch-bundles'),
       // ClawHub measured 4–5s on the supported route. Give search headroom,

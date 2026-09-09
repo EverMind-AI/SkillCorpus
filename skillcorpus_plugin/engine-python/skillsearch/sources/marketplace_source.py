@@ -11,8 +11,10 @@ from typing import Any, Literal
 
 import httpx
 
+from skillsearch import provenance
 from skillsearch.hub_client import SkillHubClient
 from skillsearch.local_store import _parse_frontmatter
+from skillsearch.provenance import identity
 from skillsearch.types import RouterHit
 
 MarketplaceKind = Literal["clawhub", "skillhub_cn"]
@@ -25,6 +27,11 @@ class MarketplaceClient:
         endpoint: str,
         *,
         cache_dir: Path,
+        # Set to the shared skills directory to install there instead of into
+        # the cache. A skill under the cache is deliberately outside every
+        # scan; one here is scanned, shared with the other hosts, and carries
+        # a provenance marker so fusion knows it is the catalogue's own entry.
+        install_root: Path | None = None,
         timeout_s: float = 5.0,
         download_timeout_s: float = 30.0,
         client: httpx.AsyncClient | None = None,
@@ -32,6 +39,7 @@ class MarketplaceClient:
         self.kind = kind
         self._base = endpoint.rstrip("/")
         self._cache_dir = cache_dir
+        self._install_root = install_root
         self._download_timeout_s = download_timeout_s
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_s))
@@ -49,6 +57,8 @@ class MarketplaceClient:
         slug = str(hit.meta.get("slug") or hit.meta.get("id"))
         owner = str(hit.meta.get("owner") or "")
         version = str(hit.meta.get("version") or "v0")
+        if self._install_root is not None:
+            return await self._install_shared(hit, slug, owner, version)
         key = re.sub(r"[^A-Za-z0-9_.@-]+", "_", f"{self.kind}-{owner + '_' if owner else ''}{slug}@{version}")
         destination = self._cache_dir / key
         was_cached = destination.exists()
@@ -79,6 +89,51 @@ class MarketplaceClient:
             if was_cached:
                 return await self.install(hit)
             raise
+
+    async def _install_shared(self, hit: RouterHit, slug: str, owner: str, version: str) -> dict[str, str]:
+        """Install into the shared directory, one directory per identity.
+
+        Per identity rather than per version, unlike the cache: the shared
+        directory is scanned, so ``x@1`` beside ``x@2`` would put two ranked
+        copies of one skill in front of the model. An update replaces, and
+        `swap_into_place` keeps the previous version live until the new one is
+        complete.
+
+        A same-version reinstall is skipped, so a retrieval that happens to hit
+        an installed skill does not rewrite it every turn.
+        """
+        install_root = self._install_root
+        if install_root is None:  # pragma: no cover - unreachable via `install`
+            raise RuntimeError("no install root")
+        marketplace_slug = f"{owner}_{slug}" if owner else slug
+        dest = provenance.slug_dir(install_root, self.kind, marketplace_slug)
+        existing = provenance.read_marker(dest)
+        if existing is None or existing.version != version:
+            staging = dest.with_name(f"{dest.name}.incoming-{os.getpid()}-{uuid.uuid4().hex[:8]}")
+            try:
+                SkillHubClient._safe_extract(await self._download(slug, owner, version), staging)
+                body_root = SkillHubClient._bundle_root(staging)
+                text = (body_root / "SKILL.md").read_text(encoding="utf-8")
+                _, body = _parse_frontmatter(text)
+                provenance.write_marker(
+                    body_root,
+                    provenance.Origin(
+                        origin=provenance.identity(self.kind, marketplace_slug),
+                        source=self.kind,
+                        slug=marketplace_slug,
+                        version=version,
+                        sha256=provenance.body_digest(body),
+                        installed_at=provenance.now(),
+                    ),
+                )
+                provenance.swap_into_place(staging, dest)
+            except BaseException:
+                shutil.rmtree(staging, ignore_errors=True)
+                raise
+        root = SkillHubClient._bundle_root(dest)
+        text = (root / "SKILL.md").read_text(encoding="utf-8")
+        _, body = _parse_frontmatter(text)
+        return {"dir": str(root), "skill_md": body}
 
     async def _search_clawhub(self, query: str, limit: int) -> list[dict[str, Any]]:
         response = await self._client.get(
@@ -181,7 +236,9 @@ class MarketplaceSkillSource:
                 name=str(item["name"]),
                 content="",
                 score=float(item["score"]),
-                meta={"source": self.name, **item},
+                # `origin` before the spread so a catalogue field of that
+                # name cannot shadow the identity fusion collapses on.
+                meta={"source": self.name, **item, "origin": identity(self.name, str(item.get("slug") or item["id"]))},
             )
             for item in items[: min(2, max(0, k))]
         ]

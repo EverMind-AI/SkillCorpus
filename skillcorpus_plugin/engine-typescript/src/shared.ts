@@ -347,6 +347,11 @@ export function scanDirs(
 
   for (const dir of ownDirs) add(dir, 'local')
   if (!share) return out
+  // A deployment that configured no skills directory is saying it has no
+  // local skills, and joining the shared library would contradict that: the
+  // shared directory alone would make the plugin "enabled" and start it
+  // scanning on a deployment that asked for none of this.
+  if (ownDirs.length === 0) return out
 
   try {
     for (const [dir, name] of sharedDirs(hostId, ownDirs[0], path, env)) add(dir, name)

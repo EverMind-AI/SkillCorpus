@@ -8,6 +8,7 @@
  * @module
  */
 
+import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { SkillSearchEngine } from '../../engine-typescript/src/engine.js'
@@ -16,7 +17,7 @@ import { HubSkillSource, SkillHubClient } from '../../engine-typescript/src/hub-
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.js'
 import { LocalSkillSource } from '../../engine-typescript/src/local-source.js'
 import { QueryRewriter } from '../../engine-typescript/src/rewriter.js'
-import { scanDirs } from '../../engine-typescript/src/shared.js'
+import { scanDirs, sharedSkillsDir } from '../../engine-typescript/src/shared.js'
 import type { SkillSource } from '../../engine-typescript/src/types.js'
 import { loadConfig, unknownMode, type SkillSearchConfig } from './config.js'
 import { createChatModel } from './model.js'
@@ -42,6 +43,26 @@ export function expandHome(path: string, home: string = homedir()): string {
  * @returns the engine, which reports `enabled: false` when nothing is
  *   configured to search.
  */
+/**
+ * Where a retrieved skill is kept, or `undefined` to use the cache.
+ *
+ * The shared skills directory when the deployment opted in, created here
+ * rather than lazily: a directory that does not exist is not scanned, and a
+ * skill installed into an unscanned directory is the exact bug this feature
+ * exists to fix.
+ */
+function installRootFor(share: boolean): string | undefined {
+  if (!share) return undefined
+  try {
+    const root = sharedSkillsDir()
+    mkdirSync(root, { recursive: true })
+    return root
+  } catch {
+    // Sharing is never worth a failed turn.
+    return undefined
+  }
+}
+
 export function buildEngine(
   config: SkillSearchConfig,
   workspaceDir?: string,
@@ -53,6 +74,7 @@ export function buildEngine(
   // Registers this host's own directory so the other four can scan it, and
   // appends the shared directory plus whatever they registered. Returns
   // `dirs` unchanged when the deployment opted out or anything went wrong.
+  const installRoot = installRootFor(config.shareSkills)
   const roots = scanDirs('openclaw', dirs, config.shareSkills)
   if (roots.length > 0) {
     sources.push(new LocalSkillSource(roots, { indexBody: config.indexBody }))
@@ -65,6 +87,7 @@ export function buildEngine(
       // Outside every scanned directory: an extracted bundle inside one
       // would be picked up as a local skill on the next scan.
       cacheDir: config.bundleCacheDir || join(homedir(), '.openclaw', 'skillsearch-bundles'),
+      ...(installRoot ? { installRoot } : {}),
     })
     sources.push(new HubSkillSource(client))
   }
@@ -77,6 +100,7 @@ export function buildEngine(
     if (!endpoint) continue
     const marketplace = new MarketplaceClient(kind, endpoint, {
       cacheDir: config.bundleCacheDir ? expandHome(config.bundleCacheDir) : join(homedir(), '.openclaw', 'skillsearch-bundles'),
+      ...(installRoot ? { installRoot } : {}),
     })
     marketplaceClients.set(kind, marketplace)
     sources.push(new MarketplaceSkillSource(marketplace))

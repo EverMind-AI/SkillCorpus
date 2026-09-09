@@ -26,6 +26,7 @@ import { resolvePlaceholders, resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
 import { readRegistry, registerHost, registeredDirs, sharedDirs, sharedRoot } from '../src/shared.ts'
 import { DirectoryWatch } from '../src/watch.ts'
+import * as provenance from '../src/provenance.ts'
 import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
@@ -700,4 +701,126 @@ test('a skill dropped into a watched directory is found on the next retrieval', 
   assert.match(block, /pdf-tables/)
   // Exactly once: the shared directory is scanned by one source, not two.
   assert.equal(block.split('### Skill: pdf-tables').length - 1, 1)
+})
+
+// ---------------------------------------------------------------------------
+// installed skills: identity, the ledger, and replacing safely
+
+function marker(source = 'hub', slug = 'pdf-tables', version = '1.0'): provenance.Origin {
+  return {
+    origin: provenance.identity(source, slug),
+    source,
+    slug,
+    version,
+    sha256: provenance.bodyDigest('body'),
+    installedAt: provenance.now(),
+  }
+}
+
+async function installed(root: string, source = 'hub', slug = 'pdf-tables',
+                         version = '1.0', body = 'OCR scanned pages first.'): Promise<string> {
+  const dir = provenance.slugDir(root, source, slug)
+  await mkdir(dir, { recursive: true })
+  await writeFile(
+    join(dir, 'SKILL.md'),
+    `---\nname: ${slug}\ndescription: Extract tables from PDF documents into CSV.\n---\n\n${body}\n`,
+  )
+  provenance.writeMarker(dir, marker(source, slug, version))
+  return dir
+}
+
+test('a marker round-trips, and its absence is not an error', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-marker-'))
+  const dir = join(root, 'skill')
+  await mkdir(dir)
+  const written = marker()
+  assert.equal(provenance.writeMarker(dir, written), true)
+  assert.deepEqual(provenance.readMarker(dir), written)
+
+  // A hand-written skill has no marker and must keep working exactly.
+  const plain = join(root, 'handwritten')
+  await mkdir(plain)
+  assert.equal(provenance.readMarker(plain), undefined)
+
+  for (const text of ['{not json', '[]', 'null', '{"source":"hub"}', '{"slug":"x"}']) {
+    const bad = await mkdtemp(join(root, 'bad-'))
+    await writeFile(join(bad, provenance.MARKER), text)
+    assert.equal(provenance.readMarker(bad), undefined, text)
+  }
+})
+
+test('a slug cannot escape the install root', async () => {
+  // Slugs come from a catalogue and reach the filesystem.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-slug-'))
+  for (const slug of ['../../etc/passwd', 'a/b', '..', '~/x', '']) {
+    const landed = provenance.slugDir(root, 'hub', slug)
+    assert.equal(landed.slice(0, root.length + 1), `${root}/`, slug)
+    assert.equal(landed.slice(root.length + 1).includes('/'), false, slug)
+  }
+})
+
+test('fusion collapses an installed copy with the catalogue entry it came from', () => {
+  // The whole reason installing into a scanned directory is safe.
+  // `qualifiedId` cannot do this — `local/x` and `hub/x` differ — and a body
+  // digest cannot either, since the two rarely have identical bytes.
+  const origin = provenance.identity('hub', 'pdf-tables')
+  const local: RouterHit = {
+    qualifiedId: 'local/pdf-tables', name: 'pdf-tables', content: 'body', score: 1,
+    meta: { source: 'local', origin },
+  }
+  const remote: RouterHit = {
+    qualifiedId: 'hub/pdf-tables', name: 'pdf-tables', content: '', score: 0.9,
+    meta: { source: 'hub', origin },
+  }
+
+  const merged = rrfMergeWeighted(
+    [{ name: 'local', weight: 1, hits: [local] }, { name: 'hub', weight: 1, hits: [remote] }],
+    5, 'qualifiedId',
+  )
+  assert.equal(merged.length, 1)
+  assert.deepEqual([...(merged[0].meta.contributingSources as string[])].sort(), ['hub', 'local'])
+
+  // And a skill with no origin keeps the old key: every hand-written skill.
+  const a: RouterHit = { qualifiedId: 'local/x', name: 'x', content: '', score: 1, meta: {} }
+  const b: RouterHit = { qualifiedId: 'hub/x', name: 'x', content: '', score: 1, meta: {} }
+  assert.equal(rrfMergeWeighted(
+    [{ name: 'local', weight: 1, hits: [a] }, { name: 'hub', weight: 1, hits: [b] }], 5, 'qualifiedId',
+  ).length, 2)
+})
+
+test('the ledger is the directory, and uninstall removes what is there', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-ledger-'))
+  await installed(root, 'hub', 'pdf-tables')
+  await installed(root, 'clawhub', 'git-bisect')
+  await mkdir(join(root, 'handwritten'))
+  await writeFile(join(root, 'handwritten', 'SKILL.md'), '---\nname: h\n---\n')
+
+  // Only what this plugin installed; the user's own skill is left alone.
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin),
+                   ['clawhub/git-bisect', 'hub/pdf-tables'])
+
+  assert.equal(provenance.uninstall(root, 'hub/pdf-tables'), true)
+  assert.equal(provenance.uninstall(root, 'hub/pdf-tables'), false)
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin), ['clawhub/git-bisect'])
+})
+
+test('an update replaces in place, and a failed one leaves the old version working', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-update-'))
+  const dest = await installed(root, 'hub', 'pdf-tables', '1.0', 'the version that works')
+
+  const staging = join(root, 'staging')
+  await mkdir(staging)
+  await writeFile(join(staging, 'SKILL.md'), '---\nname: pdf-tables\n---\n\nnew\n')
+  provenance.writeMarker(staging, marker('hub', 'pdf-tables', '2.0'))
+  provenance.swapIntoPlace(staging, dest)
+
+  assert.deepEqual(provenance.listInstalled(root).map(o => [o.origin, o.version]),
+                   [['hub/pdf-tables', '2.0']])
+  // One directory per identity: an update replaces rather than accumulating a
+  // second ranked copy of the same skill.
+  assert.equal(provenance.listInstalled(root).length, 1)
+
+  await writeFile(join(dest, 'SKILL.md'), '---\nname: pdf-tables\n---\n\nthe version that works\n')
+  assert.throws(() => { provenance.swapIntoPlace(join(root, 'never-extracted'), dest) })
+  assert.match(readFileSync(join(dest, 'SKILL.md'), 'utf8'), /the version that works/)
 })

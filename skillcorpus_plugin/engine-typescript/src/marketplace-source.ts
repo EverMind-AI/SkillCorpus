@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { bodyDigest, identity, now, readMarker, slugDir, swapIntoPlace, writeMarker } from './provenance.js'
 import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
@@ -24,15 +25,20 @@ export class MarketplaceClient {
   readonly kind: MarketplaceKind
   private readonly base: string
   private readonly cacheDir: string
+  private readonly installRoot: string | undefined
   private readonly timeoutMs: number
   private readonly downloadTimeoutMs: number
 
   constructor(kind: MarketplaceKind, endpoint: string, options: {
-    cacheDir: string; timeoutMs?: number; downloadTimeoutMs?: number
+    cacheDir: string
+    /** Install into the shared skills directory instead of the cache. */
+    installRoot?: string
+    timeoutMs?: number; downloadTimeoutMs?: number
   }) {
     this.kind = kind
     this.base = endpoint.replace(/\/+$/, '')
     this.cacheDir = options.cacheDir
+    this.installRoot = options.installRoot
     this.timeoutMs = options.timeoutMs ?? 5000
     this.downloadTimeoutMs = options.downloadTimeoutMs ?? 30_000
   }
@@ -47,6 +53,7 @@ export class MarketplaceClient {
     const slug = String(hit.meta.slug ?? hit.meta.id)
     const owner = String(hit.meta.owner ?? '')
     const version = String(hit.meta.version ?? 'v0')
+    if (this.installRoot) return this.installShared(slug, owner, version, signal)
     const key = `${this.kind}-${owner ? `${owner}_` : ''}${slug}@${version}`.replace(/[^A-Za-z0-9_.@-]+/g, '_')
     const destination = join(this.cacheDir, key)
     if (!existsSync(destination)) {
@@ -73,6 +80,52 @@ export class MarketplaceClient {
       throw new Error(`read skill failed: ${errorMessage(error)}`, { cause: error })
     }
   }
+  /**
+   * Install into the shared directory, one directory per identity.
+   *
+   * Per identity rather than per version, unlike the cache: the shared
+   * directory is scanned, so `x@1` beside `x@2` would put two ranked copies of
+   * one skill in front of the model. An update replaces, and `swapIntoPlace`
+   * keeps the previous version live until the new one is complete.
+   *
+   * A same-version reinstall is skipped, so a retrieval that happens to hit an
+   * installed skill does not rewrite it every turn.
+   */
+  private async installShared(
+    slug: string,
+    owner: string,
+    version: string,
+    signal?: AbortSignal,
+  ): Promise<{ dir: string; body: string }> {
+    const root = this.installRoot as string
+    const marketplaceSlug = owner ? `${owner}_${slug}` : slug
+    const destination = slugDir(root, this.kind, marketplaceSlug)
+
+    if (readMarker(destination)?.version !== version) {
+      const staging = `${destination}.incoming-${process.pid}-${Math.trunc(Number(process.hrtime.bigint() % 100000n))}`
+      try {
+        await extractBundle(await this.download(slug, owner, version, signal), staging)
+        const body = await bundleRoot(staging)
+        const skillMd = await readFile(join(body, 'SKILL.md'), 'utf8')
+        writeMarker(body, {
+          origin: identity(this.kind, marketplaceSlug),
+          source: this.kind,
+          slug: marketplaceSlug,
+          version,
+          sha256: bodyDigest(stripFrontmatter(skillMd)),
+          installedAt: now(),
+        })
+        swapIntoPlace(staging, destination)
+      } catch (error) {
+        await rm(staging, { recursive: true, force: true }).catch(() => {})
+        throw error
+      }
+    }
+    const dir = await bundleRoot(destination)
+    const skillMd = await readFile(join(dir, 'SKILL.md'), 'utf8')
+    return { dir, body: stripFrontmatter(skillMd) }
+  }
+
 
   private async searchClawHub(query: string, signal: AbortSignal | undefined, limit: number) {
     const url = new URL(`${this.base}/api/v1/search`)
@@ -150,6 +203,7 @@ export class MarketplaceClient {
 export class MarketplaceSkillSource implements SkillSource {
   readonly name: MarketplaceKind
   weight: number
+
   constructor(readonly client: MarketplaceClient, options: { weight?: number } = {}) {
     this.name = client.kind
     this.weight = options.weight ?? 0.75

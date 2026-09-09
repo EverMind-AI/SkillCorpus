@@ -92,6 +92,10 @@ class LocalSkillSource:
                         "always": meta.always,
                         "skill_dir": skill_dir,
                         "description": meta.description,
+                        # Set only for a skill this plugin installed. Fusion
+                        # collapses on it, so the local copy and the catalogue
+                        # entry it came from are one hit rather than two.
+                        "origin": getattr(meta, "origin", "") or "",
                     },
                 ),
             )

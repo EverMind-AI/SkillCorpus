@@ -130,6 +130,14 @@ class SkillMeta:
     source: str = "local"
     path: Any = None
     always: bool = False
+    origin: str = ""
+    """``<source>/<slug>`` when this plugin installed the skill.
+
+    Empty for a hand-written skill, which is the ordinary case. Set from the
+    marker `provenance.py` writes, and used by fusion to collapse a skill with
+    the catalogue entry it came from — the two are one thing, but their
+    ``qualified_id``s differ, so nothing else would notice.
+    """
 
 
 @dataclass

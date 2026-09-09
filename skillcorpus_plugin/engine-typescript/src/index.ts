@@ -16,6 +16,7 @@
  * @module @deepseek-ai/dsh-skill-search
  */
 
+import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -31,7 +32,7 @@ import type { SkillSource } from './types.js'
 import { LLMGateFilter } from './gate.js'
 import { HubSkillSource, SkillHubClient } from './hub-source.js'
 import { LocalSkillSource } from './local-source.js'
-import { scanDirs } from './shared.js'
+import { scanDirs, sharedSkillsDir } from './shared.js'
 import { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
 import { QueryRewriter } from './rewriter.js'
 
@@ -342,12 +343,33 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 }
 
+/**
+ * Where a retrieved skill is kept, or `undefined` to use the cache.
+ *
+ * The shared skills directory when the deployment opted in, created here
+ * rather than lazily: a directory that does not exist is not scanned, and a
+ * skill installed into an unscanned directory is the exact bug this feature
+ * exists to fix.
+ */
+function installRootFor(share: boolean): string | undefined {
+  if (!share) return undefined
+  try {
+    const root = sharedSkillsDir()
+    mkdirSync(root, { recursive: true })
+    return root
+  } catch {
+    // Sharing is never worth a failed turn.
+    return undefined
+  }
+}
+
 function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = cfg.skillsDirs ?? []
   // Registers this harness's skills directory so the other four hosts can
   // scan it, and appends the shared directory plus whatever they registered.
+  const installRoot = installRootFor(cfg.shareSkills)
   const roots = scanDirs('deepseek-harness', dirs, cfg.shareSkills)
   if (roots.length > 0) {
     const local = new LocalSkillSource(roots, { indexBody: cfg.indexBody ?? false })
@@ -358,6 +380,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   let client: SkillHubClient | undefined
   if (cfg.hubEndpoint) {
     client = new SkillHubClient(cfg.hubEndpoint, {
+      ...(installRoot ? { installRoot } : {}),
       ...(cfg.hubApiKey ? { apiKey: cfg.hubApiKey } : {}),
       timeoutMs: cfg.hubTimeoutMs ?? 5000,
       // Beside the scanned directories, never inside one: an extracted
@@ -376,6 +399,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   for (const [kind, endpoint] of [['clawhub', cfg.clawhubEndpoint], ['skillhub_cn', cfg.skillhubCnEndpoint]] as const) {
     if (!endpoint) continue
     const marketplace = new MarketplaceClient(kind, endpoint, {
+      ...(installRoot ? { installRoot } : {}),
       cacheDir: cfg.bundleCacheDir || join(homedir(), '.dsh', 'skillsearch-bundles'),
       timeoutMs: cfg.hubTimeoutMs ?? 5000,
     })
