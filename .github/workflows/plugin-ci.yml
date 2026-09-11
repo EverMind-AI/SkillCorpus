@@ -2,38 +2,63 @@ name: Plugin CI
 
 on:
   pull_request:
-    paths:
-      - "skillcorpus_plugin/**"
-      - ".codebuddy-plugin/**"
-      - ".github/workflows/plugin-ci.yml"
   push:
     branches: [main]
-    paths:
-      - "skillcorpus_plugin/**"
-      - ".codebuddy-plugin/**"
-      - ".github/workflows/plugin-ci.yml"
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: plugin-ci-${{ github.ref }}
+  group: plugin-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect plugin changes
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.changed.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "plugins=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only "$BASE" HEAD > "$RUNNER_TEMP/changed-files"
+            if grep -Eq '^(skillcorpus_plugin/|\.codebuddy-plugin/|\.github/workflows/|requirements/|pyproject\.toml$|skillcorpus/__init__\.py$)' "$RUNNER_TEMP/changed-files"; then
+              echo "plugins=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "plugins=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
   python-engine:
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e './skillcorpus_plugin/engine-python[dev]'
+      - run: pip install -r requirements/plugins.txt
+      - run: pip install --no-deps -e ./skillcorpus_plugin/engine-python
       - run: ruff check skillsearch tests
         working-directory: skillcorpus_plugin/engine-python
       - run: ruff format --check skillsearch tests
@@ -42,32 +67,39 @@ jobs:
         working-directory: skillcorpus_plugin/engine-python
 
   python-packages:
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
     name: Python release artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install build twine
-      - run: python -m build skillcorpus_plugin/engine-python
-      - run: python -m build skillcorpus_plugin/plugin-raven
+      - run: pip install -r requirements/build.txt
+      - run: python -m build --no-isolation skillcorpus_plugin/engine-python
+      - run: python -m build --no-isolation skillcorpus_plugin/plugin-raven
       - run: twine check skillcorpus_plugin/engine-python/dist/* skillcorpus_plugin/plugin-raven/dist/*
       - run: python skillcorpus_plugin/scripts/verify_release_versions.py
 
   typescript-engine:
-    name: TypeScript engine parity
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
+    name: TypeScript engine tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npx --yes tsx --test tests/parity.test.ts
-        working-directory: skillcorpus_plugin/engine-typescript
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefix skillcorpus_plugin/plugin-openclaw
+      - name: Run every standalone engine suite with the locked tsx version
+        run: skillcorpus_plugin/plugin-openclaw/node_modules/.bin/tsx --test skillcorpus_plugin/engine-typescript/tests/*.test.ts
 
   npm-plugins:
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
     name: ${{ matrix.name }} package
     runs-on: ubuntu-latest
     strategy:
@@ -83,7 +115,7 @@ jobs:
           - name: WorkBuddy
             directory: plugin-workbuddy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -104,16 +136,45 @@ jobs:
         working-directory: skillcorpus_plugin/${{ matrix.directory }}
 
   adapters:
+    needs: changes
+    if: needs.changes.outputs.plugins == 'true'
     name: Python host adapters
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e './skillcorpus_plugin/engine-python[dev]' -e ./skillcorpus_plugin/plugin-raven
-      - run: git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent
-      - run: PYTHONPATH=/tmp/hermes-agent pytest skillcorpus_plugin/plugin-hermes/tests -q
+      - run: pip install -r requirements/plugins.txt
+      - run: pip install --no-deps -e ./skillcorpus_plugin/engine-python -e ./skillcorpus_plugin/plugin-raven
+      - name: Check Hermes compatibility (weekly runs track upstream)
+        uses: actions/checkout@v6
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ github.event_name == 'schedule' && 'main' || '22c5684b983eac6a81ee015ae80296c4b3dbf5bb' }}
+          path: .compat/hermes
+          persist-credentials: false
+      - run: PYTHONPATH="$GITHUB_WORKSPACE/.compat/hermes" pytest skillcorpus_plugin/plugin-hermes/tests -q
       - run: ruff check skillcorpus_plugin/plugin-raven
       - run: pytest skillcorpus_plugin/plugin-raven/tests -q
+
+  required:
+    name: Plugin CI required
+    if: always()
+    needs: [changes, python-engine, python-packages, typescript-engine, npm-plugins, adapters]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require applicable plugin checks to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          needs = json.loads(os.environ["RESULTS"])
+          assert needs["changes"]["result"] == "success", "change detection failed"
+          expected = "success" if needs["changes"]["outputs"]["plugins"] == "true" else "skipped"
+          failed = {name: job["result"] for name, job in needs.items()
+                    if name != "changes" and job["result"] != expected}
+          assert not failed, f"plugin checks did not complete: {failed}"
+          PY

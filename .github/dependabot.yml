@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directories:
+      - /
+      - /requirements
+      - /skillcorpus_plugin/engine-python
+      - /skillcorpus_plugin/plugin-raven
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directories:
+      - /skillcorpus_plugin/plugin-openclaw
+      - /skillcorpus_plugin/plugin-openclaw2
+      - /skillcorpus_plugin/plugin-workbuddy
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      node:
+        patterns: ["*"]
