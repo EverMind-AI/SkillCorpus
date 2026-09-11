@@ -38,7 +38,7 @@ numpy==2.2.6 ; python_full_version < '3.11'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
-numpy==2.4.6 ; python_full_version == '3.11.*'
+numpy==2.5.3 ; python_full_version == '3.11.*'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
@@ -60,7 +60,7 @@ pyarrow==25.0.1
     # via skillcorpus (pyproject.toml)
 pydantic==2.13.5
     # via openai
-pydantic-core==2.46.5
+pydantic-core==2.48.0
     # via pydantic
 pygments==2.21.0
     # via pytest
