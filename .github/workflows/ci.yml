@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -24,21 +25,43 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python scripts/check_repo_assets.py
-      - run: python scripts/check_file_sizes.py
-      - run: python scripts/check_project_inventory.py
+      - run: python -m pip install -r requirements/plugins.txt
+      - run: make check-repo
+      - run: python -m pytest -q scripts/tests
 
   core:
-    name: core tests and package
+    name: core tests and package (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
           cache: pip
-      - run: python -m pip install --upgrade pip build
-      - run: python -m pip install ".[dev]"
-      - run: pytest -q skillcorpus/tests
-      - run: python -m build
-      - run: python scripts/check_package_contents.py dist/*.whl
+          cache-dependency-path: requirements/ci.txt
+      - run: make install-ci
+      - run: make test
+      - if: matrix.python == '3.12'
+        run: make package
+      - name: Smoke-test the installed wheel outside the checkout
+        if: matrix.python == '3.12'
+        run: |
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          cd "$RUNNER_TEMP"
+          python -c 'import skillcorpus; import skillcorpus.core.store; from importlib.metadata import version; assert skillcorpus.__version__ == version("skillcorpus")'
+
+  required:
+    name: CI required
+    if: always()
+    needs: [repository-gates, core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all checks to succeed
+        env:
+          GATES: ${{ needs.repository-gates.result }}
+          CORE: ${{ needs.core.result }}
+        run: test "$GATES" = success && test "$CORE" = success

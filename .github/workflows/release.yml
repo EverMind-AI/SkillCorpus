@@ -1,16 +1,20 @@
 # Builds every release artifact on a release PR or manual run. A vX.Y.Z tag
 # is the explicit publication approval: tag runs also create the GitHub Release
-# and publish the root Python distribution through PyPI Trusted Publishing.
+# and optionally publish through a configured PyPI Trusted Publisher.
 name: Release
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/release.yml"
-      - "pyproject.toml"
-      - "skillcorpus/__init__.py"
-      - "skillcorpus_plugin/**"
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Build and validate, or synchronize notes for an existing release
+        type: choice
+        options: [validate, sync-notes]
+        default: validate
+      tag:
+        description: Existing tag for sync-notes (for example v0.3.0)
+        type: string
   push:
     tags:
       - "v*"
@@ -18,12 +22,29 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  validate-core:
+    if: github.event_name != 'pull_request' && inputs.operation != 'sync-notes'
+    uses: ./.github/workflows/ci.yml
+
+  validate-plugins:
+    if: github.event_name != 'pull_request' && inputs.operation != 'sync-notes'
+    uses: ./.github/workflows/plugin-ci.yml
+
   build:
+    if: inputs.operation != 'sync-notes'
     name: build release artifacts
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -37,12 +58,21 @@ jobs:
             skillcorpus_plugin/plugin-workbuddy/package-lock.json
 
       - name: Verify release versions
+        id: version
         shell: bash
         run: |
           version="$(python3 -c "import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"version\"])")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          previous="$(python scripts/release_support.py check-notes "v$version")"
+          git rev-parse --verify "refs/tags/$previous"
+          git merge-base --is-ancestor "refs/tags/$previous" HEAD
           if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             test "$GITHUB_REF_NAME" = "v$version" || {
               echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+              exit 1
+            }
+            git merge-base --is-ancestor HEAD origin/main || {
+              echo "::error::Release tags must point to a commit on main"
               exit 1
             }
           fi
@@ -50,13 +80,14 @@ jobs:
 
       - name: Build Python distributions
         run: |
-          python -m pip install --upgrade pip build twine
+          python -m pip install -r requirements/build.txt
           mkdir -p release-assets/python-root release-assets/python-plugins
-          python -m build --outdir release-assets/python-root .
+          python -m build --no-isolation --outdir release-assets/python-root .
           python scripts/check_package_contents.py release-assets/python-root/*.whl
-          python -m build --outdir release-assets/python-plugins skillcorpus_plugin/engine-python
-          python -m build --outdir release-assets/python-plugins skillcorpus_plugin/plugin-raven
+          python -m build --no-isolation --outdir release-assets/python-plugins skillcorpus_plugin/engine-python
+          python -m build --no-isolation --outdir release-assets/python-plugins skillcorpus_plugin/plugin-raven
           python -m twine check release-assets/python-root/* release-assets/python-plugins/*
+          python skillcorpus_plugin/scripts/verify_release_versions.py --dist-dir release-assets/python-plugins
 
       - name: Build TypeScript distributions
         shell: bash
@@ -72,22 +103,21 @@ jobs:
             )
           done
 
-      - name: Build complete plugin bundle and checksums
+      - name: Build complete plugin bundle and flat download checksums
         shell: bash
         run: |
           version="$(python3 -c "import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"version\"])")"
           tar \
             --exclude=node_modules \
             --exclude=__pycache__ \
+            --exclude=.pytest_cache \
+            --exclude=.ruff_cache \
+            --exclude="*.egg-info" \
+            --exclude=build \
             --exclude="*.pyc" \
             -czf "release-assets/skillcorpus-plugins-v${version}.tar.gz" \
             .codebuddy-plugin skillcorpus_plugin LICENSE
-          (
-            cd release-assets
-            find . -type f ! -name SHA256SUMS -print0 \
-              | sort -z \
-              | xargs -0 sha256sum > SHA256SUMS
-          )
+          python scripts/release_support.py prepare release-assets "$version"
 
       - name: Verify packaged plugin versions and licenses
         run: python skillcorpus_plugin/scripts/verify_release_versions.py
@@ -98,10 +128,22 @@ jobs:
           path: release-assets
           if-no-files-found: error
 
+  required:
+    # A skipped manual run must not replace a PR's required build result.
+    name: ${{ github.event_name == 'pull_request' && 'Release required' || 'Release validation' }}
+    if: always() && github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the release build to succeed
+        env:
+          BUILD: ${{ needs.build.result }}
+        run: test "$BUILD" = success
+
   publish-pypi:
     name: publish root package to PyPI
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag' && vars.PYPI_PUBLISH_ENABLED == 'true'
+    needs: [build, validate-core, validate-plugins]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -111,18 +153,26 @@ jobs:
         with:
           name: release-assets
           path: release-assets
+      - name: Select the core distributions for its configured publisher
+        run: |
+          mkdir pypi-dist
+          cp release-assets/skillcorpus-[0-9]*.whl release-assets/skillcorpus-[0-9]*.tar.gz pypi-dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: release-assets/python-root/
+          packages-dir: pypi-dist/
 
   github-release:
     name: create GitHub Release
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build
+    needs: [build, validate-core, validate-plugins]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
           name: release-assets
@@ -130,19 +180,43 @@ jobs:
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
         shell: bash
         run: |
-          mapfile -d "" files < <(find release-assets -type f -print0 | sort -z)
+          python scripts/release_support.py verify release-assets "$VERSION"
+          mapfile -d "" files < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
           notes_file="docs/releases/${TAG}.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${files[@]}" --clobber
-          elif [[ -f "$notes_file" ]]; then
-            gh release create "$TAG" "${files[@]}" \
-              --title "SkillCorpus ${TAG#v}" \
-              --notes-file "$notes_file"
-          else
-            gh release create "$TAG" "${files[@]}" \
-              --title "SkillCorpus ${TAG#v}" \
-              --generate-notes
+            echo "::error::Release $TAG already exists; use sync-notes for text-only corrections"
+            exit 1
           fi
+          gh release create "$TAG" "${files[@]}" --verify-tag --draft \
+            --title "SkillCorpus ${TAG#v}" --notes-file "$notes_file"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/downloaded-release"
+          python scripts/release_support.py verify "$RUNNER_TEMP/downloaded-release" "$VERSION"
+          gh release edit "$TAG" --draft=false
+
+  sync-notes:
+    name: synchronize existing release notes
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'sync-notes'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Require the main branch
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate and synchronize the checked-in notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          python scripts/release_support.py check-notes "$TAG"
+          gh release view "$TAG"
+          gh release edit "$TAG" --notes-file "docs/releases/$TAG.md"

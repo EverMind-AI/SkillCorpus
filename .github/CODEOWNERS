@@ -1,0 +1,7 @@
+# Maintainers with repository write access. Review approval policy remains in
+# the main ruleset; ownership helps route changes without adding extra approvals.
+* @ypflll
+/.github/ @cyfyifanchen @ypflll
+/scripts/ @cyfyifanchen @ypflll
+/requirements/ @cyfyifanchen @ypflll
+/docs/releases/ @cyfyifanchen @ypflll

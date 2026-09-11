@@ -1,0 +1,21 @@
+name: Bug report
+description: Report a reproducible problem in the pipeline or a host plugin.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: SkillCorpus version/commit, host and version, operating system, Python/Node version, installation method.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps, expected behavior, and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove API keys, tokens, personal data, and private endpoints before posting.
