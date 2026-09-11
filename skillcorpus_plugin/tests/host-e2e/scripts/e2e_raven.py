@@ -221,6 +221,11 @@ def main() -> int:
                     help="case P5: point one remote catalogue at a closed port "
                          "and check the local corpus, the turn and the log all "
                          "survive it")
+    ap.add_argument("--shared-probe", action="store_true",
+                    help="ask whether this host joins the shared library: the "
+                         "fixture goes in the shared directory, this host's own "
+                         "directory is left empty, and the prompt is one only "
+                         "that skill answers")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
@@ -247,14 +252,20 @@ def main() -> int:
                              "reason": "host has no context_segments slot"}
             continue
         workspace = Path(tempfile.mkdtemp(prefix=f"raven-ws-{mode}-"))
-        # Inside the workspace on purpose: a corpus in a stray temp directory
-        # reads to the agent as a skill that is not installed — it checks, does
-        # not find the directory, and says so. That is the harness lying about
-        # the deployment, not retrieval failing.
-        skills = _e2e.corpus(workspace)
+        if args.shared_probe:
+            # The fixture is already in the shared library; this host gets an
+            # empty directory of its own, so anything it finds came from there.
+            skills = Path(os.environ["SKILLSEARCH_E2E_SHARED_OWN_DIR"])
+        else:
+            # Inside the workspace on purpose: a corpus in a stray temp
+            # directory reads to the agent as a skill that is not installed —
+            # it checks, does not find the directory, and says so. That is the
+            # harness lying about the deployment, not retrieval failing.
+            skills = _e2e.corpus(workspace)
         try:
-            out = run(mode, skills, workspace, model,
-                      _e2e.CASES[args.case]["prompt"], args.timeout,
+            prompt = (os.environ["SKILLSEARCH_E2E_SHARED_PROMPT"] if args.shared_probe
+                      else _e2e.CASES[args.case]["prompt"])
+            out = run(mode, skills, workspace, model, prompt, args.timeout,
                       broken_source=args.broken_source)
         except Exception as err:  # a host that will not start is the finding
             print(f"  {mode:10} host failed: {type(err).__name__}: {err}")
@@ -267,6 +278,13 @@ def main() -> int:
         delivered = "\n".join(
             [out["segment_text"]] + [c["returned"] for c in out["tool_calls"]]
         )
+        if args.shared_probe:
+            got = all(f in delivered + out["reply"] for f in _e2e.SHARED_FACTS)
+            print(f"  SHARED-PROBE {'PASS' if got else 'FAIL'} {mode} "
+                  f"tools={out['tool_names']} reply={out['reply'][:120]!r}")
+            if not got:
+                failures.append(mode)
+            continue
         ok, facts = _e2e.verdict(
             case=args.case,
             mode=mode,

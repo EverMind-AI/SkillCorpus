@@ -17,6 +17,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from skillsearch.provenance import read_marker
+
 log = logging.getLogger(__name__)
 
 _SKILL_FILE = "SKILL.md"
@@ -33,6 +35,8 @@ class FileSkill:
     source: str
     path: Path
     always: bool = False
+    origin: str = ""
+    """``<source>/<slug>`` when this plugin installed it; empty otherwise."""
 
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -117,6 +121,9 @@ class DirectorySkillStore:
                     )
                     continue
                 seen.add(name)
+                # Read once per scan rather than per hit: the scan is cached
+                # and the ranking is not, so this is the cheap place for it.
+                installed = read_marker(path.parent)
                 found.append(
                     FileSkill(
                         name=name,
@@ -125,6 +132,7 @@ class DirectorySkillStore:
                         source=source,
                         path=path,
                         always=str(meta.get("always", "")).lower() in {"1", "true", "yes"},
+                        origin=installed.origin if installed else "",
                     ),
                 )
         return found

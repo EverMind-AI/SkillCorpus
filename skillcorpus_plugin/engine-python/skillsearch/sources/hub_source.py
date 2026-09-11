@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from skillsearch.provenance import identity
 from skillsearch.relevance import check_keyword_relevance
 from skillsearch.types import RouterHit
 
@@ -80,6 +81,9 @@ class HubSkillSource:
                     score=float(quality or 0.0),
                     meta={
                         "source": "hub",
+                        # The same identity the installer records, so a hit
+                        # from here and the installed copy on disk collapse.
+                        "origin": identity("hub", str(sid)),
                         "id": sid,
                         "skill_id": item.get("skill_id"),
                         "description": item.get("description"),

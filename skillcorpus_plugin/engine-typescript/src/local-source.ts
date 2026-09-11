@@ -15,6 +15,7 @@
 
 import { readFile, readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { readMarker } from './provenance.js'
 import { BM25Okapi, tokenize } from './bm25.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 
@@ -90,6 +91,10 @@ export class LocalSkillSource implements SkillSource {
           // to a file tool; without it a body saying `scripts/x.sh` resolves
           // against the agent's cwd, which is the wrong directory.
           skillDir: skill.dir,
+          // Set only for a skill this plugin installed. Fusion collapses on
+          // it, so the local copy and the catalogue entry it came from are
+          // one hit rather than two.
+          origin: readMarker(skill.dir)?.origin ?? '',
         },
       }))
   }

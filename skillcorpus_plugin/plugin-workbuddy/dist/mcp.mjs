@@ -69,6 +69,7 @@ var DEFAULTS = {
   indexCachePath: join(DATA_DIR, "index-cache.json"),
   logPath: join(DATA_DIR, "skillsearch.log"),
   resolvePlaceholders: false,
+  shareSkills: true,
   mode: "on_demand"
 };
 var ENV_KEYS = {
@@ -95,6 +96,7 @@ var ENV_KEYS = {
   indexCachePath: "SKILLSEARCH_INDEX_CACHE_PATH",
   logPath: "SKILLSEARCH_LOG_PATH",
   resolvePlaceholders: "SKILLSEARCH_RESOLVE_PLACEHOLDERS",
+  shareSkills: "SKILLSEARCH_SHARE_SKILLS",
   mode: "SKILLSEARCH_MODE"
 };
 function asList(value) {
@@ -140,7 +142,7 @@ function loadConfig(document, env = process.env) {
   const pick = (key) => {
     const variable = ENV_KEYS[key];
     const fromEnv = variable ? env[variable] : void 0;
-    return fromEnv !== void 0 && fromEnv !== "" ? fromEnv : source[key];
+    return fromEnv !== void 0 && fromEnv.trim() !== "" ? fromEnv : source[key];
   };
   return {
     skillsDirs: asList(pick("skillsDirs")) ?? DEFAULTS.skillsDirs,
@@ -173,25 +175,32 @@ function loadConfig(document, env = process.env) {
     // An unrecognised value falls back to the default rather than failing the
     // load: a typo should cost the deployment the mode it wanted, not its
     // whole plugin config.
+    shareSkills: asBoolean(pick("shareSkills")) ?? DEFAULTS.shareSkills,
     mode: pick("mode") === "auto" ? "auto" : "on_demand"
   };
 }
 
 // src/retrieve.ts
-import { homedir as homedir2 } from "node:os";
-import { join as join8 } from "node:path";
+import { mkdirSync as mkdirSync4 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join11 } from "node:path";
 
 // ../engine-typescript/src/engine.ts
 import { createHash } from "node:crypto";
 
 // ../engine-typescript/src/fusion.ts
 var RRF_K = 60;
+function collapseKey(hit, dedupBy) {
+  const origin = hit.meta?.origin;
+  if (typeof origin === "string" && origin.trim()) return origin.trim();
+  return hit[dedupBy];
+}
 function rrfMergeWeighted(sourceResults, k, dedupBy = "name", rrfK = RRF_K) {
   const merged = /* @__PURE__ */ new Map();
   for (const { name: sourceName2, weight, hits } of sourceResults) {
     for (const [i, hit] of hits.entries()) {
       const rank = i + 1;
-      const key = hit[dedupBy];
+      const key = collapseKey(hit, dedupBy);
       const contribution = weight / (rrfK + rank);
       const seen = merged.get(key);
       if (seen === void 0) {
@@ -531,6 +540,68 @@ function parse(content) {
   return { rewrittenQuery: rewritten };
 }
 
+// ../engine-typescript/src/watch.ts
+import { readdirSync, statSync as statSync2 } from "node:fs";
+import { join as join3 } from "node:path";
+var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", "__pycache__", ".venv", "venv", ".tox"]);
+var SKILL_FILE = "SKILL.md";
+function fingerprint(dirs, maxDepth = 5) {
+  const parts = [];
+  for (const root of dirs) collect(root, maxDepth, parts);
+  return parts.join("\n");
+}
+function collect(dir, depth, out) {
+  if (depth < 0) return;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of [...entries].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+    if (SKIP_DIRS.has(entry.name)) continue;
+    const path = join3(dir, entry.name);
+    if (entry.isDirectory()) {
+      collect(path, depth - 1, out);
+    } else if (entry.name === SKILL_FILE) {
+      try {
+        out.push(`${path}:${statSync2(path, { bigint: true }).mtimeNs}`);
+      } catch {
+      }
+    }
+  }
+}
+var DirectoryWatch = class {
+  constructor(dirs, maxDepth = 5) {
+    this.dirs = dirs;
+    this.maxDepth = maxDepth;
+  }
+  dirs;
+  maxDepth;
+  seen;
+  /** Whether there is anything to watch. Cheap enough to call per turn. */
+  get active() {
+    return this.dirs.length > 0;
+  }
+  /** Whether the tree differs from the last call. Never throws. */
+  changed() {
+    if (this.dirs.length === 0) return false;
+    let current;
+    try {
+      current = fingerprint(this.dirs, this.maxDepth);
+    } catch {
+      return false;
+    }
+    if (this.seen === void 0) {
+      this.seen = current;
+      return false;
+    }
+    if (current === this.seen) return false;
+    this.seen = current;
+    return true;
+  }
+};
+
 // ../engine-typescript/src/engine.ts
 var SkillSearchEngine = class {
   sources;
@@ -549,6 +620,7 @@ var SkillSearchEngine = class {
   refs;
   placeholders;
   runtime;
+  watch;
   constructor(parts, options = {}) {
     this.sources = parts.sources;
     this.rewriter = parts.rewriter;
@@ -556,6 +628,7 @@ var SkillSearchEngine = class {
     this.fetchBody = parts.fetchBody;
     this.materialise = parts.materialise;
     this.onDiagnostic = parts.onDiagnostic;
+    this.watch = new DirectoryWatch(parts.watchDirs ?? []);
     this.topK = options.topK ?? 2;
     this.rrfK = options.rrfK;
     this.gatePool = options.gatePool ?? 10;
@@ -591,7 +664,27 @@ var SkillSearchEngine = class {
    * @param options - this turn's cancellation and tool list.
    * @returns the selected skills, empty on any failure; never rejects.
    */
+  /**
+   * Drop the cached scan when a watched directory changed.
+   *
+   * Without this the scan is built once and kept, and no adapter calls
+   * `invalidate()` — so a skill installed in one agent stays invisible in the
+   * others until they restart, which is the premise of a shared library.
+   */
+  revalidate() {
+    if (!this.watch.active || !this.watch.changed()) return;
+    for (const source of this.sources) {
+      const invalidate = source.invalidate;
+      if (typeof invalidate === "function") {
+        try {
+          invalidate.call(source);
+        } catch {
+        }
+      }
+    }
+  }
   async hits(query, options = {}) {
+    this.revalidate();
     if (!this.enabled || !query.trim()) return [];
     try {
       return await this.run(query, options);
@@ -826,13 +919,115 @@ function errorMessage(error) {
 }
 
 // ../engine-typescript/src/hub-source.ts
-import { existsSync as existsSync2 } from "node:fs";
-import { join as join4 } from "node:path";
+import { existsSync as existsSync2, rmSync as rmSync2 } from "node:fs";
+import { join as join6 } from "node:path";
+
+// ../engine-typescript/src/provenance.ts
+import { createHash as createHash2 } from "node:crypto";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync as readFileSync2, readdirSync as readdirSync2, renameSync, rmSync, statSync as statSync3, writeFileSync } from "node:fs";
+import { dirname as dirname2, join as join4 } from "node:path";
+var MARKER = ".skillsearch-origin.json";
+var NOTE = "Written by the skillsearch plugin. Delete the directory to uninstall.";
+function identity(source, slug) {
+  return `${String(source).trim()}/${String(slug).trim()}`;
+}
+function bodyDigest(body) {
+  return createHash2("sha256").update(body ?? "", "utf8").digest("hex");
+}
+function now(clock = () => /* @__PURE__ */ new Date()) {
+  return `${clock().toISOString().slice(0, 19)}+00:00`;
+}
+function slugDir(root, source, slug) {
+  const sanitise = (text2, allowed, limit) => [...String(text2)].map((character) => allowed.test(character) ? character : "_").join("").slice(0, limit);
+  const safeSource = sanitise(source, /^[A-Za-z0-9\-_]$/, 40);
+  const safeSlug = sanitise(slug, /^[A-Za-z0-9\-_.@]$/, 120);
+  const digest = createHash2("sha256").update(identity(source, slug), "utf8").digest("hex").slice(0, 8);
+  return join4(root, `${safeSource}__${safeSlug || "skill"}__${digest}`);
+}
+function writeMarker(skillDir, origin) {
+  const payload = {
+    _note: NOTE,
+    version: 1,
+    origin: origin.origin,
+    source: origin.source,
+    slug: origin.slug,
+    skill_version: origin.version,
+    sha256: origin.sha256,
+    installed_at: origin.installedAt
+  };
+  let staging;
+  try {
+    mkdirSync(skillDir, { recursive: true });
+    staging = mkdtempSync(join4(skillDir, ".origin-"));
+    const scratch = join4(staging, "marker.json");
+    writeFileSync(scratch, `${JSON.stringify(payload, null, 2)}
+`, "utf8");
+    renameSync(scratch, join4(skillDir, MARKER));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (staging) {
+      try {
+        rmSync(staging, { recursive: true, force: true });
+      } catch {
+      }
+    }
+  }
+}
+function readMarker(skillDir) {
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync2(join4(skillDir, MARKER), "utf8"));
+  } catch {
+    return void 0;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return void 0;
+  const record = raw;
+  const source = String(record.source ?? "").trim();
+  const slug = String(record.slug ?? "").trim();
+  if (!source || !slug) return void 0;
+  return {
+    origin: String(record.origin ?? identity(source, slug)),
+    source,
+    slug,
+    version: String(record.skill_version ?? ""),
+    sha256: String(record.sha256 ?? ""),
+    installedAt: String(record.installed_at ?? "")
+  };
+}
+function scratchName(path, kind) {
+  return `${path}.${kind}-${process.pid}-${Math.trunc(Number(process.hrtime.bigint() % 100000n))}`;
+}
+function swapIntoPlace(staging, dest) {
+  let destExists = false;
+  try {
+    destExists = statSync3(dest).isDirectory();
+  } catch {
+    destExists = false;
+  }
+  if (!destExists) {
+    renameSync(staging, dest);
+    return;
+  }
+  const retired = scratchName(dest, "retiring");
+  renameSync(dest, retired);
+  try {
+    renameSync(staging, dest);
+  } catch (error) {
+    try {
+      renameSync(retired, dest);
+    } catch {
+    }
+    throw error;
+  }
+  rmSync(retired, { recursive: true, force: true });
+}
 
 // ../engine-typescript/src/bundle.ts
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
-import { isAbsolute, join as join3, relative, resolve } from "node:path";
+import { isAbsolute, join as join5, relative, resolve } from "node:path";
 
 // ../engine-typescript/src/zip.ts
 import { inflateRawSync } from "node:zlib";
@@ -970,7 +1165,7 @@ async function extractBundle(archive, destination) {
       }
       const data = entry.read();
       total += data.length;
-      await mkdir(join3(target, ".."), { recursive: true });
+      await mkdir(join5(target, ".."), { recursive: true });
       await writeFile(target, data);
     }
     try {
@@ -996,7 +1191,7 @@ async function bundleRoot(destination) {
   }
   const visible = entries.filter((entry) => !entry.name.startsWith("."));
   const only = visible[0];
-  if (visible.length === 1 && only?.isDirectory()) return join3(destination, only.name);
+  if (visible.length === 1 && only?.isDirectory()) return join5(destination, only.name);
   return destination;
 }
 
@@ -1130,6 +1325,7 @@ var SkillHubClient = class {
   timeoutMs;
   downloadTimeoutMs;
   cacheDir;
+  installRoot;
   source;
   constructor(endpoint, options = {}) {
     this.base = endpoint.replace(/\/+$/, "");
@@ -1137,6 +1333,7 @@ var SkillHubClient = class {
     this.timeoutMs = options.timeoutMs ?? 2e3;
     this.downloadTimeoutMs = options.downloadTimeoutMs ?? 3e4;
     this.cacheDir = options.cacheDir;
+    this.installRoot = options.installRoot;
     this.source = options.source ?? "cli";
   }
   /**
@@ -1152,19 +1349,57 @@ var SkillHubClient = class {
    *   unusable. The caller keeps the unresolved body either way.
    */
   async install(id, meta, signal) {
-    if (!this.cacheDir) throw new Error("no cache directory is configured for bundles");
+    if (!this.cacheDir && !this.installRoot) {
+      throw new Error("no cache directory is configured for bundles");
+    }
     const record = meta ?? await this.get(id, signal);
     const slug = String(record.slug ?? record.skill_id ?? id).replace(/\//g, "_");
     const version = String(record.version ?? "v0");
-    const destination = join4(this.cacheDir, `${slug}@${version}`);
+    const skillMd = typeof record.skill_md === "string" ? record.skill_md : "";
+    if (this.installRoot) {
+      return { dir: await this.installShared(id, slug, version, skillMd, signal), skillMd };
+    }
+    const destination = join6(this.cacheDir, `${slug}@${version}`);
     if (!existsSync2(destination)) {
       const archive = await this.download(id, signal);
       await extractBundle(archive, destination);
     }
-    return {
-      dir: await bundleRoot(destination),
-      skillMd: typeof record.skill_md === "string" ? record.skill_md : ""
-    };
+    return { dir: await bundleRoot(destination), skillMd };
+  }
+  /**
+   * Install into the shared directory, one directory per identity.
+   *
+   * Per identity rather than per version, unlike the cache: the shared
+   * directory is scanned, so `x@1` beside `x@2` would put two ranked copies of
+   * one skill in front of the model. An update therefore replaces, and
+   * `swapIntoPlace` is what makes replacing safe — the previous version stays
+   * live until the new one is complete.
+   *
+   * A same-version reinstall is skipped, which keeps a retrieval that happens
+   * to hit an installed skill from rewriting it every turn.
+   */
+  async installShared(id, slug, version, skillMd, signal) {
+    const root = this.installRoot;
+    const destination = slugDir(root, "hub", slug);
+    if (readMarker(destination)?.version === version) return bundleRoot(destination);
+    const staging = `${destination}.incoming-${process.pid}-${Math.trunc(Number(process.hrtime.bigint() % 100000n))}`;
+    try {
+      await extractBundle(await this.download(id, signal), staging);
+      const body = await bundleRoot(staging);
+      writeMarker(body, {
+        origin: identity("hub", slug),
+        source: "hub",
+        slug,
+        version,
+        sha256: bodyDigest(skillMd),
+        installedAt: now()
+      });
+      swapIntoPlace(staging, destination);
+    } catch (error) {
+      rmSync2(staging, { recursive: true, force: true });
+      throw error;
+    }
+    return bundleRoot(destination);
   }
   /**
    * Fetch one bundle's bytes.
@@ -1309,17 +1544,19 @@ function randomId() {
 // ../engine-typescript/src/marketplace-source.ts
 import { existsSync as existsSync3 } from "node:fs";
 import { readFile, rm as rm2 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 var MarketplaceClient = class {
   kind;
   base;
   cacheDir;
+  installRoot;
   timeoutMs;
   downloadTimeoutMs;
   constructor(kind, endpoint, options) {
     this.kind = kind;
     this.base = endpoint.replace(/\/+$/, "");
     this.cacheDir = options.cacheDir;
+    this.installRoot = options.installRoot;
     this.timeoutMs = options.timeoutMs ?? 5e3;
     this.downloadTimeoutMs = options.downloadTimeoutMs ?? 3e4;
   }
@@ -1330,8 +1567,9 @@ var MarketplaceClient = class {
     const slug = String(hit.meta.slug ?? hit.meta.id);
     const owner = String(hit.meta.owner ?? "");
     const version = String(hit.meta.version ?? "v0");
+    if (this.installRoot) return this.installShared(slug, owner, version, signal);
     const key = `${this.kind}-${owner ? `${owner}_` : ""}${slug}@${version}`.replace(/[^A-Za-z0-9_.@-]+/g, "_");
-    const destination = join5(this.cacheDir, key);
+    const destination = join7(this.cacheDir, key);
     if (!existsSync3(destination)) {
       let archive;
       try {
@@ -1347,13 +1585,53 @@ var MarketplaceClient = class {
     }
     try {
       const dir = await bundleRoot(destination);
-      const skillMd = await readFile(join5(dir, "SKILL.md"), "utf8");
+      const skillMd = await readFile(join7(dir, "SKILL.md"), "utf8");
       return { dir, body: stripFrontmatter(skillMd) };
     } catch (error) {
       await rm2(destination, { recursive: true, force: true }).catch(() => {
       });
       throw new Error(`read skill failed: ${errorMessage2(error)}`, { cause: error });
     }
+  }
+  /**
+   * Install into the shared directory, one directory per identity.
+   *
+   * Per identity rather than per version, unlike the cache: the shared
+   * directory is scanned, so `x@1` beside `x@2` would put two ranked copies of
+   * one skill in front of the model. An update replaces, and `swapIntoPlace`
+   * keeps the previous version live until the new one is complete.
+   *
+   * A same-version reinstall is skipped, so a retrieval that happens to hit an
+   * installed skill does not rewrite it every turn.
+   */
+  async installShared(slug, owner, version, signal) {
+    const root = this.installRoot;
+    const marketplaceSlug = owner ? `${owner}_${slug}` : slug;
+    const destination = slugDir(root, this.kind, marketplaceSlug);
+    if (readMarker(destination)?.version !== version) {
+      const staging = `${destination}.incoming-${process.pid}-${Math.trunc(Number(process.hrtime.bigint() % 100000n))}`;
+      try {
+        await extractBundle(await this.download(slug, owner, version, signal), staging);
+        const body = await bundleRoot(staging);
+        const skillMd2 = await readFile(join7(body, "SKILL.md"), "utf8");
+        writeMarker(body, {
+          origin: identity(this.kind, marketplaceSlug),
+          source: this.kind,
+          slug: marketplaceSlug,
+          version,
+          sha256: bodyDigest(stripFrontmatter(skillMd2)),
+          installedAt: now()
+        });
+        swapIntoPlace(staging, destination);
+      } catch (error) {
+        await rm2(staging, { recursive: true, force: true }).catch(() => {
+        });
+        throw error;
+      }
+    }
+    const dir = await bundleRoot(destination);
+    const skillMd = await readFile(join7(dir, "SKILL.md"), "utf8");
+    return { dir, body: stripFrontmatter(skillMd) };
   }
   async searchClawHub(query, signal, limit) {
     const url = new URL(`${this.base}/api/v1/search`);
@@ -1475,13 +1753,166 @@ function errorMessage2(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// ../engine-typescript/src/shared.ts
+import { mkdirSync as mkdirSync2, mkdtempSync as mkdtempSync2, readFileSync as readFileSync3, renameSync as renameSync2, rmSync as rmSync3, statSync as statSync4, writeFileSync as writeFileSync2 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { isAbsolute as isAbsolute2, join as join8, resolve as resolve2 } from "node:path";
+var HOME_ENV = "SKILLSEARCH_HOME";
+var NOTE2 = "To exclude a directory, set its `enabled` to false. Deleting the line does not work \u2014 that agent re-registers it on its next start.";
+function expandHome(path, home = homedir2()) {
+  if (path === "~") return home;
+  if (path.startsWith("~/")) return join8(home, path.slice(2));
+  return path;
+}
+function sharedRoot(env = process.env) {
+  const override = (env[HOME_ENV] ?? "").trim();
+  if (override) return expandHome(override);
+  return join8(homedir2(), ".evermind-skillsearch");
+}
+function sharedSkillsDir(env = process.env) {
+  return join8(sharedRoot(env), "skills");
+}
+function registryPath(env = process.env) {
+  return join8(sharedRoot(env), "registry.json");
+}
+function isDirectory2(path) {
+  try {
+    return statSync4(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function readRegistry(path, env = process.env) {
+  const target = path ?? registryPath(env);
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync3(target, "utf8"));
+  } catch {
+    return [];
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const hosts = raw.hosts;
+  if (!Array.isArray(hosts)) return [];
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of hosts) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item;
+    const id = String(record.id ?? "").trim();
+    const dir = String(record.dir ?? "").trim();
+    if (!id || !dir || seen.has(id)) continue;
+    seen.add(id);
+    entries.push({ id, dir, enabled: record.enabled == null ? true : Boolean(record.enabled) });
+  }
+  return entries;
+}
+function writeRegistry(entries, path) {
+  const payload = {
+    _note: NOTE2,
+    hosts: entries.map((entry) => ({ id: entry.id, dir: entry.dir, enabled: entry.enabled }))
+  };
+  let staging;
+  try {
+    const parent = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+    mkdirSync2(parent, { recursive: true });
+    staging = mkdtempSync2(join8(parent, ".registry-"));
+    const scratch = join8(staging, "registry.json");
+    writeFileSync2(scratch, `${JSON.stringify(payload, null, 2)}
+`, "utf8");
+    renameSync2(scratch, path);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (staging) {
+      try {
+        rmSync3(staging, { recursive: true, force: true });
+      } catch {
+      }
+    }
+  }
+}
+function registerHost(hostId, skillsDir, path, env = process.env) {
+  const target = path ?? registryPath(env);
+  const entries = readRegistry(target, env);
+  const id = String(hostId ?? "").trim();
+  if (!id || !skillsDir) return entries;
+  let wanted;
+  try {
+    wanted = resolve2(expandHome(skillsDir));
+  } catch {
+    return entries;
+  }
+  if (!isAbsolute2(wanted)) return entries;
+  const index = entries.findIndex((entry) => entry.id === id);
+  const existing = index >= 0 ? entries[index] : void 0;
+  if (existing) {
+    if (existing.dir === wanted) return entries;
+    entries[index] = { id, dir: wanted, enabled: existing.enabled };
+  } else {
+    entries.push({ id, dir: wanted, enabled: true });
+  }
+  writeRegistry(entries, target);
+  return entries;
+}
+function registeredDirs(hostId = "", path, options = {}, env = process.env) {
+  const out = [];
+  for (const entry of readRegistry(path, env)) {
+    if (!entry.enabled) continue;
+    if (entry.id === hostId && !options.includeSelf) continue;
+    if (!isDirectory2(entry.dir)) continue;
+    out.push([entry.dir, entry.id]);
+  }
+  return out;
+}
+function sharedDirs(hostId, skillsDir, path, env = process.env) {
+  try {
+    registerHost(hostId, skillsDir, path, env);
+    const dirs = [];
+    const shared = sharedSkillsDir(env);
+    if (isDirectory2(shared)) dirs.push([shared, "shared"]);
+    let own;
+    if (skillsDir) {
+      try {
+        own = resolve2(expandHome(skillsDir));
+      } catch {
+        own = void 0;
+      }
+    }
+    for (const [dir, name] of registeredDirs(hostId, path, {}, env)) {
+      if (dir === own || dirs.some(([seen]) => seen === dir)) continue;
+      dirs.push([dir, name]);
+    }
+    return dirs;
+  } catch {
+    return [];
+  }
+}
+function scanDirs(hostId, ownDirs, share = true, path, env = process.env) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (dir, name) => {
+    if (!dir || seen.has(dir)) return;
+    seen.add(dir);
+    out.push({ path: dir, name });
+  };
+  for (const dir of ownDirs) add(dir, "local");
+  if (!share) return out;
+  if (ownDirs.length === 0) return out;
+  try {
+    for (const [dir, name] of sharedDirs(hostId, ownDirs[0], path, env)) add(dir, name);
+  } catch {
+  }
+  return out;
+}
+
 // src/cached-local-source.ts
-import { mkdirSync, readFileSync as readFileSync2, readdirSync, renameSync, statSync as statSync2, writeFileSync } from "node:fs";
-import { dirname as dirname2, join as join7 } from "node:path";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync4, readdirSync as readdirSync3, renameSync as renameSync3, statSync as statSync5, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join10 } from "node:path";
 
 // ../engine-typescript/src/local-source.ts
 import { readFile as readFile2, readdir as readdir2 } from "node:fs/promises";
-import { basename, join as join6 } from "node:path";
+import { basename, join as join9 } from "node:path";
 
 // ../engine-typescript/src/bm25.ts
 var TOKEN_RE = /[a-z0-9]{2,}|[一-鿿]+/g;
@@ -1569,9 +2000,9 @@ var BM25Okapi = class {
 };
 
 // ../engine-typescript/src/local-source.ts
-var SKILL_FILE = "SKILL.md";
+var SKILL_FILE2 = "SKILL.md";
 var INDEXED_BODY_CHARS = 4e3;
-var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "__pycache__", "node_modules", ".venv", "venv"]);
+var SKIP_DIRS2 = /* @__PURE__ */ new Set([".git", "__pycache__", "node_modules", ".venv", "venv"]);
 var LocalSkillSource = class {
   name = "local";
   weight = 1;
@@ -1606,7 +2037,11 @@ var LocalSkillSource = class {
         // The renderer turns this into an absolute path the model can hand
         // to a file tool; without it a body saying `scripts/x.sh` resolves
         // against the agent's cwd, which is the wrong directory.
-        skillDir: skill.dir
+        skillDir: skill.dir,
+        // Set only for a skill this plugin installed. Fusion collapses on
+        // it, so the local copy and the catalogue entry it came from are
+        // one hit rather than two.
+        origin: readMarker(skill.dir)?.origin ?? ""
       }
     }));
   }
@@ -1634,7 +2069,7 @@ var LocalSkillSource = class {
           continue;
         }
         const { meta, body } = parseFrontmatter(text2);
-        const dir = file.slice(0, file.length - SKILL_FILE.length - 1);
+        const dir = file.slice(0, file.length - SKILL_FILE2.length - 1);
         const name = meta.name ?? basename(dir);
         const key = `${root.name}/${name}`;
         if (seen.has(key)) continue;
@@ -1670,9 +2105,9 @@ async function* walk(root, maxDepth) {
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) stack.push({ dir: join6(dir, entry.name), depth: depth + 1 });
-      } else if (entry.name === SKILL_FILE) {
-        yield join6(dir, entry.name);
+        if (!SKIP_DIRS2.has(entry.name)) stack.push({ dir: join9(dir, entry.name), depth: depth + 1 });
+      } else if (entry.name === SKILL_FILE2) {
+        yield join9(dir, entry.name);
       }
     }
   }
@@ -1695,8 +2130,8 @@ function parseFrontmatter(text2) {
 }
 
 // src/cached-local-source.ts
-var SKIP_DIRS2 = /* @__PURE__ */ new Set([".git", "__pycache__", "node_modules", ".venv", "venv"]);
-var SKILL_FILE2 = "SKILL.md";
+var SKIP_DIRS3 = /* @__PURE__ */ new Set([".git", "__pycache__", "node_modules", ".venv", "venv"]);
+var SKILL_FILE3 = "SKILL.md";
 var CachedLocalSkillSource = class extends LocalSkillSource {
   cachePath;
   rootPaths;
@@ -1713,22 +2148,22 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
    */
   async listAll() {
     if (!this.cachePath) return super.listAll();
-    const fingerprint = this.fingerprint();
+    const fingerprint2 = this.fingerprint();
     const cached = this.read();
-    if (cached && cached.fingerprint === fingerprint) return cached.skills;
+    if (cached && cached.fingerprint === fingerprint2) return cached.skills;
     const skills = await super.listAll();
-    this.write({ version: 1, fingerprint, skills });
+    this.write({ version: 1, fingerprint: fingerprint2, skills });
     return skills;
   }
   /** Path and mtime of every `SKILL.md` under the roots, in scan order. */
   fingerprint() {
     const parts = [];
-    for (const root of this.rootPaths) collect(root, this.depth, parts);
+    for (const root of this.rootPaths) collect2(root, this.depth, parts);
     return `${parts.length}|${hash(parts.join("\n"))}`;
   }
   read() {
     try {
-      const parsed = JSON.parse(readFileSync2(this.cachePath, "utf8"));
+      const parsed = JSON.parse(readFileSync4(this.cachePath, "utf8"));
       if (!parsed || typeof parsed !== "object") return void 0;
       const file = parsed;
       if (file.version !== 1 || typeof file.fingerprint !== "string") return void 0;
@@ -1739,29 +2174,29 @@ var CachedLocalSkillSource = class extends LocalSkillSource {
   }
   write(file) {
     try {
-      mkdirSync(dirname2(this.cachePath), { recursive: true });
+      mkdirSync3(dirname3(this.cachePath), { recursive: true });
       const temp = `${this.cachePath}.${process.pid}.tmp`;
-      writeFileSync(temp, JSON.stringify(file));
-      renameSync(temp, this.cachePath);
+      writeFileSync3(temp, JSON.stringify(file));
+      renameSync3(temp, this.cachePath);
     } catch {
     }
   }
 };
-function collect(dir, depth, out) {
+function collect2(dir, depth, out) {
   if (depth < 0) return;
   let entries;
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync3(dir, { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
-    if (SKIP_DIRS2.has(entry.name)) continue;
-    const path = join7(dir, entry.name);
-    if (entry.isDirectory()) collect(path, depth - 1, out);
-    else if (entry.name === SKILL_FILE2) {
+    if (SKIP_DIRS3.has(entry.name)) continue;
+    const path = join10(dir, entry.name);
+    if (entry.isDirectory()) collect2(path, depth - 1, out);
+    else if (entry.name === SKILL_FILE3) {
       try {
-        out.push(`${path}:${statSync2(path).mtimeMs}`);
+        out.push(`${path}:${statSync5(path).mtimeMs}`);
       } catch {
       }
     }
@@ -1804,18 +2239,30 @@ function createChatModel(options) {
 }
 
 // src/retrieve.ts
-function expandHome(path, home = homedir2()) {
+function expandHome2(path, home = homedir3()) {
   if (path === "~") return home;
-  if (path.startsWith("~/")) return join8(home, path.slice(2));
+  if (path.startsWith("~/")) return join11(home, path.slice(2));
   return path;
+}
+function installRootFor(share) {
+  if (!share) return void 0;
+  try {
+    const root = sharedSkillsDir();
+    mkdirSync4(root, { recursive: true });
+    return root;
+  } catch {
+    return void 0;
+  }
 }
 function buildEngine(config, onDiagnostic, workspaceDir) {
   const sources = [];
-  const dirs = config.skillsDirs.map((dir) => expandHome(dir)).filter(Boolean);
-  if (dirs.length > 0) {
+  const dirs = config.skillsDirs.map((dir) => expandHome2(dir)).filter(Boolean);
+  const installRoot = installRootFor(config.shareSkills);
+  const roots = scanDirs("workbuddy", dirs, config.shareSkills);
+  if (roots.length > 0) {
     const local = new CachedLocalSkillSource(
-      dirs.map((path) => ({ path, name: "local" })),
-      { indexBody: config.indexBody, cachePath: expandHome(config.indexCachePath) }
+      roots,
+      { indexBody: config.indexBody, cachePath: expandHome2(config.indexCachePath) }
     );
     local.weight = config.localWeight;
     sources.push(local);
@@ -1823,11 +2270,12 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
   let client;
   if (config.hubEndpoint) {
     client = new SkillHubClient(config.hubEndpoint, {
+      ...installRoot ? { installRoot } : {},
       ...config.hubApiKey ? { apiKey: config.hubApiKey } : {},
       // Outside every scanned directory. `~/.workbuddy-ai/plugins/cache` is
       // one of the defaults, so a bundle extracted under it would come back
       // as a local skill on the next scan.
-      cacheDir: expandHome(config.bundleCacheDir) || join8(homedir2(), ".workbuddy-ai", "skillsearch-bundles")
+      cacheDir: expandHome2(config.bundleCacheDir) || join11(homedir3(), ".workbuddy-ai", "skillsearch-bundles")
     });
     const hub = new HubSkillSource(client);
     hub.weight = config.hubWeight;
@@ -1840,7 +2288,8 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
   ]) {
     if (!endpoint) continue;
     const marketplace = new MarketplaceClient(kind, endpoint, {
-      cacheDir: expandHome(config.bundleCacheDir) || join8(homedir2(), ".workbuddy-ai", "skillsearch-bundles"),
+      ...installRoot ? { installRoot } : {},
+      cacheDir: expandHome2(config.bundleCacheDir) || join11(homedir3(), ".workbuddy-ai", "skillsearch-bundles"),
       // ClawHub measured 4–5s on the supported route. Give search headroom,
       // but leave time under the hook's global deadline for body hydration.
       timeoutMs: Math.max(1, Math.min(config.timeoutMs, 6500)),
@@ -1857,6 +2306,10 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
   return new SkillSearchEngine(
     {
       sources,
+      // Re-fingerprinted before every retrieval so a skill installed by
+      // another agent, or dragged in by hand, shows up next turn instead of
+      // after a restart. Only the shared directory — see `watch.ts`.
+      watchDirs: roots.filter((root) => root.name === "shared").map((root) => root.path),
       ...onDiagnostic ? { onDiagnostic } : {},
       ...model && config.rewrite ? { rewriter: new QueryRewriter(model) } : {},
       ...model && (config.gate ?? (Boolean(config.hubEndpoint) || marketplaceClients.size > 0)) ? { gate: new LLMGateFilter(model, { maxSelect: config.maxSelect }) } : {},
@@ -1896,8 +2349,8 @@ function buildEngine(config, onDiagnostic, workspaceDir) {
       // is ~/.workbuddy-ai; the agent's writable output is its workspace,
       // falling back to the hook process's cwd when the payload reports none.
       outputDir: workspaceDir || process.cwd(),
-      homeDir: homedir2(),
-      stateDir: join8(homedir2(), ".workbuddy-ai"),
+      homeDir: homedir3(),
+      stateDir: join11(homedir3(), ".workbuddy-ai"),
       resolvePlaceholders: config.resolvePlaceholders
     }
   );
@@ -1928,7 +2381,7 @@ async function retrieveForTurn(query, config, deps = {}, onDiagnostic, workspace
 }
 
 // src/version.ts
-var VERSION = "0.3.0";
+var VERSION = "0.4.0";
 
 // src/mcp.ts
 var PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];

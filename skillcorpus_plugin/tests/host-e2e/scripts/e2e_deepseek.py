@@ -291,6 +291,11 @@ def main() -> int:
                     help="case P5: point one remote catalogue at a closed port "
                          "and check the local corpus, the turn and the log all "
                          "survive it")
+    ap.add_argument("--shared-probe", action="store_true",
+                    help="ask whether this host joins the shared library: the "
+                         "fixture goes in the shared directory, this host's own "
+                         "directory is left empty, and the prompt is one only "
+                         "that skill answers")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
@@ -303,15 +308,26 @@ def main() -> int:
 
     model = _e2e.model_config()
     server, recorder, base_url = start_proxy(model["base_url"], model["api_key"])
-    skills = _e2e.corpus()
+    skills = (Path(os.environ["SKILLSEARCH_E2E_SHARED_OWN_DIR"]) if args.shared_probe
+              else _e2e.corpus())
     print(f"host={args.host} model={model['model']} corpus={skills} proxy={base_url}")
 
     results: dict[str, dict] = {}
     failures: list[str] = []
     try:
         for mode in args.modes:
+            prompt = (os.environ["SKILLSEARCH_E2E_SHARED_PROMPT"] if args.shared_probe
+                      else _e2e.CASES[args.case]["prompt"])
             out = run(mode, skills, base_url, recorder, dsh_bin, model,
-                      _e2e.CASES[args.case]["prompt"], args.broken_source)
+                      prompt, args.broken_source)
+            if args.shared_probe:
+                seen = out["injected_text"] + out["tool_result_text"] + out["reply"]
+                got = all(f in seen for f in _e2e.SHARED_FACTS)
+                print(f"  SHARED-PROBE {'PASS' if got else 'FAIL'} {mode} "
+                      f"tool_offered={out['tool_offered']} reply={out['reply'][:120]!r}")
+                if not got:
+                    failures.append(mode)
+                continue
             # `default` has to behave as on-demand; that is the assertion.
             effective = "on_demand" if mode == "default" else mode
             ok, facts = _e2e.verdict(

@@ -2,7 +2,7 @@
   "id": "skillsearch",
   "name": "Skill Search",
   "description": "Per-turn skill retrieval as a context engine: local directory, remote catalog, model-gated selection.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "kind": "context-engine",
   "activation": {
     "onStartup": true
@@ -44,6 +44,11 @@
           "~/.openclaw/skills"
         ],
         "description": "Directories scanned for SKILL.md files"
+      },
+      "shareSkills": {
+        "type": "boolean",
+        "default": true,
+        "description": "Also scan the cross-host shared library: the shared skills directory and the directories other agents registered. Off stops this host reading the others; to stop the others reading this one, set enabled:false on its line in the shared registry.json."
       },
       "hubEndpoint": {
         "type": "string",

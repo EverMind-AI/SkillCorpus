@@ -50,6 +50,24 @@ export interface SourceResult {
  *   60 any weight gap between sources outweighs every rank gap within one.
  * @returns the fused hits, best first, at most `k` long.
  */
+/**
+ * What counts as "the same skill" across sources.
+ *
+ * `meta.origin` when the skill has one, because that is what it *is*: a skill
+ * installed from a catalogue and the catalogue entry it came from are one
+ * thing, and nothing else here would notice — their `qualifiedId`s differ
+ * (`local/x` versus `hub/x`), and a body digest misses a bumped version or a
+ * changed line ending.
+ *
+ * Falls back to `dedupBy` for everything without an origin, which is every
+ * hand-written skill and every uninstalled catalogue hit.
+ */
+function collapseKey(hit: RouterHit, dedupBy: 'name' | 'qualifiedId'): string {
+  const origin = hit.meta?.origin
+  if (typeof origin === 'string' && origin.trim()) return origin.trim()
+  return hit[dedupBy]
+}
+
 export function rrfMergeWeighted(
   sourceResults: readonly SourceResult[],
   k: number,
@@ -69,7 +87,7 @@ export function rrfMergeWeighted(
   for (const { name: sourceName, weight, hits } of sourceResults) {
     for (const [i, hit] of hits.entries()) {
       const rank = i + 1
-      const key = hit[dedupBy]
+      const key = collapseKey(hit, dedupBy)
       const contribution = weight / (rrfK + rank)
       const seen = merged.get(key)
       if (seen === undefined) {

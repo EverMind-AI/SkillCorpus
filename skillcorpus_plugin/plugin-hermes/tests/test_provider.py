@@ -301,3 +301,55 @@ def test_unknown_mode_narrows_to_the_default_and_says_so(tmp_path, caplog):
 
     # An unknown mode must leave the on-demand surface intact, not strip it.
     assert [s["name"] for s in provider.get_tool_schemas()] == ["skill_search"]
+
+
+def test_hermes_registers_itself_and_scans_the_shared_library(monkeypatch, tmp_path):
+    """Hermes's side of the cross-host library."""
+    from skillsearch import shared
+
+    root = tmp_path / "shared"
+    monkeypatch.setenv(shared.HOME_ENV, str(root))
+    (root / "skills").mkdir(parents=True)
+    theirs = tmp_path / "raven-skills"
+    theirs.mkdir()
+    shared.register_host("raven", theirs)
+
+    home = tmp_path / "hermes-home"
+    (home / "skills").mkdir(parents=True)
+    (home / "skillsearch.json").write_text(json.dumps({
+        "hub_endpoint": "", "clawhub_endpoint": "", "skillhub_cn_endpoint": "",
+    }), encoding="utf-8")
+
+    from engine_adapter import load_config
+
+    cfg = load_config(str(home))
+    scanned = {d.path for d in cfg.extra_dirs}
+    assert str(root / "skills") in scanned
+    assert str(theirs.resolve()) in scanned
+    assert [e.id for e in shared.read_registry()] == ["raven", "hermes"]
+
+
+def test_hermes_reads_extra_dirs_from_the_environment(monkeypatch, tmp_path):
+    """`SKILLSEARCH_SKILLS_DIRS`, which the three TypeScript hosts already had.
+
+    Comma-separated, same splitting as theirs: a deployment that sets it
+    should not have to care which host reads it.
+    """
+    from skillsearch import shared
+
+    root = tmp_path / "shared"
+    monkeypatch.setenv(shared.HOME_ENV, str(root))
+    one, two = tmp_path / "one", tmp_path / "two"
+    one.mkdir()
+    two.mkdir()
+    monkeypatch.setenv(shared.DIRS_ENV, f"{one}, {two}")
+
+    home = tmp_path / "hermes-home"
+    (home / "skills").mkdir(parents=True)
+
+    from engine_adapter import load_config
+
+    cfg = load_config(str(home))
+    scanned = {d.path for d in cfg.extra_dirs}
+    assert str(one.resolve()) in scanned
+    assert str(two.resolve()) in scanned

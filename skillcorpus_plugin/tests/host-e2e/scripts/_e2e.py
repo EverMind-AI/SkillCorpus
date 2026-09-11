@@ -264,3 +264,39 @@ def line(mode: str, ok: bool, facts: dict, elapsed_s: float) -> str:
         f"in_reply={facts['sentinel_in_reply']!s:5} "
         f"{'PASS' if ok else 'FAIL'} ({elapsed_s:.0f}s)"
     )
+
+
+#: A skill that lives only in the shared library, for the cross-host case.
+#: Its own subject so it cannot be confused with the standard fixture, and
+#: facts that exist nowhere else so a reply carrying them can only have come
+#: from the shared directory.
+SHARED_SKILL = """\
+---
+name: rotate-signing-keys
+description: Rotate the service signing keys and re-issue downstream credentials safely.
+---
+
+House procedure: stage the new key under the `Narwhal-KMS-4` alias and keep the
+previous one live until the `Quokka Cutover` window closes.
+"""
+SHARED_FACTS = ("Narwhal-KMS-4", "Quokka Cutover")
+SHARED_PROMPT = "What is our internal procedure for rotating signing keys?"
+
+
+def shared_corpus(home: Path) -> tuple[Path, Path]:
+    """Put the fixture in the shared library, and give the host an empty dir.
+
+    Returns ``(the host's own skills directory, the shared skills directory)``.
+
+    The host's own directory is created and left empty on purpose. A host that
+    configures *no* skills directory does not join the shared library at all —
+    that is deliberate, and documented in `shared.py` — so handing it an empty
+    one is what isolates the question to "does this host read the others",
+    with nothing of its own to find instead.
+    """
+    own = home / "own-skills"
+    own.mkdir(parents=True, exist_ok=True)
+    shared = home / ".evermind-skillsearch" / "skills" / "rotate-signing-keys"
+    shared.mkdir(parents=True, exist_ok=True)
+    (shared / "SKILL.md").write_text(SHARED_SKILL, encoding="utf-8")
+    return own, shared.parent

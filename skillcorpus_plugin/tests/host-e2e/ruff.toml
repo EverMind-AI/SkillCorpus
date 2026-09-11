@@ -37,3 +37,8 @@ ignore = [
 # Runs the host CLI the operator named on the command line. That is the
 # script's entire job, so flagging the call is noise.
 "scripts/e2e_openclaw.py" = ["S603"]
+# Runs two host CLIs and an interpreter, all named by the operator. Running
+# them is the script.
+"scripts/e2e_shared.py" = ["S603"]
+# Drives every host CLI and interpreter the operator named. That is the script.
+"scripts/e2e_shared_hosts.py" = ["S603", "S607"]  # also resolves npx from PATH

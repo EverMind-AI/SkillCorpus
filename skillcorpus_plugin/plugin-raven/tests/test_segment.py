@@ -14,7 +14,7 @@ import asyncio
 import importlib.util
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -374,3 +374,83 @@ def test_a_recognised_mode_is_quiet(caplog):
         assert _mode({"mode": "on_demand"}) == "on_demand"
         assert _mode({}) == "on_demand"
     assert [r for r in caplog.records if "unknown mode" in r.message] == []
+
+
+def test_raven_registers_itself_and_scans_the_shared_library(monkeypatch, tmp_path):
+    """The whole point of the feature, from this host's side.
+
+    Raven needs it most: its `skills_dir` default is relative, so it resolves
+    per workspace and two projects belonging to one user do not share even
+    with each other.
+    """
+    from skillsearch import shared
+
+    from skillsearch_raven import _build_search
+
+    root = tmp_path / "shared"
+    monkeypatch.setenv(shared.HOME_ENV, str(root))
+    (root / "skills").mkdir(parents=True)
+    theirs = tmp_path / "hermes-skills"
+    theirs.mkdir()
+    shared.register_host("hermes", theirs)
+
+    workspace = tmp_path / "project"
+    (workspace / "skills").mkdir(parents=True)
+
+    class Services:
+        def __init__(self) -> None:
+            self.workspace = str(workspace)
+            self.agent_id = ""
+
+    class Ctx:
+        config: ClassVar[dict] = {"skills_dir": "skills", "hub_endpoint": "",
+                                  "clawhub_endpoint": "", "skillhub_cn_endpoint": ""}
+        services = Services()
+
+    built = _build_search(Ctx())
+    assert built is not None
+    _, cfg_map = built
+    scanned = {d["path"] for d in cfg_map["extra_dirs"]}
+
+    # The shared directory and the other host's, and never our own — the
+    # engine already scans `skills_dir` separately.
+    assert str(root / "skills") in scanned
+    assert str(theirs.resolve()) in scanned
+    assert str((workspace / "skills").resolve()) not in scanned
+
+    # And we are now visible to the others.
+    assert [e.id for e in shared.read_registry()] == ["hermes", "raven"]
+
+
+def test_raven_can_opt_out_of_sharing(monkeypatch, tmp_path):
+    """`share_skills: false` stops this agent reading the others.
+
+    It does not stop the others reading this one — that switch is `enabled`
+    on this host's line in the registry, and the two are deliberately
+    separate.
+    """
+    from skillsearch import shared
+
+    from skillsearch_raven import _build_search
+
+    root = tmp_path / "shared"
+    monkeypatch.setenv(shared.HOME_ENV, str(root))
+    (root / "skills").mkdir(parents=True)
+
+    workspace = tmp_path / "project"
+    (workspace / "skills").mkdir(parents=True)
+
+    class Services:
+        def __init__(self) -> None:
+            self.workspace = str(workspace)
+            self.agent_id = ""
+
+    class Ctx:
+        config: ClassVar[dict] = {"skills_dir": "skills", "share_skills": False,
+                                  "hub_endpoint": "", "clawhub_endpoint": "",
+                                  "skillhub_cn_endpoint": ""}
+        services = Services()
+
+    built = _build_search(Ctx())
+    assert built is not None
+    assert not built[1].get("extra_dirs")

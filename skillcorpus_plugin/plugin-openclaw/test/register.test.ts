@@ -14,7 +14,16 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mkdtempSync } from 'node:fs'
 import test from 'node:test'
+
+// Every suite in this package builds a real engine, and building one now
+// registers this host in the shared registry — under the user's home
+// directory. A test must never write there: it pollutes the machine it runs
+// on and, worse, makes the result depend on whatever the developer happens to
+// have installed. Pointed at a scratch directory before anything imports the
+// modules under test.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { DEFAULTS, loadConfig } from '../src/config.ts'
 import { buildEngine, expandHome, recentUserText, register } from '../src/register.ts'
 import type {
@@ -331,4 +340,20 @@ test('a source that is down is reported, not swallowed', async () => {
   const complaint = warnings.find(message => message.includes('source hub failed'))
   assert.ok(complaint, `expected a source warning, got ${JSON.stringify(warnings)}`)
   assert.ok(!complaint.includes('apiKey'), 'a diagnostic must not carry a credential')
+})
+
+test('a whitespace-only environment variable counts as unset', () => {
+  // It is indistinguishable from an absent one to whoever set it, and
+  // treating it as a value is destructive rather than odd: for
+  // `SKILLSEARCH_SKILLS_DIRS` it emptied the list, taking the host's own
+  // skills directory with it — and with no directory of its own a host does
+  // not join the shared library either, so cross-agent sharing went too.
+  // Measured against the Python port, which already read it this way.
+  const configured = { skillsDirs: ['/cfg'] }
+  assert.deepEqual(loadConfig(configured, {}).skillsDirs, ['/cfg'])
+  assert.deepEqual(loadConfig(configured, { SKILLSEARCH_SKILLS_DIRS: '' }).skillsDirs, ['/cfg'])
+  assert.deepEqual(loadConfig(configured, { SKILLSEARCH_SKILLS_DIRS: '   ' }).skillsDirs, ['/cfg'])
+  assert.deepEqual(loadConfig(configured, { SKILLSEARCH_SKILLS_DIRS: '\t\n' }).skillsDirs, ['/cfg'])
+  // A real value still wins.
+  assert.deepEqual(loadConfig(configured, { SKILLSEARCH_SKILLS_DIRS: '/e1,/e2' }).skillsDirs, ['/e1', '/e2'])
 })

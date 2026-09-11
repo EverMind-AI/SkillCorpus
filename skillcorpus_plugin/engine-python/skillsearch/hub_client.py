@@ -29,6 +29,8 @@ from typing import Any
 
 import httpx
 
+from skillsearch import provenance
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_S = 2.0
@@ -96,12 +98,20 @@ class SkillHubClient:
         # deployment whose set you know.
         source: str = "cli",
         cache_dir: Path | None = None,
+        # Set to the shared skills directory to install there instead of into
+        # the cache. The difference is not just the path: a skill under the
+        # cache is deliberately outside every scan, while one here is scanned,
+        # shared with the other hosts, and carries a provenance marker so
+        # fusion can tell it is the same thing the catalogue offers. Unset
+        # keeps the pre-0.4 behaviour exactly.
+        install_root: Path | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base = endpoint.rstrip("/")
         self._api_key = api_key
         self._source = source
         self._cache_dir = cache_dir or (Path.home() / ".skillsearch" / "hub")
+        self._install_root = install_root
         self._download_timeout_s = download_timeout_s
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_s))
@@ -202,10 +212,13 @@ class SkillHubClient:
         slug = meta.get("slug") or meta.get("skill_id") or skill_id
         slug = str(slug).replace("/", "_")
         version = str(meta.get("version") or "v0")
-        dest = self._cache_dir / f"{slug}@{version}"
-        if not dest.exists():
-            await self._install_atomically(skill_id, dest)
-        root = self._bundle_root(dest)
+        if self._install_root is not None:
+            root = await self._install_shared(skill_id, slug, version, meta)
+        else:
+            dest = self._cache_dir / f"{slug}@{version}"
+            if not dest.exists():
+                await self._install_atomically(skill_id, dest)
+            root = self._bundle_root(dest)
         scripts = root / "scripts"
         return {
             "slug": slug,
@@ -214,6 +227,49 @@ class SkillHubClient:
             "scripts_dir": str(scripts) if scripts.is_dir() else None,
             "skill_md": meta.get("skill_md", ""),
         }
+
+    async def _install_shared(self, skill_id: str, slug: str, version: str, meta: dict[str, Any]) -> Path:
+        """Install into the shared directory, one directory per identity.
+
+        Per identity rather than per version, unlike the cache: the shared
+        directory is scanned, so keeping ``x@1`` beside ``x@2`` would put two
+        ranked copies of one skill in front of the model. An update therefore
+        replaces, and `swap_into_place` is what makes replacing safe — the
+        previous version stays live until the new one is complete.
+
+        A same-version reinstall is skipped, which is what keeps a retrieval
+        that happens to hit an installed skill from rewriting it every turn.
+        """
+        # Only reached when `install` checked it, but read into a local so the
+        # type is narrowed without an assert the linter rightly objects to.
+        install_root = self._install_root
+        if install_root is None:  # pragma: no cover - unreachable via `install`
+            raise RuntimeError("no install root")
+        dest = provenance.slug_dir(install_root, "hub", slug)
+        existing = provenance.read_marker(dest)
+        if existing is not None and existing.version == version:
+            return self._bundle_root(dest)
+
+        staging = dest.with_name(f"{dest.name}.incoming-{os.getpid()}-{uuid.uuid4().hex[:8]}")
+        try:
+            self._safe_extract(await self.download(skill_id), staging)
+            body_root = self._bundle_root(staging)
+            provenance.write_marker(
+                body_root,
+                provenance.Origin(
+                    origin=provenance.identity("hub", slug),
+                    source="hub",
+                    slug=slug,
+                    version=version,
+                    sha256=provenance.body_digest(str(meta.get("skill_md") or "")),
+                    installed_at=provenance.now(),
+                ),
+            )
+            provenance.swap_into_place(staging, dest)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        return self._bundle_root(dest)
 
     @staticmethod
     def _bundle_root(dest: Path) -> Path:

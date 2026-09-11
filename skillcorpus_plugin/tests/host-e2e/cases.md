@@ -114,6 +114,19 @@ templates and "our" way of doing things — the one saying that searching here
 comes *before* answering that you do not know. Changing that paragraph means
 re-running this case on at least two hosts.
 
+**It has since failed a second way, which is worse.** On WorkBuddy 5.4.7 with
+that host's default model, the reply named a skill that does not exist —
+`scanned-pdf-invoice-ocr` — without ever calling `skill_search`. "I don't know"
+is at least legible as a miss; a fabricated skill name reads as though
+retrieval worked. So the assertion is on the fixture's facts and on the tool
+call, never on the reply merely sounding like it found something.
+
+The same run showed the clause is not enough on every model: an explicit
+instruction to call the tool did trigger it, so the tool exists and works and
+the description is what did not carry. Whether that is answered by rewording
+the description or by recommending `auto` on that host is a product decision,
+not a test one — it is recorded in `reports/workbuddy-shared-skills.md`.
+
 ## P3 — No match
 
 Both modes. Deliberately not a weather question: the public catalogues carry
@@ -248,3 +261,158 @@ empty" is the assertion; "process exits" is the bug.
 
 The older WorkBuddy verification notes checked the hook log, which is an
 `auto`-mode check. It is not a completion standard for the default.
+
+---
+
+# S1–S9 — the shared skills library
+
+A second family of cases, from `skillsearch-shared-skills-spec.md`. They are
+numbered as that document numbers them, so a result here can be read against
+it line by line.
+
+These differ from P1–P6 in what they are about. P1–P6 ask whether *one* host
+retrieves correctly; these ask whether the hosts can see **each other**, which
+means at least two of them have to be running and the evidence lives in files
+on disk rather than in one turn's transcript.
+
+## The corpus
+
+Three fixtures, and the reason there are three rather than one is a mistake
+worth not repeating. They must not compete: the hosts run with `topK: 1`, so
+two skills on the same subject means the case measures which one ranked higher
+rather than what it set out to measure.
+
+| Fixture | Lives in | Facts | Used by |
+| --- | --- | --- | --- |
+| `invoice-audit` | host A's own directory | `Wombat-Ledger-7`, `Tapir Threshold` | S4 |
+| `rotate-signing-keys` | the shared directory | `Narwhal-KMS-4`, `Quokka Cutover` | S5, and the per-host probe |
+| whatever the catalogue returns for "extract tables from a PDF" | installed by retrieval | its own frontmatter name | S1, S2, S3, S7, S8 |
+
+## The cases
+
+| # | The claim | How it is verified | Script |
+| --- | --- | --- | --- |
+| S1 | a retrieved skill appears under `<shared root>/skills/` | install for real from EverMind SkillHub, then read the ledger | `e2e_install.py` |
+| S2 | the next turn finds it locally, **exactly once**, no restart | retrieve twice on one engine, count the heading; then again on a freshly built engine | `e2e_install.py` |
+| S3 | agent B retrieves what agent A installed | Raven installs from the catalogue; OpenClaw — other host, other language port, own process — is then asked | `e2e_shared.py` |
+| S4 | a skill in A's own directory is retrievable in B | Raven registers its directory; OpenClaw is asked the question only that skill answers | `e2e_shared.py` |
+| S5 | a skill dropped in by hand reaches the hosts next turn, no restart | write into the shared directory mid-run, ask again | `e2e_shared.py`, `e2e_shared_hosts.py` |
+| S6 | `enabled: false` hides A from B, **and survives A restarting** | edit the registry, ask B, re-register A, read the flag back | `e2e_shared.py` |
+| S7 | uninstall → directory gone, **a record kept**, not retrievable | remove through the Python port, observe from the TypeScript host, read `uninstalled.log` | `e2e_shared.py`, `e2e_install.py` |
+| S8 | a failed update leaves the previous version working | install for real, then update to an absent version from a dead endpoint | `e2e_install.py` |
+| S9 | a corrupt registry costs sharing, not retrieval | write `{ this is not json` and ask again | `e2e_shared.py` |
+
+`e2e_shared_hosts.py` runs the narrower question — *does this host join at
+all* — separately against each of the five headless hosts, because the
+registration is wired at six different call sites and a fix applied to one is
+not a fix applied to the others. Three bugs on this branch were exactly that.
+
+## Two things about judging these
+
+**Registration and retrieval are separate verdicts.** A host that registers but
+whose model never called `skill_search` has not failed — in on-demand mode the
+model decides, and one that answers from memory leaves the wiring untested
+rather than broken. That is reported as INCONCLUSIVE. A host that does not
+register *is* a failure: the others then cannot see it, which is half the
+feature. Both OpenClaw generations also get an engine probe — the plugin's own
+`buildEngine`, no model in the loop — so the wiring verdict cannot come out
+inconclusive at all.
+
+**A catalogue that answered with nothing is not a failed install.** Retrieval
+fails open, so an unreachable service and an empty result look identical from
+outside. The install cases report BLOCKED in that situation rather than a red
+that a rerun clears.
+
+## WorkBuddy, by hand
+
+The one host with no headless path, so S1–S9 are steps rather than a script.
+Nothing here is exotic — it is the same corpus and the same questions the
+scripts use, driven through the UI.
+
+**Both of its paths reach the shared library, and they have different
+lifecycles.** `UserPromptSubmit` is a fresh process every turn; the MCP server
+starts with the session and lives. Both call `scanDirs`, so both register —
+which is why step 2 exists: on the hook path "at startup" means "every turn",
+on the turn's hot path, inside an 8-second budget.
+
+### Setup
+
+```bash
+mkdir -p ~/.evermind-skillsearch/skills/rotate-signing-keys
+cat > ~/.evermind-skillsearch/skills/rotate-signing-keys/SKILL.md <<'MD'
+---
+name: rotate-signing-keys
+description: Rotate the service signing keys and re-issue downstream credentials safely.
+---
+
+House procedure: stage the new key under the `Narwhal-KMS-4` alias and keep the
+previous one live until the `Quokka Cutover` window closes.
+MD
+```
+
+Then start WorkBuddy and run one ordinary turn, so the plugin loads.
+
+### Which of these need a second agent
+
+Five of the nine do not, and saying so matters: the first run of this checklist
+left S2, S5, S6, S7 and S9 blank as "not executed" on a machine that had only
+WorkBuddy, when all five were verifiable there.
+
+| Needs only WorkBuddy | Needs a second agent with the plugin |
+| --- | --- |
+| S1, S2, S5, S7, S9, and S6's *survives-a-restart* half | S3, S4, and S6's *hides-it-from-the-other* half |
+
+S8 is covered against the real catalogue by `e2e_install.py` and does not need
+repeating here.
+
+### Steps
+
+1. **It registered.** `cat ~/.evermind-skillsearch/registry.json` — there is a
+   `workbuddy` entry, `enabled: true`, and `dir` is WorkBuddy's real skills
+   directory as an absolute path. If the entry is missing, stop: without it the
+   other agents cannot see this one, which is half the feature.
+
+2. **It does not rewrite the registry every turn.** Note the file's mtime, run
+   three or four more turns, check it again. Unchanged. This is the short
+   circuit the per-turn hook depends on — a write per turn is both a cost on
+   the hot path and a race with four other agents.
+
+3. **S5 — the shared skill is retrievable.** Ask *"What is our internal
+   procedure for rotating signing keys?"* in a fresh task. In the default
+   `on_demand` mode the agent should call `skill_search`; the answer must
+   mention `Narwhal-KMS-4` and `Quokka Cutover`, which exist nowhere else. If
+   the model answers "I don't know" without calling the tool, that is
+   INCONCLUSIVE rather than a failure — rerun it; see the verdicts in
+   `README.md`.
+
+4. **S2 — found once, not twice.** Ask the same question again in a fresh
+   task. The skill appears in the answer exactly once. This is the case that
+   installing into a scanned directory could break: the local copy and the
+   catalogue's own entry are one skill and must collapse into one hit.
+
+5. **S6, the half that needs nobody else — the flag survives a restart.** Set
+   `enabled: false` on the `workbuddy` line in `registry.json`, fully quit and
+   reopen WorkBuddy, then read the file again: **still `false`**. A host
+   re-registering must never undo it, or the file is not editable. *(The other
+   half — that another agent stops seeing WorkBuddy's skills — needs a second
+   agent.)*
+
+6. **S4 — the other direction.** *(Second agent required.)* Put a skill in
+   WorkBuddy's *own* skills directory, then open another agent that has this
+   plugin and ask for it there. It should be found without that agent being
+   told anything.
+
+7. **S9 — a broken registry costs sharing, not the turn.** Replace
+   `registry.json` with `{ this is not json`, then ask anything. The turn
+   completes normally and retrieval still works from WorkBuddy's own
+   directory. Restore the file afterwards.
+
+8. **S7 — removal leaves a record.** After anything has been installed by
+   retrieval, remove it and check `~/.evermind-skillsearch/uninstalled.log`:
+   one JSON line per removal, with the origin, the version and a timestamp.
+
+### What to record
+
+Host version, plugin version, the commit, and for each step what you saw —
+following the same fields as the other reports. A step that could not be run
+is written down with the reason rather than left out.

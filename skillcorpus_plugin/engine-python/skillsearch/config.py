@@ -74,6 +74,18 @@ class SearchConfig:
     builtin_dir: str = ""
     """Read-only skills shipped with the host."""
 
+    install_to_shared: bool = True
+    """Install retrieved skills into the shared library rather than the cache.
+
+    The cache is deliberately outside every scan, so a skill downloaded for
+    one turn is thrown away and re-downloaded for the next, and no other agent
+    ever sees it. Installing into the shared directory keeps it: one copy, on
+    disk, scanned by every host that opted in, with a provenance marker so
+    fusion knows it is the catalogue's own entry rather than a second skill.
+
+    Off restores the pre-0.4 behaviour exactly.
+    """
+
     scan_depth: int = 5
 
     index_body: bool = False
