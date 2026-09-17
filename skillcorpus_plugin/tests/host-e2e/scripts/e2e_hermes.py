@@ -196,13 +196,22 @@ def main() -> int:
                     help="case P5: point one remote catalogue at a closed port "
                          "and check the local corpus, the turn and the log all "
                          "survive it")
+    ap.add_argument("--shared-probe", action="store_true",
+                    help="ask whether this host joins the shared library: the "
+                         "fixture goes in the shared directory, this host's own "
+                         "directory is left empty, and the prompt is one only "
+                         "that skill answers")
     ap.add_argument("--dump", type=Path, default=None)
     args = ap.parse_args()
     if not args.host:
         ap.error("--host or SKILLSEARCH_E2E_HERMES_CHECKOUT is required")
 
     model = _e2e.model_config()
-    skills = _e2e.corpus()
+    # Under `--shared-probe` the fixture is already in the shared library and
+    # this host gets an empty directory of its own, so anything it finds came
+    # from there.
+    skills = (Path(os.environ["SKILLSEARCH_E2E_SHARED_OWN_DIR"]) if args.shared_probe
+              else _e2e.corpus())
     print(f"host={args.host} model={model['model']} corpus={skills}")
     budget = args.prefetch_budget or "host default (8s)"
     print(f"rewrite={not args.no_rewrite} prefetch_budget={budget}")
@@ -210,7 +219,8 @@ def main() -> int:
     results, failures = {}, []
     for mode in args.modes:
         out = run(mode, skills, Path(args.host), model,
-                  prompt=_e2e.CASES[args.case]["prompt"],
+                  prompt=(os.environ["SKILLSEARCH_E2E_SHARED_PROMPT"] if args.shared_probe
+                          else _e2e.CASES[args.case]["prompt"]),
                   rewrite=not args.no_rewrite, prefetch_budget_s=args.prefetch_budget,
                   broken_source=args.broken_source)
         results[mode] = out
@@ -221,6 +231,13 @@ def main() -> int:
         delivered = "\n".join(
             [out["prefetch_text"]] + [c["returned"] for c in out["tool_calls"]]
         )
+        if args.shared_probe:
+            got = all(f in delivered + out["reply"] for f in _e2e.SHARED_FACTS)
+            print(f"  SHARED-PROBE {'PASS' if got else 'FAIL'} {mode} "
+                  f"schemas={out['schemas']} reply={out['reply'][:120]!r}")
+            if not got:
+                failures.append(mode)
+            continue
         ok, facts = _e2e.verdict(
             case=args.case,
             mode=mode,

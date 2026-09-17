@@ -41,6 +41,8 @@ CONFIG_FILENAME = "skillsearch.json"
 
 DEFAULTS: dict[str, Any] = {
     "skills_dir": "~/.hermes/skills",
+    "skills_dirs": [],
+    "share_skills": True,
     "hub_endpoint": "https://skillhub.evermind.ai",
     "clawhub_endpoint": "https://clawhub.ai",
     "skillhub_cn_endpoint": "https://api.skillhub.cn",
@@ -257,6 +259,16 @@ class SkillSearchProvider(MemoryProvider):
                 "key": "skills_dir",
                 "description": "Directory scanned for SKILL.md files",
                 "default": DEFAULTS["skills_dir"],
+            },
+            {
+                "key": "share_skills",
+                "description": (
+                    "Also scan the shared library — the cross-host skills directory "
+                    "and the directories other agents registered. Turning this off "
+                    "stops this agent reading the others; to stop the others reading "
+                    "this one, set enabled:false on its line in the shared registry."
+                ),
+                "default": DEFAULTS["share_skills"],
             },
             {
                 "key": "hub_endpoint",

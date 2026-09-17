@@ -43,6 +43,24 @@ from skillsearch.types import RouterHit
 RRF_K: int = 60
 
 
+def _collapse_key(hit: RouterHit, dedup_by: str) -> str:
+    """What counts as "the same skill" across sources.
+
+    ``meta["origin"]`` when the skill has one, because that is what it *is*:
+    a skill installed from a catalogue and the catalogue entry it came from
+    are one thing, and nothing else here would notice — their
+    ``qualified_id``s differ (``local/x`` versus ``hub/x``), and a body digest
+    misses a bumped version or a changed line ending.
+
+    Falls back to ``dedup_by`` for everything without an origin, which is
+    every hand-written skill and every uninstalled catalogue hit.
+    """
+    origin = (hit.meta or {}).get("origin")
+    if isinstance(origin, str) and origin.strip():
+        return origin.strip()
+    return str(getattr(hit, dedup_by))
+
+
 def rrf_merge_weighted(
     source_results: list[tuple[str, float, list[RouterHit]]],
     k: int,
@@ -77,7 +95,7 @@ def rrf_merge_weighted(
 
     for source_name, weight, hits in source_results:
         for rank, hit in enumerate(hits, start=1):
-            key = getattr(hit, dedup_by)
+            key = _collapse_key(hit, dedup_by)
             claim = weight / (rrf_k + rank)
             rrf_scores[key] += claim
             contributing[key].append(source_name)

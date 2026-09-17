@@ -1,0 +1,91 @@
+{
+  "_note": "Shared by engine-python/tests/test_shared.py and engine-typescript/tests/parity.test.ts. Both parse every `document` below and must produce the matching `expected`. A Python host and a TypeScript host write this same file on one machine and read each other's writes, so a disagreement here is not cosmetic — it splits a user's agents apart with nothing logged.",
+  "cases": [
+    {
+      "why": "the ordinary case",
+      "document": {
+        "hosts": [
+          { "id": "openclaw2", "dir": "/u/.openclaw/skills", "enabled": true },
+          { "id": "raven", "dir": "/u/proj/skills", "enabled": false }
+        ]
+      },
+      "expected": [
+        { "id": "openclaw2", "dir": "/u/.openclaw/skills", "enabled": true },
+        { "id": "raven", "dir": "/u/proj/skills", "enabled": false }
+      ]
+    },
+    {
+      "why": "a missing `enabled` defaults to true, so a hand-written line works",
+      "document": { "hosts": [{ "id": "hermes", "dir": "/u/.hermes/skills" }] },
+      "expected": [{ "id": "hermes", "dir": "/u/.hermes/skills", "enabled": true }]
+    },
+    {
+      "why": "an explicit null is the same as absent",
+      "document": { "hosts": [{ "id": "hermes", "dir": "/u/x", "enabled": null }] },
+      "expected": [{ "id": "hermes", "dir": "/u/x", "enabled": true }]
+    },
+    {
+      "why": "truthiness, not type-strictness — a hand-edited 0 or \"\" means off",
+      "document": {
+        "hosts": [
+          { "id": "a", "dir": "/a", "enabled": 0 },
+          { "id": "b", "dir": "/b", "enabled": "" },
+          { "id": "c", "dir": "/c", "enabled": "false" }
+        ]
+      },
+      "expected": [
+        { "id": "a", "dir": "/a", "enabled": false },
+        { "id": "b", "dir": "/b", "enabled": false },
+        { "id": "c", "dir": "/c", "enabled": true }
+      ]
+    },
+    {
+      "why": "whitespace around an id or a dir is trimmed before use",
+      "document": { "hosts": [{ "id": "  raven  ", "dir": "  /u/x  " }] },
+      "expected": [{ "id": "raven", "dir": "/u/x", "enabled": true }]
+    },
+    {
+      "why": "an entry missing either half is dropped, not defaulted",
+      "document": {
+        "hosts": [
+          { "id": "", "dir": "/x" },
+          { "id": "y" },
+          { "dir": "/z" },
+          { "id": "ok", "dir": "/ok" }
+        ]
+      },
+      "expected": [{ "id": "ok", "dir": "/ok", "enabled": true }]
+    },
+    {
+      "why": "first line wins on a duplicate id, so a hand-added line above is honoured",
+      "document": {
+        "hosts": [
+          { "id": "raven", "dir": "/first" },
+          { "id": "raven", "dir": "/second" }
+        ]
+      },
+      "expected": [{ "id": "raven", "dir": "/first", "enabled": true }]
+    },
+    {
+      "why": "non-objects in the array are skipped rather than raising",
+      "document": { "hosts": ["nope", 7, null, { "id": "ok", "dir": "/ok" }] },
+      "expected": [{ "id": "ok", "dir": "/ok", "enabled": true }]
+    },
+    {
+      "why": "no hosts key at all",
+      "document": { "_note": "empty" },
+      "expected": []
+    },
+    {
+      "why": "hosts is the wrong type",
+      "document": { "hosts": { "raven": "/x" } },
+      "expected": []
+    },
+    {
+      "why": "the whole document is the wrong type",
+      "document": ["raven"],
+      "expected": []
+    }
+  ],
+  "unparseable": ["{not json at all", "]]]", "", "null", "42"]
+}

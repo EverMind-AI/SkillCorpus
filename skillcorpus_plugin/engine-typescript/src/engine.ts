@@ -20,6 +20,7 @@ import { LLMGateFilter } from './gate.js'
 import { resolvePlaceholders, resolveRefs, type PlaceholderRuntime } from './refs.js'
 import { QueryRewriter } from './rewriter.js'
 import type { RouterHit, SkillSource } from './types.js'
+import { DirectoryWatch } from './watch.js'
 
 /** Deployment-fixed retrieval settings, chosen once when the engine is built. */
 export interface EngineOptions {
@@ -97,6 +98,15 @@ export interface EngineParts {
   readonly sources: readonly SkillSource[]
   /** Receives best-effort source timings and failures; callback errors are ignored. */
   readonly onDiagnostic?: (diagnostic: SourceDiagnostic) => void
+  /**
+   * Directories to re-fingerprint before each retrieval, dropping the cached
+   * scan when they changed.
+   *
+   * The shared skills directory and nothing else. It is the only root that
+   * changes behind the host's back, and walking every root every turn would
+   * charge deployments that are not using the shared library. See `watch.ts`.
+   */
+  readonly watchDirs?: readonly string[]
   readonly rewriter?: QueryRewriter
   readonly gate?: LLMGateFilter
   /** Loads a remote body once the gate has kept its hit. */
@@ -147,6 +157,7 @@ export class SkillSearchEngine {
   private readonly refs: boolean
   private readonly placeholders: boolean
   private readonly runtime: PlaceholderRuntime
+  private readonly watch: DirectoryWatch
 
   constructor(parts: EngineParts, options: EngineOptions = {}) {
     this.sources = parts.sources
@@ -155,6 +166,7 @@ export class SkillSearchEngine {
     this.fetchBody = parts.fetchBody
     this.materialise = parts.materialise
     this.onDiagnostic = parts.onDiagnostic
+    this.watch = new DirectoryWatch(parts.watchDirs ?? [])
     this.topK = options.topK ?? 2
     this.rrfK = options.rrfK
     this.gatePool = options.gatePool ?? 10
@@ -198,7 +210,29 @@ export class SkillSearchEngine {
    * @param options - this turn's cancellation and tool list.
    * @returns the selected skills, empty on any failure; never rejects.
    */
+  /**
+   * Drop the cached scan when a watched directory changed.
+   *
+   * Without this the scan is built once and kept, and no adapter calls
+   * `invalidate()` — so a skill installed in one agent stays invisible in the
+   * others until they restart, which is the premise of a shared library.
+   */
+  private revalidate(): void {
+    if (!this.watch.active || !this.watch.changed()) return
+    for (const source of this.sources) {
+      const invalidate = (source as { invalidate?: () => void }).invalidate
+      if (typeof invalidate === 'function') {
+        try {
+          invalidate.call(source)
+        } catch {
+          // A source that will not drop its cache costs freshness, not a turn.
+        }
+      }
+    }
+  }
+
   async hits(query: string, options: RetrieveOptions = {}): Promise<RouterHit[]> {
+    this.revalidate()
     if (!this.enabled || !query.trim()) return []
     try {
       return await this.run(query, options)

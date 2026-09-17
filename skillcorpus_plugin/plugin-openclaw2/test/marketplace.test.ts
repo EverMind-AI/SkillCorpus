@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
 import { access, mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
+
+// Building an engine registers this host in the shared registry, under the
+// user's home directory. A test must never write there: it pollutes the
+// machine and makes the result depend on whatever the developer has
+// installed. Redirected before anything under test is imported.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { MarketplaceClient, MarketplaceSkillSource } from '../../engine-typescript/src/marketplace-source.ts'
 
 const originalFetch = globalThis.fetch

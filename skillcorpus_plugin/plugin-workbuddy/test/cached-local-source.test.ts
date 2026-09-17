@@ -4,10 +4,17 @@
  */
 
 import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+
+// Building an engine registers this host in the shared registry, under the
+// user's home directory. A test must never write there: it pollutes the
+// machine and makes the result depend on whatever the developer has
+// installed. Redirected before anything under test is imported.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { CachedLocalSkillSource } from '../src/cached-local-source.ts'
 
 async function skillDir(): Promise<string> {

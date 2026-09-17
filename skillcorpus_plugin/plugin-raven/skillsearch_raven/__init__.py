@@ -27,6 +27,7 @@ import logging
 from collections import Counter
 from typing import Any
 
+from skillsearch import shared
 from skillsearch.config import SearchConfig
 from skillsearch.engine import SkillSearch
 
@@ -258,6 +259,16 @@ def _build_search(ctx: Any) -> tuple[Any, dict[str, Any]] | None:
     cfg_map.setdefault("hub_endpoint", "https://skillhub.evermind.ai")
     cfg_map.setdefault("clawhub_endpoint", "https://clawhub.ai")
     cfg_map.setdefault("skillhub_cn_endpoint", "https://api.skillhub.cn")
+    # Join the shared library: register this agent's own skills directory so
+    # the other hosts can scan it, and fold theirs plus the shared directory
+    # into `extra_dirs`. Raven is the host that needs this most — its
+    # `skills_dir` default is relative, so it resolves per workspace and two
+    # projects belonging to one user do not even share with each other.
+    if shared.opted_in(cfg_map.get("share_skills")):
+        own = SearchConfig.from_mapping({**cfg_map, "extra_dirs": ()}).resolved_skills_dir()
+        extras = shared.extra_dirs_for("raven", own, cfg_map.get("skills_dirs"))
+        if extras:
+            cfg_map["extra_dirs"] = tuple(cfg_map.get("extra_dirs") or ()) + tuple(extras)
     # PathGuard placeholders' per-agent facts. Raven has no persistent
     # config/state root of its own, and the agent's writable home is the
     # workspace, so both {{HOME}} and {{AGENT_STATE_DIR}} collapse there.

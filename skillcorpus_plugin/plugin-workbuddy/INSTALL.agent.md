@@ -81,6 +81,37 @@ from their current path.
   plainly during installation. The user can set any endpoint to an empty
   string to disable that source, or clear all three for local-only operation.
 
+## The shared skills library
+
+From 0.4.0 this plugin also reads a directory shared with the user's other
+agents, and registers WorkBuddy's own skills directory so those agents can read
+it back. Tell the user this during installation — it is a new thing appearing
+in their home directory and a new place their skills are visible from:
+
+```text
+~/.evermind-skillsearch/
+├── registry.json      which agent keeps its skills where
+├── uninstalled.log    what retrieval installed and later removed
+└── skills/            what retrieval installed
+```
+
+Nothing needs configuring for it. Two switches exist and they are opposites, so
+say which one the user means before changing either:
+
+| The user wants | Set |
+| --- | --- |
+| other agents not to see WorkBuddy's skills | `enabled: false` on the `workbuddy` line in `registry.json` |
+| WorkBuddy not to see the other agents' skills | `"shareSkills": false` in this plugin's `config.json` |
+
+Deleting a line from `registry.json` does nothing lasting — that agent
+re-registers on its next start. That is why the first switch is a flag rather
+than a deletion.
+
+Skills retrieved from a catalogue are **kept** here now rather than discarded
+after the turn, so state that plainly alongside the network disclosure above:
+downloads persist, each with a `.skillsearch-origin.json` recording where it
+came from, and removals are appended to `uninstalled.log`.
+
 ## Verification — definition of done
 
 This plugin has two modes and they deliver skills by different routes, so they
@@ -131,10 +162,27 @@ launches from the plugin manifest. There is no per-turn injection in this mode.
    the log records `injected_chars: 0`. Do not use a weather question: the
    public marketplaces contain real weather skills.
 
+### The shared library (both modes)
+
+Both of this host's paths reach it and they have different lifecycles — the
+hook is a fresh process per turn, the MCP server lives with the session — so
+check it whichever mode is configured.
+
+6. **Registered:** `~/.evermind-skillsearch/registry.json` holds a `workbuddy`
+   entry whose `dir` is this install's real skills directory, absolute. Without
+   it the user's other agents cannot see WorkBuddy's skills at all.
+7. **Not rewritten every turn:** note the file's mtime, run a few more turns,
+   check again — unchanged. On the hook path "at startup" means "every turn",
+   inside an 8-second budget.
+8. **Reads the shared directory:** drop a skill into
+   `~/.evermind-skillsearch/skills/` and ask a question only it answers. It is
+   found on the next turn, with no restart.
+
 If a check fails, report the failed step, the log entry, and the marketplace
 and plugin versions. Do not invoke `hook.mjs` or `mcp.mjs` by hand; that tests
-the bundle, not whether WorkBuddy loaded it. The full case list, including
-what to record, is [`../tests/host-e2e/cases.md`](../tests/host-e2e/cases.md).
+the bundle, not whether WorkBuddy loaded it. The full case list — including the
+shared-library steps as numbered acceptance items, and what to record — is
+[`../tests/host-e2e/cases.md`](../tests/host-e2e/cases.md).
 
 ## Uninstall
 
@@ -147,3 +195,10 @@ what to record, is [`../tests/host-e2e/cases.md`](../tests/host-e2e/cases.md).
    (`~/.workbuddy-ai/plugins/data/skillsearch-skillcorpus/`) and bundle cache
    (`~/.workbuddy-ai/skillsearch-bundles/`). These contain only plugin cache,
    configuration, and logs; leave them in place unless the user asks.
+5. **Leave `~/.evermind-skillsearch/` alone unless this was the last agent.**
+   It is shared: the user's other agents register there and read skills from
+   it, so deleting it while any of them still has the plugin takes their
+   library with it. Removing WorkBuddy's own line from `registry.json` is the
+   right narrow cleanup, and mention that the directory holds skills retrieval
+   installed — `list` them from `skills/`, and `uninstalled.log` records what
+   was already removed — so the user can decide what they want kept.

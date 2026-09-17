@@ -1,0 +1,70 @@
+{
+  "_note": "Shared by engine-python/tests/test_provenance.py and engine-typescript/tests/parity.test.ts. Both ports install into the same shared directory on one machine, so a disagreement here puts one skill in two directories — the duplication identity dedup exists to prevent. Non-ASCII and astral characters are here because that is where the two ports drifted: Python's isalnum is Unicode-aware, and a JS regex walks UTF-16 code units rather than code points.",
+  "cases": [
+    {
+      "source": "hub",
+      "slug": "pdf-tables",
+      "dir": "hub__pdf-tables__987ad8e8"
+    },
+    {
+      "source": "hub",
+      "slug": "中文技能",
+      "dir": "hub________dc2b95ad"
+    },
+    {
+      "source": "hub",
+      "slug": "café-export",
+      "dir": "hub__caf_-export__b924ed89"
+    },
+    {
+      "source": "hub",
+      "slug": "a/b",
+      "dir": "hub__a_b__e8143795"
+    },
+    {
+      "source": "hub",
+      "slug": "../../etc",
+      "dir": "hub__.._.._etc__58e5dd88"
+    },
+    {
+      "source": "hub",
+      "slug": "emoji-🚀-skill",
+      "dir": "hub__emoji-_-skill__66f4d836"
+    },
+    {
+      "source": "hub",
+      "slug": "Ünïcode",
+      "dir": "hub___n_code__738323f5"
+    },
+    {
+      "source": "hub",
+      "slug": "𝕏-skill",
+      "dir": "hub___-skill__3b612bdf"
+    },
+    {
+      "source": "clawhub",
+      "slug": "owner_name@1.2.3",
+      "dir": "clawhub__owner_name@1.2.3__318df007"
+    },
+    {
+      "source": "skillhub_cn",
+      "slug": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "dir": "skillhub_cn__xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx__69741f0c"
+    },
+    {
+      "source": "hub",
+      "slug": "",
+      "dir": "hub__skill__78e34a61"
+    },
+    {
+      "source": "weird source!",
+      "slug": "ok-slug",
+      "dir": "weird_source___ok-slug__824862ec"
+    },
+    {
+      "source": "hub",
+      "slug": "UPPER-and-lower_1.2@x",
+      "dir": "hub__UPPER-and-lower_1.2@x__92474e2e"
+    }
+  ]
+}

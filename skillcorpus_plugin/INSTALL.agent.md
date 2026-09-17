@@ -208,6 +208,42 @@ python -c "import skillsearch, skillsearch_raven; print('import ok')"
   plainly during installation. The user can set any endpoint to an empty
   string to disable that source, or clear all three for local-only operation.
 
+## The shared skills library
+
+From 0.4.0 every host also reads a directory shared with the user's other
+agents, and registers its own skills directory so those agents can read it
+back. Nothing needs configuring, but **say it out loud during installation** —
+it is a new directory in the user's home and a new place their skills become
+visible from:
+
+```text
+~/.evermind-skillsearch/
+├── registry.json      which agent keeps its skills where
+├── uninstalled.log    what retrieval installed and later removed
+└── skills/            what retrieval installed
+```
+
+Two switches exist and they are opposites, so establish which one the user
+means before touching either:
+
+| The user wants | Set |
+| --- | --- |
+| other agents not to see this one's skills | `enabled: false` on its line in `registry.json` |
+| this agent not to see the others' | `shareSkills` / `share_skills` false in this host's own config |
+
+Deleting a line from `registry.json` does nothing lasting: that agent
+re-registers on its next start. That is why the first switch is a flag.
+
+Two consequences worth stating plainly, because they change what the user's
+disk holds:
+
+- **Retrieved skills are kept**, not discarded after the turn. Each carries a
+  `.skillsearch-origin.json` saying where it came from, and removals append to
+  `uninstalled.log`.
+- **Changes to the shared directory take effect next turn**, with no restart.
+  Changes inside a host's own directory keep that host's existing behaviour,
+  which for four of the five still means restarting.
+
 ## Verification — definition of done
 
 Do all of these; the install is done only when every box is ticked.
@@ -273,5 +309,10 @@ When the user asks to remove skillsearch:
    `pip uninstall skillsearch skillsearch-raven`.
 2. Offer to delete the bundle cache (`~/.skillsearch/hub`,
    `~/.openclaw/skillsearch-bundles`, or `~/.dsh/skillsearch-bundles`).
+   **`~/.evermind-skillsearch/` is different — leave it unless this was the
+   last agent.** It is shared, so deleting it while another agent still has the
+   plugin takes that agent's library too. Removing this host's line from
+   `registry.json` is the right narrow cleanup; tell the user what the
+   directory holds so they can decide about the rest.
 3. Restore or delete the `.bak-skillsearch` backups per the user's call.
 4. Show the diffs, same rule as installing.

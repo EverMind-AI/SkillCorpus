@@ -14,8 +14,9 @@
  * @module
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { bodyDigest, identity, now, readMarker, slugDir, swapIntoPlace, writeMarker } from './provenance.js'
 import { bundleRoot, extractBundle } from './bundle.js'
 import type { RouterHit, SearchOptions, SkillSource } from './types.js'
 import { checkKeywordRelevance } from './relevance.js'
@@ -53,6 +54,16 @@ export interface HubClientOptions {
    */
   readonly cacheDir?: string
   /**
+   * Install into the shared skills directory instead of the cache.
+   *
+   * The difference is not only the path: a bundle under the cache is
+   * deliberately outside every scan, thrown away and re-downloaded next turn
+   * and never seen by another agent. One here is kept, scanned, shared, and
+   * carries a provenance marker so fusion knows it is the catalogue's own
+   * entry rather than a second skill.
+   */
+  readonly installRoot?: string
+  /**
    * Download-stats tag, not a free label: a catalog validates it against its
    * own fixed set and answers 422 for anything outside it. `cli` is the safe
    * default; change it only against a deployment whose set you know.
@@ -67,6 +78,7 @@ export class SkillHubClient {
   private readonly timeoutMs: number
   private readonly downloadTimeoutMs: number
   private readonly cacheDir: string | undefined
+  private readonly installRoot: string | undefined
   private readonly source: string
 
   constructor(endpoint: string, options: HubClientOptions = {}) {
@@ -75,6 +87,7 @@ export class SkillHubClient {
     this.timeoutMs = options.timeoutMs ?? 2000
     this.downloadTimeoutMs = options.downloadTimeoutMs ?? 30_000
     this.cacheDir = options.cacheDir
+    this.installRoot = options.installRoot
     this.source = options.source ?? 'cli'
   }
 
@@ -95,20 +108,67 @@ export class SkillHubClient {
     meta?: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<{ dir: string; skillMd: string }> {
-    if (!this.cacheDir) throw new Error('no cache directory is configured for bundles')
+    if (!this.cacheDir && !this.installRoot) {
+      throw new Error('no cache directory is configured for bundles')
+    }
     const record = meta ?? (await this.get(id, signal))
     const slug = String(record.slug ?? record.skill_id ?? id).replace(/\//g, '_')
     const version = String(record.version ?? 'v0')
-    const destination = join(this.cacheDir, `${slug}@${version}`)
+    const skillMd = typeof record.skill_md === 'string' ? record.skill_md : ''
 
+    if (this.installRoot) {
+      return { dir: await this.installShared(id, slug, version, skillMd, signal), skillMd }
+    }
+
+    const destination = join(this.cacheDir as string, `${slug}@${version}`)
     if (!existsSync(destination)) {
       const archive = await this.download(id, signal)
       await extractBundle(archive, destination)
     }
-    return {
-      dir: await bundleRoot(destination),
-      skillMd: typeof record.skill_md === 'string' ? record.skill_md : '',
+    return { dir: await bundleRoot(destination), skillMd }
+  }
+
+  /**
+   * Install into the shared directory, one directory per identity.
+   *
+   * Per identity rather than per version, unlike the cache: the shared
+   * directory is scanned, so `x@1` beside `x@2` would put two ranked copies of
+   * one skill in front of the model. An update therefore replaces, and
+   * `swapIntoPlace` is what makes replacing safe — the previous version stays
+   * live until the new one is complete.
+   *
+   * A same-version reinstall is skipped, which keeps a retrieval that happens
+   * to hit an installed skill from rewriting it every turn.
+   */
+  private async installShared(
+    id: string,
+    slug: string,
+    version: string,
+    skillMd: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const root = this.installRoot as string
+    const destination = slugDir(root, 'hub', slug)
+    if (readMarker(destination)?.version === version) return bundleRoot(destination)
+
+    const staging = `${destination}.incoming-${process.pid}-${Math.trunc(Number(process.hrtime.bigint() % 100000n))}`
+    try {
+      await extractBundle(await this.download(id, signal), staging)
+      const body = await bundleRoot(staging)
+      writeMarker(body, {
+        origin: identity('hub', slug),
+        source: 'hub',
+        slug,
+        version,
+        sha256: bodyDigest(skillMd),
+        installedAt: now(),
+      })
+      swapIntoPlace(staging, destination)
+    } catch (error) {
+      rmSync(staging, { recursive: true, force: true })
+      throw error
     }
+    return bundleRoot(destination)
   }
 
   /**

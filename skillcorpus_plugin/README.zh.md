@@ -112,11 +112,35 @@ EOF
 
 - **显式清空三个远程 endpoint 后的纯本地模式**——什么都不出去。扫描、排序、注入全在进程内。
 - **默认安装**——EverMind SkillHub、ClawHub 与 skillhub.cn 默认开启，检索查询会发送给三个服务；将任一 endpoint 设为空字符串可单独关闭。未配置 `model` 时不会运行 LLM gate，但仍执行来源安全检查和 EverMind 关键词相关性过滤。
-- **EverMind SkillHub**——选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限，缓存目录在所有被扫描技能目录之外（默认 `~/.workbuddy-ai/skillsearch-bundles`、`~/.skillsearch/hub`、`~/.openclaw/skillsearch-bundles` 或 `~/.dsh/skillsearch-bundles`）。
+- **EverMind SkillHub**——选中技能的正文和 bundle 会从它下载。zip 解包有路径穿越拒绝、扩展名白名单、单文件 8 MiB / 整包 64 MiB 上限；而且**装下来会留着**，落在共享技能库 `~/.evermind-skillsearch/skills/` 里，不再是用完即弃。每个技能带一份 `.skillsearch-origin.json` 记来源和装入时间，卸载会追加到 `~/.evermind-skillsearch/uninstalled.log`。把宿主配置里的 `shareSkills` / `share_skills` 设为 false，可退回旧的一次性缓存行为。
 - **Marketplace 正文获取**——每个启用的 marketplace 最多会有两个候选在可选 LLM gate 之前下载并安全解包，因为这两个 API 通过 bundle 提供技能正文。被 gate 拒绝的候选可能仍留在缓存里，但插件不会自动执行它。
 - **配了 `model`**——改写器看到你的消息（截断到 2,000 字符）；gate 看到你的消息加候选技能的名字、描述和 300 字符正文摘录。两者都发给**你自己配置的**模型，宿主有 provider 通道的走宿主通道。
 
 下载的技能是第三方内容，模型会被指示遵循它。ClawHub 与 skillhub.cn 条目不在 SkillCorpus 的仓库许可证审计范围内，重新分发前应检查其上游条款。gate 能剔除依赖不可用工具或环境的技能，但只有配置了模型时才真正存在。
+
+## 共享技能库
+
+默认情况下每个宿主只扫自己那一个目录，所以你在一个 agent 里有的技能，另外四个看不见。0.4.0 起它们还共用一个：
+
+```text
+~/.evermind-skillsearch/
+├── registry.json      哪个 agent 的技能放在哪
+├── uninstalled.log    卸载过什么、什么时候
+└── skills/            检索装进来的技能，一个技能一个目录
+```
+
+**你的 agent 路径没有一处是写死的。** 每个宿主启动时把自己实际解析出来的技能目录写进 `registry.json`，再把整张表读回去——所以它看到的正好是"同样装了这个插件的那些 agent"，而你挪了技能目录，下次启动就自动跟上。
+
+`registry.json` 是给人改的。要让别的 agent 不扫某个目录，把那条的 `enabled` 设成 `false`；**直接删掉那行无效**，那个 agent 下次启动会重新登记。它和宿主自己配置里的 `shareSkills` / `share_skills` 是**反方向**的两个开关：
+
+| 你想要 | 改哪儿 |
+| --- | --- |
+| 别人别看我的技能 | `registry.json` 里我那条的 `enabled: false` |
+| 我不想看别人的技能 | 我这个宿主自己配置里的 `shareSkills` / `share_skills` |
+
+共享目录的变更**下一轮生效，不用重启**——手动拖一个技能进去，下一个问题就能搜到。宿主自己目录里的变更仍按各家原来的规矩，五家里有四家还是要重启。
+
+`SKILLSEARCH_HOME` 能改根目录，但当成高级用法：GUI 启动的 agent 读不到你的 shell profile，两边会对"库在哪"产生分歧。
 
 ## 让你的技能可被搜到
 
@@ -144,7 +168,7 @@ description: PDF helper.
 
 ## 卸载
 
-安装的逆操作，没有暗桩：删插件目录 / pip 卸载、删你加的配置键、可选删上面列的 bundle 缓存目录。各插件 README 有精确路径，agent 剧本里也有[卸载节](INSTALL.agent.md#uninstall)——对 agent 说"卸载 skillsearch"同样管用。
+安装的逆操作，没有暗桩：删插件目录 / pip 卸载、删你加的配置键、可选删上面列的 bundle 缓存目录。**`~/.evermind-skillsearch/` 例外——除非这是最后一个 agent，否则别删**：它是共享的，还有别的 agent 装着插件时删掉它，会把那些 agent 的技能库一起带走；正确的窄清理是把这个宿主那一行从 `registry.json` 里去掉。各插件 README 有精确路径，agent 剧本里也有[卸载节](INSTALL.agent.md#uninstall)——对 agent 说"卸载 skillsearch"同样管用。
 
 ## 工作原理
 

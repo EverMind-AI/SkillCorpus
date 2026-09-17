@@ -12,7 +12,8 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -23,6 +24,9 @@ import { LLMGateFilter } from '../src/gate.ts'
 import { LocalSkillSource, formatSkillText } from '../src/local-source.ts'
 import { resolvePlaceholders, resolveRefs } from '../src/refs.ts'
 import { QueryRewriter } from '../src/rewriter.ts'
+import { readRegistry, registerHost, registeredDirs, sharedDirs, sharedRoot } from '../src/shared.ts'
+import { DirectoryWatch } from '../src/watch.ts'
+import * as provenance from '../src/provenance.ts'
 import { checkKeywordRelevance, queryTerms } from '../src/relevance.ts'
 import { SkillSearchEngine } from '../src/engine.ts'
 import { HubSkillSource, SkillHubClient } from '../src/hub-source.ts'
@@ -539,4 +543,373 @@ test('Kubernetes is not mangled by plural normalization', () => {
   candidate.meta.description = 'Manage Kubernetes deployments'
   assert.deepEqual(queryTerms('kubernetes deployment'), ['kubernetes', 'deployment'])
   assert.equal(checkKeywordRelevance('kubernetes deployment', candidate).passed, true)
+})
+
+// ---------------------------------------------------------------------------
+// the host registry, against the fixture the Python suite also reads
+
+const registryFixtures = JSON.parse(
+  readFileSync(new URL('./fixtures-registry.json', import.meta.url), 'utf8'),
+) as {
+  cases: Array<{ why: string; document: unknown; expected: unknown[] }>
+  unparseable: string[]
+}
+
+test('the registry parses the same as the Python port', async () => {
+  // A Python host and a TypeScript host write this same file on one machine
+  // and read each other's writes, so a disagreement here is not cosmetic —
+  // it splits a user's agents apart with nothing logged.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-registry-'))
+  for (const [index, item] of registryFixtures.cases.entries()) {
+    const path = join(root, `case-${index}.json`)
+    await writeFile(path, JSON.stringify(item.document))
+    assert.deepEqual(readRegistry(path), item.expected, item.why)
+  }
+})
+
+test('an unparseable registry reads as empty in both ports', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-registry-bad-'))
+  for (const [index, text] of registryFixtures.unparseable.entries()) {
+    const path = join(root, `bad-${index}.json`)
+    await writeFile(path, text)
+    assert.deepEqual(readRegistry(path), [], JSON.stringify(text))
+  }
+})
+
+test('the shared root is one expression, and SKILLSEARCH_HOME overrides it', () => {
+  assert.ok(sharedRoot({}).endsWith('.evermind-skillsearch'))
+  assert.equal(sharedRoot({ SKILLSEARCH_HOME: '/tmp/elsewhere' }), '/tmp/elsewhere')
+  // Blank is not an override: an unset-looking variable must not point the
+  // five hosts at the process's current directory.
+  assert.ok(sharedRoot({ SKILLSEARCH_HOME: '   ' }).endsWith('.evermind-skillsearch'))
+})
+
+test('registering is idempotent and never overwrites the user’s enabled', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-register-'))
+  const registry = join(root, 'registry.json')
+  const skills = join(root, 'skills')
+  await mkdir(skills)
+
+  registerHost('openclaw2', skills, registry)
+  const stamped = statSync(registry).mtimeNs
+  // The short circuit WorkBuddy's per-turn hook depends on: one read, no write.
+  registerHost('openclaw2', skills, registry)
+  assert.equal(statSync(registry).mtimeNs, stamped)
+
+  const document = JSON.parse(readFileSync(registry, 'utf8')) as { hosts: Array<{ enabled: boolean }> }
+  document.hosts[0].enabled = false
+  await writeFile(registry, JSON.stringify(document))
+
+  const moved = join(root, 'moved')
+  await mkdir(moved)
+  const entries = registerHost('openclaw2', moved, registry)
+  assert.equal(entries.length, 1)
+  assert.equal(entries[0].dir, moved)
+  assert.equal(entries[0].enabled, false, 'a host restart must not undo the user’s choice')
+})
+
+test('scanning skips disabled entries, dead directories, and our own', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-dirs-'))
+  const registry = join(root, 'registry.json')
+  const mine = join(root, 'mine')
+  const theirs = join(root, 'theirs')
+  await mkdir(mine)
+  await mkdir(theirs)
+  await writeFile(registry, JSON.stringify({
+    hosts: [
+      { id: 'openclaw2', dir: mine, enabled: true },
+      { id: 'hermes', dir: theirs, enabled: true },
+      { id: 'raven', dir: theirs, enabled: false },
+      { id: 'gone', dir: join(root, 'never-existed'), enabled: true },
+    ],
+  }))
+
+  assert.deepEqual(registeredDirs('openclaw2', registry), [[theirs, 'hermes']])
+  assert.equal(registeredDirs('openclaw2', registry, { includeSelf: true }).length, 2)
+
+  // `sharedDirs` also drops a directory two hosts both registered, which is a
+  // real configuration: OpenClaw 1 and 2 share `~/.openclaw/skills`.
+  const env = { SKILLSEARCH_HOME: join(root, 'no-shared-root-here') }
+  assert.deepEqual(sharedDirs('openclaw2', mine, registry, env), [[theirs, 'hermes']])
+})
+
+test('sharedDirs never throws', () => {
+  // A registry path that cannot exist. Sharing degrades; the turn does not.
+  assert.deepEqual(sharedDirs('raven', '\0bad', '\0also-bad', {}), [])
+})
+
+// ---------------------------------------------------------------------------
+// noticing a changed shared directory without a restart
+
+test('the watch is quiet on its first look, then tracks the tree', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-'))
+  await mkdir(join(root, 'a'))
+  await writeFile(join(root, 'a', 'SKILL.md'), '---\nname: a\n---\n')
+
+  const watch = new DirectoryWatch([root])
+  // Constructing a watch must not throw away a scan that was just built.
+  assert.equal(watch.changed(), false)
+  assert.equal(watch.changed(), false)
+
+  await mkdir(join(root, 'b'))
+  await writeFile(join(root, 'b', 'SKILL.md'), '---\nname: b\n---\n')
+  assert.equal(watch.changed(), true, 'an added skill')
+  assert.equal(watch.changed(), false, 'and then it settles')
+
+  await writeFile(join(root, 'a', 'SKILL.md'), '---\nname: a\n---\nedited\n')
+  assert.equal(watch.changed(), true, 'an edited skill')
+
+  await rm(join(root, 'b'), { recursive: true })
+  assert.equal(watch.changed(), true, 'a removed skill')
+})
+
+test('the watch ignores what the scanner ignores, and costs nothing when empty', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-skip-'))
+  const watch = new DirectoryWatch([root])
+  watch.changed()
+
+  await writeFile(join(root, 'notes.md'), 'not a skill')
+  await mkdir(join(root, '.git'))
+  await writeFile(join(root, '.git', 'SKILL.md'), '---\nname: x\n---\n')
+  assert.equal(watch.changed(), false, 'a fingerprint tracking different files from the scan would invent changes')
+
+  // A host that opted out, or brought its own store, gets no walk at all.
+  const idle = new DirectoryWatch([])
+  assert.equal(idle.active, false)
+  assert.equal(idle.changed(), false)
+  assert.equal(new DirectoryWatch([join(root, 'never-existed')]).changed(), false)
+})
+
+test('a skill dropped into a watched directory is found on the next retrieval', async () => {
+  // The feature's headline, end to end: no restart, and nobody calling
+  // `invalidate()` by hand.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-watch-e2e-'))
+  const local = new LocalSkillSource([{ path: root, name: 'shared' }], {})
+  const engine = new SkillSearchEngine({ sources: [local], watchDirs: [root] }, { topK: 3 })
+
+  assert.equal(await engine.retrieve('extract tables from a scanned PDF invoice'), '')
+
+  await mkdir(join(root, 'pdf-tables'))
+  await writeFile(
+    join(root, 'pdf-tables', 'SKILL.md'),
+    '---\nname: pdf-tables\n'
+    + 'description: Extract tables from PDF documents, scanned or native, into CSV.\n'
+    + '---\n\nOCR scanned pages before extracting tables.\n',
+  )
+
+  const block = await engine.retrieve('extract tables from a scanned PDF invoice')
+  assert.match(block, /pdf-tables/)
+  // Exactly once: the shared directory is scanned by one source, not two.
+  assert.equal(block.split('### Skill: pdf-tables').length - 1, 1)
+})
+
+// ---------------------------------------------------------------------------
+// installed skills: identity, the ledger, and replacing safely
+
+function marker(source = 'hub', slug = 'pdf-tables', version = '1.0'): provenance.Origin {
+  return {
+    origin: provenance.identity(source, slug),
+    source,
+    slug,
+    version,
+    sha256: provenance.bodyDigest('body'),
+    installedAt: provenance.now(),
+  }
+}
+
+async function installed(root: string, source = 'hub', slug = 'pdf-tables',
+                         version = '1.0', body = 'OCR scanned pages first.'): Promise<string> {
+  const dir = provenance.slugDir(root, source, slug)
+  await mkdir(dir, { recursive: true })
+  await writeFile(
+    join(dir, 'SKILL.md'),
+    `---\nname: ${slug}\ndescription: Extract tables from PDF documents into CSV.\n---\n\n${body}\n`,
+  )
+  provenance.writeMarker(dir, marker(source, slug, version))
+  return dir
+}
+
+test('a marker round-trips, and its absence is not an error', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-marker-'))
+  const dir = join(root, 'skill')
+  await mkdir(dir)
+  const written = marker()
+  assert.equal(provenance.writeMarker(dir, written), true)
+  assert.deepEqual(provenance.readMarker(dir), written)
+
+  // A hand-written skill has no marker and must keep working exactly.
+  const plain = join(root, 'handwritten')
+  await mkdir(plain)
+  assert.equal(provenance.readMarker(plain), undefined)
+
+  for (const text of ['{not json', '[]', 'null', '{"source":"hub"}', '{"slug":"x"}']) {
+    const bad = await mkdtemp(join(root, 'bad-'))
+    await writeFile(join(bad, provenance.MARKER), text)
+    assert.equal(provenance.readMarker(bad), undefined, text)
+  }
+})
+
+test('a slug cannot escape the install root', async () => {
+  // Slugs come from a catalogue and reach the filesystem.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-slug-'))
+  for (const slug of ['../../etc/passwd', 'a/b', '..', '~/x', '']) {
+    const landed = provenance.slugDir(root, 'hub', slug)
+    assert.equal(landed.slice(0, root.length + 1), `${root}/`, slug)
+    assert.equal(landed.slice(root.length + 1).includes('/'), false, slug)
+  }
+})
+
+test('fusion collapses an installed copy with the catalogue entry it came from', () => {
+  // The whole reason installing into a scanned directory is safe.
+  // `qualifiedId` cannot do this — `local/x` and `hub/x` differ — and a body
+  // digest cannot either, since the two rarely have identical bytes.
+  const origin = provenance.identity('hub', 'pdf-tables')
+  const local: RouterHit = {
+    qualifiedId: 'local/pdf-tables', name: 'pdf-tables', content: 'body', score: 1,
+    meta: { source: 'local', origin },
+  }
+  const remote: RouterHit = {
+    qualifiedId: 'hub/pdf-tables', name: 'pdf-tables', content: '', score: 0.9,
+    meta: { source: 'hub', origin },
+  }
+
+  const merged = rrfMergeWeighted(
+    [{ name: 'local', weight: 1, hits: [local] }, { name: 'hub', weight: 1, hits: [remote] }],
+    5, 'qualifiedId',
+  )
+  assert.equal(merged.length, 1)
+  assert.deepEqual([...(merged[0].meta.contributingSources as string[])].sort(), ['hub', 'local'])
+
+  // And a skill with no origin keeps the old key: every hand-written skill.
+  const a: RouterHit = { qualifiedId: 'local/x', name: 'x', content: '', score: 1, meta: {} }
+  const b: RouterHit = { qualifiedId: 'hub/x', name: 'x', content: '', score: 1, meta: {} }
+  assert.equal(rrfMergeWeighted(
+    [{ name: 'local', weight: 1, hits: [a] }, { name: 'hub', weight: 1, hits: [b] }], 5, 'qualifiedId',
+  ).length, 2)
+})
+
+test('the ledger is the directory, and uninstall removes what is there', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-ledger-'))
+  await installed(root, 'hub', 'pdf-tables')
+  await installed(root, 'clawhub', 'git-bisect')
+  await mkdir(join(root, 'handwritten'))
+  await writeFile(join(root, 'handwritten', 'SKILL.md'), '---\nname: h\n---\n')
+
+  // Only what this plugin installed; the user's own skill is left alone.
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin),
+                   ['clawhub/git-bisect', 'hub/pdf-tables'])
+
+  assert.equal(provenance.uninstall(root, 'hub/pdf-tables'), true)
+  assert.equal(provenance.uninstall(root, 'hub/pdf-tables'), false)
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin), ['clawhub/git-bisect'])
+})
+
+test('an update replaces in place, and a failed one leaves the old version working', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-update-'))
+  const dest = await installed(root, 'hub', 'pdf-tables', '1.0', 'the version that works')
+
+  const staging = join(root, 'staging')
+  await mkdir(staging)
+  await writeFile(join(staging, 'SKILL.md'), '---\nname: pdf-tables\n---\n\nnew\n')
+  provenance.writeMarker(staging, marker('hub', 'pdf-tables', '2.0'))
+  provenance.swapIntoPlace(staging, dest)
+
+  assert.deepEqual(provenance.listInstalled(root).map(o => [o.origin, o.version]),
+                   [['hub/pdf-tables', '2.0']])
+  // One directory per identity: an update replaces rather than accumulating a
+  // second ranked copy of the same skill.
+  assert.equal(provenance.listInstalled(root).length, 1)
+
+  await writeFile(join(dest, 'SKILL.md'), '---\nname: pdf-tables\n---\n\nthe version that works\n')
+  assert.throws(() => { provenance.swapIntoPlace(join(root, 'never-extracted'), dest) })
+  assert.match(readFileSync(join(dest, 'SKILL.md'), 'utf8'), /the version that works/)
+})
+
+test('a bundle that wraps the skill is still listed and removable', async () => {
+  // The shape a real catalogue actually sends. Hub bundles wrap the whole
+  // skill in one directory, so the `SKILL.md` — and the marker beside it,
+  // which is where the scanner reads it — sits one level below the directory
+  // the install created. Listing only the top level found nothing, so dedup
+  // worked while every management call was blind.
+  //
+  // Found against the live catalogue on the Python side, and this port had
+  // exactly the same bug: no hand-built fixture has a wrapper, so both suites
+  // were green. That is why it is asserted in both.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-wrapped-'))
+  const dest = provenance.slugDir(root, 'hub', 'extract-tables-from-pdf')
+  const body = join(dest, 'extract-tables-from-pdf')
+  await mkdir(body, { recursive: true })
+  await writeFile(join(body, 'SKILL.md'), '---\nname: extract-tables-from-pdf\n---\n\nbody\n')
+  provenance.writeMarker(body, marker('hub', 'extract-tables-from-pdf'))
+
+  assert.deepEqual(provenance.listInstalled(root).map(o => o.origin), ['hub/extract-tables-from-pdf'])
+  // The *outer* directory, or uninstalling leaves an empty husk behind.
+  assert.equal(provenance.findInstalled(root, 'hub/extract-tables-from-pdf'), dest)
+  assert.equal(provenance.uninstall(root, 'hub/extract-tables-from-pdf'), true)
+  assert.equal(existsSync(dest), false)
+  assert.deepEqual(provenance.listInstalled(root), [])
+})
+
+test('a skill bundled inside another skill is not treated as an install', async () => {
+  // One level down, not arbitrary depth — otherwise a skill that ships another
+  // skill could be uninstalled out from under the one that owns it.
+  const root = await mkdtemp(join(tmpdir(), 'skillsearch-nested-'))
+  const deep = join(root, 'handwritten', 'vendor', 'nested')
+  await mkdir(deep, { recursive: true })
+  provenance.writeMarker(deep, marker('hub', 'nested'))
+  assert.deepEqual(provenance.listInstalled(root), [])
+})
+
+test('slugDir matches the Python port, character for character', () => {
+  // Both ports install into the same directory on one machine, so a
+  // disagreement puts one skill in two directories — the duplication identity
+  // dedup exists to prevent. It stayed invisible because each suite only ever
+  // compared a port with itself; the non-ASCII and astral cases in the fixture
+  // are where they actually drifted.
+  const fixtures = JSON.parse(
+    readFileSync(new URL('./fixtures-slugdir.json', import.meta.url), 'utf8'),
+  ) as { cases: Array<{ source: string; slug: string; dir: string }> }
+
+  for (const item of fixtures.cases) {
+    assert.equal(
+      provenance.slugDir('/r', item.source, item.slug).slice(3),
+      item.dir,
+      `${item.source}/${item.slug}`,
+    )
+  }
+})
+
+test('uninstalling leaves a record, appended and never rewritten', async () => {
+  // Acceptance 7's middle clause, which was missing from both ports.
+  // Installing puts files on someone's disk; removing them has to leave
+  // something behind, or a skill that vanished is indistinguishable from one
+  // that was never installed.
+  const home = await mkdtemp(join(tmpdir(), 'skillsearch-log-'))
+  const root = join(home, 'skills')
+  await mkdir(root)
+
+  for (const slug of ['a', 'b', 'c']) {
+    await installed(root, 'hub', slug, '1.0')
+    assert.equal(provenance.uninstall(root, `hub/${slug}`), true)
+  }
+
+  // Beside the registry, not inside `skills/` — the scanner walks that.
+  assert.equal(provenance.uninstallLog(root), join(home, 'uninstalled.log'))
+  const records = provenance.readUninstalled(root)
+  assert.deepEqual(records.map(r => r.origin), ['hub/a', 'hub/b', 'hub/c'])
+  assert.equal(records[0].skill_version, '1.0')
+  assert.ok(records[0].removed_at)
+
+  // A corrupt line costs that record, not the history.
+  const log = provenance.uninstallLog(root)
+  await writeFile(log, `${readFileSync(log, 'utf8')}{not json\n{"origin":"hub/d"}\n`)
+  assert.deepEqual(provenance.readUninstalled(root).map(r => r.origin),
+                   ['hub/a', 'hub/b', 'hub/c', 'hub/d'])
+
+  // A removal that did not happen is not recorded.
+  const fresh = await mkdtemp(join(tmpdir(), 'skillsearch-log2-'))
+  const emptyRoot = join(fresh, 'skills')
+  await mkdir(emptyRoot)
+  assert.equal(provenance.uninstall(emptyRoot, 'hub/never-installed'), false)
+  assert.deepEqual(provenance.readUninstalled(emptyRoot), [])
 })

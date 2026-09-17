@@ -9,8 +9,13 @@ gap.
 This directory is that second layer: fixed prompts, a fixed corpus, and a fixed
 way of deciding PASS, so a result from one release is comparable with the next.
 
-- [`cases.md`](cases.md) — the cases. Six hosts, two modes, six scenarios.
-- [`reports/`](reports) — what actually happened, one file per release.
+- [`cases.md`](cases.md) — the cases. **P1–P6** are retrieval on one host, six
+  hosts and two modes; **S1–S9** are the shared skills library, which is about
+  hosts seeing each other and therefore needs two of them running.
+- [`reports/`](reports) — what actually happened. `0.3.0.md` is a release;
+  `shared-skills.md` is a feature's acceptance, script-driven;
+  `workbuddy-shared-skills.md` is the same feature on the one host that has no
+  headless path, so it is a person's observations rather than script output.
 - [`scripts/`](scripts) — the five hosts that can be driven headlessly.
 
 ## Three layers, and what each one is worth
@@ -155,6 +160,39 @@ python scripts/e2e_openclaw.py --generation 2 --openclaw /path/to/2.0/openclaw
 
 Add `--case p2` or `--case p3` to run the other scenarios; the default is P1.
 
+## The shared library, S1–S9
+
+Three more scripts, because these cases are about hosts seeing *each other* and
+one host cannot answer that:
+
+```bash
+# does each host join the library at all — five hosts, one at a time
+python scripts/e2e_shared_hosts.py --openclaw1 … --openclaw2 … --dsh … \
+                                   --raven … --raven-site … --hermes …
+
+# two hosts sharing: one Python port, one TypeScript port, one shared home
+python scripts/e2e_shared.py --openclaw /path/to/2.0/openclaw --raven … --raven-site …
+
+# installing, against the real EverMind SkillHub
+python scripts/e2e_install.py
+```
+
+Three things to know before reading their output:
+
+- **Registration and retrieval are separate verdicts.** In on-demand mode
+  retrieval passes through the model choosing to call `skill_search`, so a
+  model that answers from memory leaves the wiring untested rather than
+  broken — reported as INCONCLUSIVE. Not registering *is* a failure: the other
+  hosts then cannot see this one. Both OpenClaw generations also get an engine
+  probe with no model in the loop, so their wiring verdict is deterministic.
+- **A catalogue that answered with nothing reports BLOCKED**, not FAIL.
+  Retrieval fails open, so an unreachable service and an empty result are
+  indistinguishable from outside, and a red that a rerun clears teaches nobody
+  anything.
+- **`e2e_install.py` talks to the live catalogue on purpose.** A hand-built
+  fixture agrees with itself; the bug it found — a bundle that wraps the skill
+  in a directory — only exists because a real service sends that shape.
+
 Each prints one line per mode and exits non-zero on any failure; `--dump FILE`
 writes the full record, including what went over the wire.
 
@@ -206,7 +244,8 @@ executed by hand. Do not add a script that cannot run.
 | --- | --- |
 | PASS | Every condition for that mode held, observed directly |
 | FAIL | The plugin did not do what the case requires |
-| BLOCKED | The host cannot run this case — a missing slot, an unavailable build, a gate nobody can grant. Say what would unblock it |
+| BLOCKED | The host cannot run this case — a missing slot, an unavailable build, a gate nobody can grant, a catalogue that answered with nothing. Say what would unblock it |
+| INCONCLUSIVE | The plugin did its part and the *model* did not exercise it — in on-demand mode it decides whether to call the tool. Not evidence about the wiring either way; rerun, or drive the engine directly |
 
 BLOCKED is not a soft FAIL and must never be written as PASS. Raven `auto` on
 stock Raven is BLOCKED; recording it as "Raven supports auto" is the specific

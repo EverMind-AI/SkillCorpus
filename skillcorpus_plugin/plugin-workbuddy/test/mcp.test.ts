@@ -9,12 +9,19 @@
  */
 
 import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
+
+// Building an engine registers this host in the shared registry, under the
+// user's home directory. A test must never write there: it pollutes the
+// machine and makes the result depend on whatever the developer has
+// installed. Redirected before anything under test is imported.
+process.env.SKILLSEARCH_HOME = mkdtempSync(join(tmpdir(), 'skillsearch-home-'))
 import { fileURLToPath } from 'node:url'
 import { DEFAULTS } from '../src/config.ts'
 import { handle, SKILL_SEARCH_TOOL, type Message } from '../src/mcp.ts'

@@ -16,6 +16,7 @@
  * @module @deepseek-ai/dsh-skill-search
  */
 
+import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -31,6 +32,7 @@ import type { SkillSource } from './types.js'
 import { LLMGateFilter } from './gate.js'
 import { HubSkillSource, SkillHubClient } from './hub-source.js'
 import { LocalSkillSource } from './local-source.js'
+import { scanDirs, sharedSkillsDir } from './shared.js'
 import { MarketplaceClient, MarketplaceSkillSource } from './marketplace-source.js'
 import { QueryRewriter } from './rewriter.js'
 
@@ -57,6 +59,7 @@ export { resolveRefs } from './refs.js'
 export interface Config {
   /** Directories scanned for `SKILL.md`. Relative paths resolve against cwd. */
   skillsDirs?: string[]
+  shareSkills?: boolean
   /** Remote catalog base URL. Empty disables the remote source. */
   hubEndpoint?: string
   /** Bearer token the catalog requires, if any. */
@@ -157,6 +160,10 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   skillsDirs: z.array(z.string()).default(['.dsh/skills']),
+  // Join the cross-host shared library. Off stops this host reading the
+  // others; to stop the others reading this one, set `enabled: false` on
+  // its line in the shared registry.json.
+  shareSkills: z.boolean().default(true),
   hubEndpoint: z.string().default('https://skillhub.evermind.ai'),
   hubApiKey: z.string().default(''),
   clawhubEndpoint: z.string().default('https://clawhub.ai'),
@@ -336,15 +343,42 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 }
 
+/**
+ * Where a retrieved skill is kept, or `undefined` to use the cache.
+ *
+ * The shared skills directory when the deployment opted in, created here
+ * rather than lazily: a directory that does not exist is not scanned, and a
+ * skill installed into an unscanned directory is the exact bug this feature
+ * exists to fix.
+ */
+function installRootFor(share: boolean): string | undefined {
+  if (!share) return undefined
+  try {
+    const root = sharedSkillsDir()
+    mkdirSync(root, { recursive: true })
+    return root
+  } catch {
+    // Sharing is never worth a failed turn.
+    return undefined
+  }
+}
+
 function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   const sources: SkillSource[] = []
 
   const dirs = cfg.skillsDirs ?? []
-  if (dirs.length > 0) {
-    const local = new LocalSkillSource(
-      dirs.map(path => ({ path, name: 'local' })),
-      { indexBody: cfg.indexBody ?? false },
-    )
+  // Registers this harness's skills directory so the other four hosts can
+  // scan it, and appends the shared directory plus whatever they registered.
+  // `?? true` because this reaches `buildEngine` through the exported
+  // `Config` type, where the field is optional — the zod default only applies
+  // to config the harness parsed. Without it the harness's own type-check
+  // fails, which is how this was found: the repository suites never compile
+  // this file against that interface.
+  const share = cfg.shareSkills ?? true
+  const installRoot = installRootFor(share)
+  const roots = scanDirs('deepseek-harness', dirs, share)
+  if (roots.length > 0) {
+    const local = new LocalSkillSource(roots, { indexBody: cfg.indexBody ?? false })
     local.weight = cfg.weightLocal ?? 1.0
     sources.push(local)
   }
@@ -352,6 +386,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   let client: SkillHubClient | undefined
   if (cfg.hubEndpoint) {
     client = new SkillHubClient(cfg.hubEndpoint, {
+      ...(installRoot ? { installRoot } : {}),
       ...(cfg.hubApiKey ? { apiKey: cfg.hubApiKey } : {}),
       timeoutMs: cfg.hubTimeoutMs ?? 5000,
       // Beside the scanned directories, never inside one: an extracted
@@ -370,6 +405,7 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   for (const [kind, endpoint] of [['clawhub', cfg.clawhubEndpoint], ['skillhub_cn', cfg.skillhubCnEndpoint]] as const) {
     if (!endpoint) continue
     const marketplace = new MarketplaceClient(kind, endpoint, {
+      ...(installRoot ? { installRoot } : {}),
       cacheDir: cfg.bundleCacheDir || join(homedir(), '.dsh', 'skillsearch-bundles'),
       timeoutMs: cfg.hubTimeoutMs ?? 5000,
     })
@@ -390,6 +426,10 @@ function buildEngine(ctx: Context, cfg: Config): SkillSearchEngine {
   return new SkillSearchEngine(
     {
       sources,
+      // Re-fingerprinted before every retrieval so a skill installed by
+      // another agent, or dragged in by hand, shows up next turn instead of
+      // after a restart. Only the shared directory — see `watch.ts`.
+      watchDirs: roots.filter(root => root.name === 'shared').map(root => root.path),
       ...(model && wantsRewrite
         ? {
           rewriter: new QueryRewriter(model, {
