@@ -32,13 +32,13 @@ idna==3.19
     #   httpx2
 iniconfig==2.3.0
     # via pytest
-jiter==0.16.0
+jiter==0.17.0
     # via openai
 numpy==2.2.6 ; python_full_version < '3.11'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
-numpy==2.4.6 ; python_full_version == '3.11.*'
+numpy==2.5.3 ; python_full_version == '3.11.*'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
@@ -46,7 +46,7 @@ numpy==2.5.3 ; python_full_version >= '3.12'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
-openai==3.8.0
+openai==3.13.0
     # via skillcorpus (pyproject.toml)
 packaging==26.3
     # via
@@ -60,7 +60,7 @@ pyarrow==25.0.1
     # via skillcorpus (pyproject.toml)
 pydantic==2.13.5
     # via openai
-pydantic-core==2.46.5
+pydantic-core==2.49.0
     # via pydantic
 pygments==2.21.0
     # via pytest
