@@ -41,6 +41,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; 最新动态
 
+- **2026-09-17 · v0.4.0** 新增**跨 agent 共享技能库**：六个宿主共读同一个 `~/.evermind-skillsearch/` 目录并各自登记，一处拥有的 skill 在其他 agent 里也能用；从目录检索到的 skill **落盘保留**，不再用完即弃；改动**下一轮即生效，无需重启**。Raven 和 Hermes 另外新增 `skills_dirs` / `SKILLSEARCH_SKILLS_DIRS`。
 - **2026-09-02** 支持 OpenClaw 2.0，并新增更智能的 Skill 注入策略：可选择每轮自动检索，或由主 Agent 按需调用 `skill_search`。
 - **2026-08-27** 支持本地 Skill、EverMind SkillHub、ClawHub 和 skillhub.cn 多源检索，并完成过滤、去重和最终 0–2 条选择。
 - **2026-08-26** 支持 PathGuard 占位符解析和宿主路径适配，正确处理 Skill 文件与 Agent 工作目录。
@@ -139,11 +140,12 @@ OpenClaw 分成两个包，因为 2.0 去掉了 1.x 插件所依赖的那个 hoo
 |---|---|---|---|
 | 🌐 | **SkillHub** | 当前 114,190 条在线目录 + 那两个模型的托管 API，无需安装 | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
 | 📚 | **语料** *(demo)* | 可下载的 1,000 条样本 —— `skills.parquet` + `attachments.tar.zst` + dataset card；完整目录由 SkillHub 提供服务 | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🗂️ | **完整语料** *(即将发布)* | 完整的 114,190 条数据集，schema 与目录结构同 demo —— `skills.parquet` + `attachments.tar.zst` + dataset card | 🤗 *即将发布* |
 | 🔡 | **检索模型** | 从 `Qwen3-Embedding-0.6B` 和 `Qwen3-Reranker-0.6B` 微调出的 bi-encoder 与 reranker | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **代码** | 本仓库 —— 构建语料、训练那两个模型的流水线（`aggregate` · `curate` · `match` · `evaluate` · `export`） | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 | 🔌 | **插件** | 为 OpenClaw · Hermes · WorkBuddy · Raven 提供宿主适配器，另有 DeepSeek Harness 与 HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
-*目前开源：代码、1,000 条 demo 语料和检索模型。托管的 SkillHub 服务不开源，完整在线目录也尚未作为可下载数据集发布。*
+*目前开源：代码、1,000 条 demo 语料和检索模型。完整的 114,190 条语料正在准备发布到 HuggingFace。托管的 SkillHub 服务本身不开源。*
 
 <div align="center">
 <img src="https://github.com/user-attachments/assets/71edc5ab-291f-4fb8-8f5c-177d50e5b8f4" alt="96,401 个有效技能的 16 类分布" width="58%">
@@ -306,7 +308,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] 微调检索栈 + 三个 benchmark 的评估
 - [x] 公开的 SkillHub 端点
 - [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
-- [ ] 完整的 114,190 条语料上 HuggingFace
+- [ ] 完整的 114,190 条语料上 HuggingFace —— 即将发布
 - [x] 两个检索模型的部署脚本（自建 `match/`）
 - [x] 把 skill 库 + 检索框架打包成插件，供 WorkBuddy · Hermes · OpenClaw · DeepSeek Harness 使用
 - [ ] Raven 插件——已打包，等上游 `context_segments` 插槽
