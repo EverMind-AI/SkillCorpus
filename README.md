@@ -47,6 +47,7 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; Latest Updates
 
+- **2026-09-17 · v0.4.0** Adds a **shared skills library** across all six hosts: they read one `~/.evermind-skillsearch/` directory and register their own, so a skill you have in one agent is available in the rest; skills retrieved from a catalog are **kept** instead of discarded at the end of the turn; and changes take effect **on the next turn, with no restart**. Raven and Hermes also gain `skills_dirs` / `SKILLSEARCH_SKILLS_DIRS`.
 - **2026-09-02** Adds OpenClaw 2.0 support and smarter skill delivery: retrieve automatically on every query, or let the main agent call `skill_search` on demand.
 - **2026-08-27** Supports multi-source retrieval across local skills, EverMind SkillHub, ClawHub, and skillhub.cn, with filtering, deduplication, and final 0–2 selection.
 - **2026-08-26** Supports PathGuard placeholder resolution and host-aware paths for skill files and agent workspaces.
@@ -148,12 +149,14 @@ This is the concrete inventory of what is public today.
 |---|---|---|---|
 | 🌐 | **SkillHub** | the current 114,190-skill catalog + the two models, hosted as an API — no install | [evermind.ai/skillhub](https://evermind.ai/skillhub) |
 | 📚 | **Corpus** *(demo)* | the downloadable 1,000-skill sample — `skills.parquet` + `attachments.tar.zst` + dataset card; the full catalog is served by SkillHub | [🤗 demo-1k](https://huggingface.co/datasets/EverMind-AI/skillcorpus-demo-1k) |
+| 🗂️ | **Full corpus** *(coming soon)* | the complete 114,190-skill dataset, same schema and layout as the demo — `skills.parquet` + `attachments.tar.zst` + dataset card | 🤗 *coming soon* |
 | 🔡 | **Retrieval models** | a bi-encoder and a reranker, fine-tuned from `Qwen3-Embedding-0.6B` and `Qwen3-Reranker-0.6B` | [🤗 bi-encoder](https://huggingface.co/EverMind-AI/skillcorpus-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillcorpus-reranker-0.6b) |
 | 🛠️ | **Code** | this repo — the pipeline that builds the corpus and trains the two models (`aggregate` · `curate` · `match` · `evaluate` · `export`) | [GitHub](https://github.com/EverMind-AI/SkillCorpus) |
 | 🔌 | **Plugins** | packaged host adapters for OpenClaw · Hermes · WorkBuddy · Raven, plus DeepSeek Harness and an HTTP adapter | [`skillcorpus_plugin/`](skillcorpus_plugin) |
 
-*Open source today: the code, 1,000-skill demo corpus, and retrieval models. The hosted SkillHub
-service is closed, and the full hosted catalog is not yet published as a downloadable dataset.*
+*Open source today: the code, the 1,000-skill demo corpus, and the retrieval models. The full
+114,190-skill corpus is being prepared for release on HuggingFace. The hosted
+SkillHub service itself stays closed.*
 
 <div align="center">
 <img src="https://github.com/user-attachments/assets/71edc5ab-291f-4fb8-8f5c-177d50e5b8f4" alt="16-class distribution over the 96,401 active skills" width="58%">
@@ -326,7 +329,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
 - [x] Public SkillHub endpoint
 - [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
-- [ ] Full 114,190-skill corpus on HuggingFace
+- [ ] Full 114,190-skill corpus on HuggingFace — coming soon
 - [x] Deployment script for the two retrieval models (self-hosting `match/`)
 - [x] Plugins for WorkBuddy · Hermes · OpenClaw · DeepSeek Harness (+ HTTP adapter for any other host)
 - [ ] Raven plugin — packaged, waiting on the upstream `context_segments` slot
