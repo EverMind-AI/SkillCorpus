@@ -18,7 +18,7 @@ some randomness and its value varies slightly between seeds.
 Example:
   python analysis/qe_vocabulary.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \
       --hypothetical data/sra/hypothetical_skills.json --emb_ft emb/unipool_sra_ft \
-      --encoder path/to/finetuned-encoder --out results/qe_vocabulary.json
+      --encoder EverMind-AI/skillrep-embedding-0.6b --out results/qe_vocabulary.json
 """
 import argparse
 import json

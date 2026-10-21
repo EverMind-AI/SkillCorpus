@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate hypothetical skills for requests and pseudo-requests for skills.
 
-Example (vLLM serving Qwen3.6-27B at http://localhost:8000):
-  python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/completions \
+Example (Qwen3.6-27B served behind an OpenAI-compatible chat completions endpoint):
+  python scripts/generate_expansions.py --api <chat completions URL> \
       --requests data/sra/requests.jsonl --hypothetical_out data/sra/hypothetical_skills.json
-  python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/completions \
+  python scripts/generate_expansions.py --api <chat completions URL> \
       --pool data/unipool/pool.jsonl --pseudo_out data/unipool/pseudo_requests.json
 """
 import argparse

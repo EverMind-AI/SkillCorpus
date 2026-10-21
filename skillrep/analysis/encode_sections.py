@@ -10,9 +10,9 @@
 Output: a torch file {"emb": [M, d], "owner": LongTensor[M] (pool index), "texts": [...] (gold mode)}.
 
 Example:
-  python analysis/encode_sections.py --mode index --model path/to/finetuned-encoder \
+  python analysis/encode_sections.py --mode index --model EverMind-AI/skillrep-embedding-0.6b \
       --pool data/unipool/pool.jsonl --out emb/unipool_sra_ft/sections.pt
-  python analysis/encode_sections.py --mode gold --model path/to/finetuned-encoder \
+  python analysis/encode_sections.py --mode gold --model EverMind-AI/skillrep-embedding-0.6b \
       --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl --out emb/unipool_sra_ft/gold_sections.pt
 """
 import argparse

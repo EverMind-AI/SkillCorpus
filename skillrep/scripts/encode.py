@@ -8,7 +8,7 @@ Outputs (torch .pt files in --out_dir):
   pseudo.pt        {"emb": [K, d], "owner": LongTensor[K]}  pseudo-requests, with the instruction
 
 Example:
-  python scripts/encode.py --model path/to/finetuned-encoder --pool data/unipool/pool.jsonl \
+  python scripts/encode.py --model EverMind-AI/skillrep-embedding-0.6b --pool data/unipool/pool.jsonl \
       --requests data/sra/requests.jsonl --hypothetical data/sra/hypothetical_skills.json \
       --pseudo data/unipool/pseudo_requests.json --out_dir emb/unipool_sra_ft
 """

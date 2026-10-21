@@ -21,7 +21,7 @@ section's similarity (sec_S, sec_C) and, with the edited section put back, in th
 
 Example:
   python analysis/lexical_mechanism.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \
-      --emb_ft emb/unipool_sra_ft --model path/to/finetuned-encoder --out results/lexical_mechanism.json
+      --emb_ft emb/unipool_sra_ft --model EverMind-AI/skillrep-embedding-0.6b --out results/lexical_mechanism.json
 """
 import argparse
 import json

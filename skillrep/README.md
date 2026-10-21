@@ -23,10 +23,8 @@ This repository contains code only. The benchmarks are public:
 with SkillRouter) and [SkillRet](https://huggingface.co/datasets/ThakiCloud/SKILLRET). UniPool, the
 111,247-skill pool built from public registries, is coming soon; until then, the results on UniPool
 (the UniPool results of the main tables and all analyses) cannot be rerun,
-while those on the official SRA-Bench pool, SkillsBench and SkillRet can. The texts of the two expansion
-modules are not released either: `scripts/generate_expansions.py` regenerates them with Qwen3.6-27B
-(temperature 0.3), so they differ slightly from ours. A link to the fine-tuned encoder will be added
-after the review period.
+while those on the official SRA-Bench pool, SkillsBench and SkillRet can. The fine-tuned encoder is
+available at [EverMind-AI/skillrep-embedding-0.6b](https://huggingface.co/EverMind-AI/skillrep-embedding-0.6b).
 
 ## Layout
 
@@ -68,9 +66,9 @@ SkillsBench gives the same numbers as SkillRouter's scoring script.
 1. Generate the texts of the two expansion modules (temperature 0.3, thinking disabled):
 
 ```
-python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/completions \
+python scripts/generate_expansions.py --api <chat completions URL> \
     --requests data/sra/requests.jsonl --hypothetical_out data/sra/hypothetical_skills.json
-python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/completions \
+python scripts/generate_expansions.py --api <chat completions URL> \
     --pool data/unipool/pool.jsonl --pseudo_out data/unipool/pseudo_requests.json
 ```
 
@@ -78,7 +76,7 @@ python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/comple
    (`--instruction untuned` for the untuned Qwen3-Embedding-0.6B):
 
 ```
-python scripts/encode.py --model path/to/finetuned-encoder --pool data/unipool/pool.jsonl \
+python scripts/encode.py --model EverMind-AI/skillrep-embedding-0.6b --pool data/unipool/pool.jsonl \
     --requests data/sra/requests.jsonl --hypothetical data/sra/hypothetical_skills.json \
     --pseudo data/unipool/pseudo_requests.json --out_dir emb/unipool_sra_ft
 ```

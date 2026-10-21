@@ -11,7 +11,7 @@ For each request, with g its (first) gold document:
 
 Example:
   python analysis/quantities.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \
-      --emb_ft emb/unipool_sra_ft --section_encoder path/to/finetuned-encoder \
+      --emb_ft emb/unipool_sra_ft --section_encoder EverMind-AI/skillrep-embedding-0.6b \
       --npz results/quantities.npz --out results/quantities.json
 """
 import argparse

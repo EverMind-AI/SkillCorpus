@@ -9,7 +9,7 @@ are merged forward, pieces over 2,000 characters are cut into 1,200-character wi
 and a skill keeps at most 8 chunks. A skill is scored by its best chunk.
 
 Example:
-  python analysis/weights_encode_views.py --model path/to/finetuned-encoder --pool data/unipool/pool.jsonl \
+  python analysis/weights_encode_views.py --model EverMind-AI/skillrep-embedding-0.6b --pool data/unipool/pool.jsonl \
       --out_dir emb/unipool_views
 """
 import argparse

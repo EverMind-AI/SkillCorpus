@@ -19,7 +19,7 @@ appended ones, encoded without a prefix), each retriever's macro MRR@10 and its 
 exceed 4,096 tokens at L = 8.
 
 Example:
-  python analysis/padding.py --model path/to/finetuned-encoder --pool data/unipool/pool.jsonl \
+  python analysis/padding.py --model EverMind-AI/skillrep-embedding-0.6b --pool data/unipool/pool.jsonl \
       --requests data/sra/requests.jsonl --emb_ft emb/unipool_sra_ft --sections emb/unipool_sra_ft/sections.pt \
       --out results/padding.json
 """
