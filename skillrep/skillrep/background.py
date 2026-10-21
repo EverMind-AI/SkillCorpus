@@ -1,4 +1,4 @@
-"""Background projection (Section 3.3).
+"""Background projection.
 
 Step 1 removes B_D, the top right singular vectors of the uncentered document matrix, and rescales
 the documents to unit length. Step 2 removes two directions estimated from the library's most generic

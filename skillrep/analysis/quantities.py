@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Per-request measures of the three quantities (Section 6), used by Table 7 and Appendix E.
+"""Per-request measures of the three quantities, used by partial_correlations.py.
 
 For each request, with g its (first) gold document:
-  lexical, semantic, soft  coverage of g's content words by the request (Section 6.2); semantic and soft
+  lexical, semantic, soft  coverage of g's content words by the request; semantic and soft
                            coverage embed every word on its own with the untuned encoder
   gap_bd, gap_bq           background gap along B_D and B_Q on the fine-tuned encoder, no other module
-                           (Section 6.1, Table 8)
-  dilution                 dilution loss cos(q, s*) - cos(q, d) (Eq. 2), sections encoded by the
+  dilution                 dilution loss cos(q, s*) - cos(q, d), sections encoded by the
                            fine-tuned encoder as documents
   log_words                log(1 + number of words) of g's body, for the length control
 

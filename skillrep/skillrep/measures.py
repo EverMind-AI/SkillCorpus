@@ -1,15 +1,15 @@
-"""The three per-request quantities of Section 6 and the statistics of Section 7.
+"""The three per-request quantities of the request-skill gap and the statistics used on them.
 
-Background (Section 6.1)
+Background
   B_D: top right singular vectors of the uncentered document matrix.
   B_Q: top right singular vector of the uncentered pseudo-request matrix, signed so that requests
        have a positive mean component on it.
   background gap: for a request, the mean background score <P_B q, d> of the non-gold documents in
        its top ten minus that of its gold document (x 100).
-Unsaid vocabulary (Section 6.2)
+Unsaid vocabulary
   coverage: the share of the gold document's content words that the request expresses, counted
        lexically, semantically (a request word within cosine tau of the gold word) or softly.
-Dilution (Section 6.3)
+Dilution
   dilution loss: cos(q, s*) - cos(q, d), with s* the gold section most similar to q.
 """
 import re
@@ -146,7 +146,7 @@ def dilution_loss(queries, doc_emb, section_emb, section_owner, gold_first):
 # ---------------------------------------------------------------- statistics
 
 def partial_corr(x, y, controls):
-    """Correlation of x and y after removing least-squares linear fits on the controls (Eq. 3)."""
+    """Correlation of x and y after removing least-squares linear fits on the controls."""
     x, y = np.asarray(x, float), np.asarray(y, float)
     z = np.column_stack([np.ones_like(x)] + [np.asarray(c, float) for c in controls])
     rx = x - z @ np.linalg.lstsq(z, x, rcond=None)[0]

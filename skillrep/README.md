@@ -22,7 +22,7 @@ This repository contains code only. The benchmarks are public:
 [SkillsBench](https://huggingface.co/datasets/pipizhao/SkillRouter-Eval-Core) (the retrieval version released
 with SkillRouter) and [SkillRet](https://huggingface.co/datasets/ThakiCloud/SKILLRET). UniPool, the
 111,247-skill pool built from public registries, is coming soon; until then, the results on UniPool
-(the UniPool columns of Tables 2-4, Tables 5-10, Figure 3 and the appendix analyses) cannot be rerun,
+(the UniPool results of the main tables and all analyses) cannot be rerun,
 while those on the official SRA-Bench pool, SkillsBench and SkillRet can. The texts of the two expansion
 modules are not released either: `scripts/generate_expansions.py` regenerates them with Qwen3.6-27B
 (temperature 0.3), so they differ slightly from ours. A link to the fine-tuned encoder will be added
@@ -34,7 +34,7 @@ after the review period.
 skillrep/    library: data formats, encoder, LLM generation, BM25, background projection, fusion,
              the retrieval pipeline, metrics, and the three quantities
 scripts/     entry points: generate texts, encode, run SkillRep, ablation
-analysis/    the analyses of Sections 6-7 and the appendices
+analysis/    the analyses of the paper
 train/       encoder fine-tuning (request synthesis, hard negatives, training)
 baselines/   how each baseline was run
 ```
@@ -114,22 +114,22 @@ All analyses use SRA-Bench's 5,400 requests on UniPool and take the same argumen
 `--requests`, `--hypothetical`, `--emb_ft` and `--emb_untuned` (outputs of `scripts/encode.py` for the
 two encoders), `--device` and `--out`. Each script's docstring gives its exact command.
 
-| Paper | Script |
+| Result | Script |
 |---|---|
-| Tables 2-4, SkillRep rows | `scripts/run_skillrep.py` (`--w 0` for "w/o query-side exp.") |
-| Table 5, ablation | `scripts/ablation.py --emb finetuned=... --emb untuned=...` |
-| Section 6.3, Table 7, Appendix E | `analysis/quantities.py`, then `analysis/module_gains.py`, then `analysis/partial_correlations.py` |
-| Section 6.1, Table 8, Section 7.1 | `analysis/background.py` |
-| Section 7.2, deleting words from the hypothetical skills | `analysis/qe_vocabulary.py` |
-| Figure 3 | `analysis/encode_sections.py` (both modes), then `analysis/dilution.py` |
-| Table 9, padding | `analysis/padding.py` |
-| Section 7.3, the lexical channel's mechanism | `analysis/lexical_mechanism.py` |
-| Section 7.4, Table 10 | `analysis/module_overlap.py` |
-| Appendix B, score against rank fusion | `analysis/fusion.py` |
-| Appendix C, expansion weights | `analysis/weights.py`, `analysis/weights_coverage.py`, `analysis/weights_encode_views.py` |
-| Appendix D, background projection | `analysis/background_dims.py`; the gap for 1-6 directions in `analysis/background.py` |
-| Appendix F, beyond skills | `analysis/beyond_skills.py` |
-| Appendix G, gating | `analysis/gating.py` |
+| Main results (SkillRep on SRA-Bench, SkillsBench and SkillRet) | `scripts/run_skillrep.py` (`--w 0` for "w/o query-side exp.") |
+| Ablation (each module alone and last) | `scripts/ablation.py --emb finetuned=... --emb untuned=...` |
+| The three quantities, their correlations, and the partial correlations of each module's gain with them | `analysis/quantities.py`, then `analysis/module_gains.py`, then `analysis/partial_correlations.py` |
+| The background and the background gap | `analysis/background.py` |
+| Deleting words from the hypothetical skills | `analysis/qe_vocabulary.py` |
+| Which retriever dilution hurts | `analysis/encode_sections.py` (both modes), then `analysis/dilution.py` |
+| Padding the gold documents | `analysis/padding.py` |
+| The lexical channel's mechanism | `analysis/lexical_mechanism.py` |
+| Why the modules overlap | `analysis/module_overlap.py` |
+| Score against rank fusion | `analysis/fusion.py` |
+| The expansion weights | `analysis/weights.py`, `analysis/weights_coverage.py`, `analysis/weights_encode_views.py` |
+| Background projection: controls and dimensionality | `analysis/background_dims.py`; the gap for 1-6 directions in `analysis/background.py` |
+| The three quantities beyond skills | `analysis/beyond_skills.py` |
+| Gating modules per request | `analysis/gating.py` |
 | Baselines | `baselines/README.md` |
 
 ## Notes

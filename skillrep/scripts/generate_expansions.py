@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate hypothetical skills for requests and pseudo-requests for skills (Section 3.2, Section 4).
+"""Generate hypothetical skills for requests and pseudo-requests for skills.
 
 Example (vLLM serving Qwen3.6-27B at http://localhost:8000):
   python scripts/generate_expansions.py --api http://localhost:8000/v1/chat/completions \

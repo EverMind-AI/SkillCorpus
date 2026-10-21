@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Why the modules overlap (Section 7.4, Table 10).
+"""Why the modules overlap.
 
 Reproduces, for SRA-Bench requests on UniPool, dense channel only, on the untuned and the fine-tuned encoder:
-  Table 10     all eight combinations of query-side expansion (QE), document-side expansion (DE) and
-               background projection (BP), with MRR@10 and the background gaps of Table 8 (bases estimated
+  overlap      all eight combinations of query-side expansion (QE), document-side expansion (DE) and
+               background projection (BP), with MRR@10 and the background gaps (bases estimated
                once, in each encoder's bare space). Reported: how much DE and BP narrow the B_Q gap and what
                they gain, alone and after QE, and QE's own narrowing (differences of gaps rounded to two
                decimals, as in the table); the pairwise interactions with 95% paired bootstrap intervals; and
                the overlap of the three modules, their gains alone summed minus their gain together.
-  Section 7.4  QE's gain at w = 0.3 after projecting backgrounds out first: none, the two-level projection
+  QE gain      QE's gain at w = 0.3 after projecting backgrounds out first: none, the two-level projection
                (BD), B_Q projected out of the documents (BQ), or both (BD+BQ); and the specificity of B_Q:
                its cosine with the mean document, request and hypothetical skill, and their mean components
                along it.
@@ -83,7 +83,7 @@ def combinations(setting, e, b_d, b_q, name, n_boot):
 
 
 def qe_after_background(setting, e, b_q, weights, n_boot):
-    """QE's gain under each background treatment (Section 7.4)."""
+    """QE's gain under each background treatment."""
     d_bd, _, b_g = background_projection(e.docs, setting.generic)
     proj_q = lambda d: F.normalize(d - (d @ b_q.T) @ b_q, dim=-1)
     rr, mrr = {}, {}
@@ -133,7 +133,7 @@ def main():
         res[name] = r
         del e
         torch.cuda.empty_cache()
-    print("\nTable 10                                   untuned  fine-tuned")
+    print("\nOverlap                                    untuned  fine-tuned")
     for k in res["untuned"]["table10"]:
         print(f"  {k:<40}{res['untuned']['table10'][k]:>8.2f}{res['fine-tuned']['table10'][k]:>11.2f}")
     for name in res:

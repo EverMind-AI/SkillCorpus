@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gating modules per request (Appendix G, Table "gates").
+"""Gating modules per request.
 
 The full system (fine-tuned encoder, w = 0.3, u = 0.2, two-level background projection, score fusion
 with alpha = 0.3) is compared with variants that run one module on only part of the requests.

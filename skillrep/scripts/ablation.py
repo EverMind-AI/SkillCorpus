@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ablation (Table 5): each module added alone to the encoder and removed last from the full system,
+"""Ablation: each module added alone to the encoder and removed last from the full system,
 on the fine-tuned and on the untuned encoder, with paired bootstrap intervals over requests.
 
 The lexical channel searches with the hypothetical skills only when query-side expansion is on, so the

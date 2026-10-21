@@ -1,9 +1,9 @@
-"""Fusing the dense and lexical channels (Section 3.4, Eq. 1).
+"""Fusing the dense and lexical channels.
 
 Each channel returns its top-100 candidates per request. Score fusion standardizes each channel's
 scores against the mean and standard deviation of its own top-100 for that request and adds them,
 the lexical term weighted by alpha; a document that a channel does not return gets no score from it.
-Rank fusion (RRF) is kept for the comparison in Appendix B.
+Rank fusion (RRF) is kept for comparison (analysis/fusion.py).
 """
 import numpy as np
 

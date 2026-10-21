@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figure 3: which retriever dilution hurts (Section 7.3).
+"""Which retriever dilution hurts, by fifths of the gold document's dilution loss.
 
 Three retrievers search separately, without fusion:
   one vector  the fine-tuned encoder, one vector per skill body
@@ -7,7 +7,7 @@ Three retrievers search separately, without fusion:
               a skill scored by its best section
   BM25        the request alone (name, description and body; dilution_utils.bm25_top)
 Each request's RR@10 is related to its gold document's dilution loss l(q) = cos(q, s*) - cos(q, d)
-(Eq. 2; sections from encode_sections.py --mode gold): RR by fifths of l (micro averages) and the
+(sections from encode_sections.py --mode gold): RR by fifths of l (micro averages) and the
 partial correlation of RR with l controlling lexical coverage, log body words and log number of
 indexed sections, with a 95% interval over resampled gold clusters.
 

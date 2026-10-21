@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run SkillRep (or any subset of its modules) on one pool and one request set (Tables 2-4).
+"""Run SkillRep (or any subset of its modules) on one pool and one request set (the main results).
 
 Example, full system on SRA-Bench with UniPool:
   python scripts/run_skillrep.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \

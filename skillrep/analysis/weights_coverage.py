@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Appendix C: how much of their skill the requests of a benchmark already state.
+"""How much of their skill the requests of a benchmark already state.
 
-Mean and median coverage (Section 6.2) on the three counts, lexical, semantic (cosine >= 0.8) and soft,
+Mean and median coverage on the three counts, lexical, semantic (cosine >= 0.8) and soft,
 with each word embedded on its own by the untuned encoder. Requests with no content words, or whose
 gold body has none, are skipped. Used to explain why query-side expansion helps less on SkillRet.
 

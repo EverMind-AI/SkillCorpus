@@ -1,9 +1,9 @@
-"""SkillRep retrieval (Section 3, Figure 2).
+"""SkillRep retrieval.
 
 Documents: document-side expansion (mix in the mean pseudo-request with weight u), then background
 projection (B_D projected out with rescaling, then two generic-word directions subtracted without
 rescaling). Requests: query-side expansion (mix in the mean hypothetical skill with weight w), then the
-same generic-word directions subtracted. Dense top-100 and BM25 top-100 are fused by score (Eq. 1).
+same generic-word directions subtracted. Dense top-100 and BM25 top-100 are fused by score (skillrep/fusion.py).
 
 Embedding inputs are unit-norm float tensors:
   doc_emb      [N, d]  skill bodies, encoded as documents
@@ -32,7 +32,7 @@ class SkillRepConfig:
     lexical: bool = True          # lexical channel
     lexical_hypothetical: str = "auto"  # BM25 query adds hypothetical skills: "auto" (when w > 0), "always", "never"
     alpha: float = 0.3            # weight of the lexical channel
-    fusion: str = "score"         # "score" (Eq. 1) or "rank" (RRF, Appendix B)
+    fusion: str = "score"         # "score" or "rank" (RRF)
     topn: int = 100               # candidates per channel
     topk: int = 50                # candidates kept after fusion
 

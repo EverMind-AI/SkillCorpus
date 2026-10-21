@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-request gain of each module added alone (the rows of Table 7).
+"""Per-request gain of each module added alone (the input of partial_correlations.py).
 
 Each module is added to the fine-tuned encoder on its own, and fine-tuning to the untuned encoder;
 the gain is the change in the request's RR@10 (in [0, 1]). The expansions act on the dense channel

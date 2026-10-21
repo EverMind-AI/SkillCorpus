@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Table 9: padding the gold documents with content the requests do not need (Section 7.3).
+"""Padding the gold documents with content the requests do not need.
 
 Only the gold documents change; the requests stay as they are. L sections are appended to every gold body
 (the first 8,000 characters), of three kinds:

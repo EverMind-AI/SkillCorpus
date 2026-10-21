@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Appendix C: the expansion weights and their interactions.
+"""The expansion weights and their interactions.
 
-  grid    Tables "wu" and "wutransfer". The (w, u) grid in the full system, with w and u weighting the
+  grid    The (w, u) grid in the full system, with w and u weighting the
           dense channel only; the lexical channel searches with the hypothetical skills at every w. Reports
           each row's best u and its gain over u = 0, and how far tuning each weight alone (w at u = 0,
           u at w = 0) and combining the winners falls below the best joint setting. Run once per pool.

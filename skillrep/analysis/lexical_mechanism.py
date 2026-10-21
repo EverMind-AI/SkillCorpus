@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How the lexical channel recovers what dilution costs (Section 7.3).
+"""How the lexical channel recovers what dilution costs.
 
 The lexical channel (BM25 with the request alone, score fusion at alpha = 0.3) is added to the fine-tuned
 encoder by itself.

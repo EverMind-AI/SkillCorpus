@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Appendix B: score fusion against rank fusion.
+"""Score fusion against rank fusion.
 
-  margin   Table "bm25split". Requests are split into fifths by the gold document's dense margin over
+  margin   The lexical channel under rank fusion. Requests are split into fifths by the gold document's dense margin over
            its strongest competitor on the fine-tuned encoder alone (gold score minus the best other
            score). Per fifth: the mean margin, the share of the library (%) scored above the gold
            document, and the change in RR@10 (x 100) that the lexical channel makes when it is fused
            by rank (RRF, k = 60, alpha = 0.3) with SkillRep's dense channel.
-  compare  Table "fusion". The full system with score fusion and with rank fusion (R@10, MRR@10, Hit@1),
+  compare  The full system with score fusion and with rank fusion (R@10, MRR@10, Hit@1),
            and what the lexical channel adds last under each. Run once per pool.
 
 Examples:

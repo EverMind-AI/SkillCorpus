@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The three quantities on skills and on general retrieval collections (Appendix F).
+"""The three quantities on skills and on general retrieval collections.
 
 Every collection is encoded with the untuned Qwen3-Embedding-0.6B and searched with the dense channel
 only. Per collection the script reports:
@@ -7,7 +7,7 @@ only. Per collection the script reports:
   projection         MRR@10 change from projecting B_D (top-2 SVD, rescaled) out of the documents
   share_of_BD        mean squared length of a document along B_D
   above_gold         share of the collection scoring above the gold document on <q, P_BD d> alone
-  gap                background gap along B_D (Table 8), x 100
+  gap                background gap along B_D, x 100
   request_words      median number of content words per request
   coverage_gold_side share of the gold document's content words that the request expresses
   coverage_request_side  share of the request's content words found in its gold document

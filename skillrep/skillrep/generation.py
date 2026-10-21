@@ -1,4 +1,4 @@
-"""LLM-written texts for the two expansion modules (Section 3.2).
+"""LLM-written texts for the two expansion modules.
 
 Hypothetical skills (query-side expansion): two short texts per request describing a skill that would
 solve it. Pseudo-requests (document-side expansion): two short task requests per skill. Both use

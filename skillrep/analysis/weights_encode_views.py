@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Encode the two extra indexed views searched by `weights.py search` (Appendix C).
+"""Encode the two extra indexed views searched by `weights.py search`.
 
   whole.pt   {"emb": [N, d], "pids": [...]}     "name | description[:500] | body[:8000]", one vector per skill
   chunks.pt  {"emb": [M, d], "owner": [M]}      "name | description[:300] | chunk", owner = skill row index

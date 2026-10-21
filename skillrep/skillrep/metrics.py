@@ -1,4 +1,4 @@
-"""R@10, MRR@10 and Hit@1, per request and macro-averaged over source datasets (Section 4)."""
+"""R@10, MRR@10 and Hit@1, per request and macro-averaged over source datasets."""
 from collections import defaultdict
 
 import numpy as np

@@ -1,4 +1,4 @@
-"""Shared setup for the analyses of Sections 6-7 and the appendices.
+"""Shared setup for the analyses of the paper.
 
 All analyses take one pool, one request set and the embedding directory written by scripts/encode.py
 for one encoder (the paper uses SRA-Bench's 5,400 requests on UniPool). Per-request reciprocal ranks
@@ -124,7 +124,7 @@ def rr_from_rankings(rankings, gold, k=10):
 
 
 def rankings(q, docs, hits=None, alpha=ALPHA, k=10):
-    """Top-k document indices per request: dense alone, or fused with BM25 hits by score (Eq. 1)."""
+    """Top-k document indices per request: dense alone, or fused with BM25 hits by score."""
     d_ids, d_sc = dense_topn(q, docs)
     if hits is None:
         return [list(map(int, r[:k])) for r in d_ids]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How query-side expansion supplies the unsaid vocabulary (Section 7.2, last paragraph).
+"""How query-side expansion supplies the unsaid vocabulary.
 
 The hypothetical skills of each request are edited and re-encoded with the fine-tuned encoder, and
 query-side expansion (w = 0.3, dense channel only, on the fine-tuned encoder alone) is rerun:

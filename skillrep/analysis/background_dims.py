@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Background projection: controls and dimensionality (Appendix D).
+"""Background projection: controls and dimensionality.
 
-1. Table "bgdims": the MRR@10 change from projecting directions out of the documents
+1. The MRR@10 change from projecting directions out of the documents
      fine_tuned  the fine-tuned encoder alone (dense channel): random directions (mean of ten seeds),
                  the top-k singular vectors (k = 1, 2, 3, 4, 6, 8; projected out and rescaled), the two
                  generic-word directions alone, and the two-level projection

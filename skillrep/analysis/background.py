@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""The background gap (Section 6.1, Table 8, Section 7.1 and Appendix D).
+"""The background and the background gap.
 
 Reproduces, for SRA-Bench requests on UniPool:
-  Section 6.1  share of the library that scores above the gold document under <q, P_B d> alone
+  background   share of the library that scores above the gold document under <q, P_B d> alone
                (B_D on the untuned encoder, B_Q on the fine-tuned one); the angle between B_Q and the
                plane of B_D; the requests' component on B_Q; the B_Q component of gold and of other
                documents in the top ten.
-  Table 8      background gap along B_D and B_Q for the untuned and the fine-tuned encoder, and with each
+  gap          background gap along B_D and B_Q for the untuned and the fine-tuned encoder, and with each
                module added to the fine-tuned encoder (bases fixed to that encoder's own space). Changes
                are reported as differences of the gaps rounded to two decimals, as in the table. The total
                score difference (competitors minus gold) is negative throughout, which is why selecting
                the top ten alone would push the gap negative.
-  Section 7.1  mean norm of a request's component on B_D, each encoder in its own space; the controls for
+  modules      mean norm of a request's component on B_D, each encoder in its own space; the controls for
                document-side expansion on the fine-tuned encoder: projecting B_Q out of the documents, and
                mixing the same library-wide mean pseudo-request into every document.
-  Appendix D   the gap of Table 8 along the top k singular directions of the documents, k = 1..6.
+  dimensions   the gap along the top k singular directions of the documents, k = 1..6.
 
 Example:
   python analysis/background.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \
@@ -85,7 +85,7 @@ def encoder_stats(setting, e, name):
 
 
 def module_rows(setting, e, b_d, b_q):
-    """Table 8 rows: each module added alone to the fine-tuned encoder, bases fixed."""
+    """Background-gap rows: each module added alone to the fine-tuned encoder, bases fixed."""
     bases = {"B_D": b_d, "B_Q": b_q}
     d_bp, _, b_g = background_projection(e.docs, setting.generic)
     q_bp = e.queries - (e.queries @ b_g.T) @ b_g
@@ -102,7 +102,7 @@ def module_rows(setting, e, b_d, b_q):
 
 
 def de_controls(setting, e, b_q):
-    """Section 7.1: document-side expansion against two controls (dense channel only, MRR@10 gains)."""
+    """Document-side expansion against two controls (dense channel only, MRR@10 gains)."""
     bare = mrr(setting, e.queries, e.docs)
     owner = e.pseudo[1]
     sums = torch.zeros_like(e.docs).index_add_(0, owner, e.pseudo[0])
@@ -122,7 +122,7 @@ def de_controls(setting, e, b_q):
 
 
 def table6(res):
-    """Rows of Table 8 as printed in the paper (changes are differences of rounded gaps)."""
+    """Rows of the background-gap table as printed in the paper (changes are differences of rounded gaps)."""
     r2 = lambda x: round(x, 2)
     un, ft = res["untuned"]["gap"], res["fine-tuned"]["gap"]
     rows = {"Untuned encoder": [r2(un["B_D"]), r2(un["B_Q"])],
@@ -148,11 +148,11 @@ def main():
     res["modules"] = module_rows(setting, e, b_d, b_q)
     res["doc_side_controls"] = de_controls(setting, e, b_q)
     res["table6"] = table6(res)
-    print("\nTable 8 (x 100)          B_D     B_Q")
+    print("\nBackground gap (x 100)   B_D     B_Q")
     for k, (x, y) in res["table6"].items():
         print(f"  {k:<22}{x:>7.2f}{y:>8.2f}")
     k_gaps = {n: list(res[n]["gap_B_D_top_k"].values()) for n in ("untuned", "fine-tuned")}
-    print("Appendix D, gap along the top k directions (k = 1..6): " +
+    print("Gap along the top k directions (k = 1..6): " +
           "  ".join(f"{n} {min(v):.2f}-{max(v):.2f}" for n, v in k_gaps.items()))
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w") as f:
