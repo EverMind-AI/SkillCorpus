@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pt
+*.npz
+*.npy
+emb/
+results/
+.ruff_cache/
