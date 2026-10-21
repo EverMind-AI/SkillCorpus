@@ -34,7 +34,6 @@ skillrep/    library: data formats, encoder, LLM generation, BM25, background pr
 scripts/     entry points: generate texts, encode, run SkillRep, ablation
 analysis/    the analyses of the paper
 train/       encoder fine-tuning (request synthesis, hard negatives, training)
-baselines/   how each baseline was run
 ```
 
 ## Setup
@@ -128,7 +127,6 @@ two encoders), `--device` and `--out`. Each script's docstring gives its exact c
 | Background projection: controls and dimensionality | `analysis/background_dims.py`; the gap for 1-6 directions in `analysis/background.py` |
 | The three quantities beyond skills | `analysis/beyond_skills.py` |
 | Gating modules per request | `analysis/gating.py` |
-| Baselines | `baselines/README.md` |
 
 ## Notes
 
