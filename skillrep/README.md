@@ -118,11 +118,11 @@ two encoders), `--device` and `--out`. Each script's docstring gives its exact c
 |---|---|
 | Tables 2-4, SkillRep rows | `scripts/run_skillrep.py` (`--w 0` for "w/o query-side exp.") |
 | Table 5, ablation | `scripts/ablation.py --emb finetuned=... --emb untuned=...` |
-| Section 6.1, Table 6, Section 7.1 | `analysis/background.py` |
 | Section 6.3, Table 7, Appendix E | `analysis/quantities.py`, then `analysis/module_gains.py`, then `analysis/partial_correlations.py` |
+| Section 6.1, Table 8, Section 7.1 | `analysis/background.py` |
 | Section 7.2, deleting words from the hypothetical skills | `analysis/qe_vocabulary.py` |
 | Figure 3 | `analysis/encode_sections.py` (both modes), then `analysis/dilution.py` |
-| Table 8, padding | `analysis/padding.py` |
+| Table 9, padding | `analysis/padding.py` |
 | Section 7.3, the lexical channel's mechanism | `analysis/lexical_mechanism.py` |
 | Section 7.4, Table 10 | `analysis/module_overlap.py` |
 | Appendix B, score against rank fusion | `analysis/fusion.py` |

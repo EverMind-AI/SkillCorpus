@@ -1,4 +1,4 @@
-"""Helpers shared by the dilution analyses (Figure 3, Table 8) and the lexical-channel mechanism (Section 7.3).
+"""Helpers shared by the dilution analyses (Figure 3, Table 9) and the lexical-channel mechanism (Section 7.3).
 
 Three ways of cutting a skill body into sections are used:
   index_sections    the section-level retriever's index: split at "##"/"###" headings, short pieces merged,
@@ -8,7 +8,7 @@ Three ways of cutting a skill body into sections are used:
                     word-deletion probes)
   measures.split_sections  as heading_sections, with a fallback to paragraph windows (the dilution loss
                     of Section 6.3)
-The BM25 retriever of Figure 3 and Table 8 is the lexical channel's, searching with the request alone.
+The BM25 retriever of Figure 3 and Table 9 is the lexical channel's, searching with the request alone.
 """
 import os
 import re

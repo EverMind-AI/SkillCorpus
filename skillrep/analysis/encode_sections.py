@@ -3,7 +3,7 @@
 
 --mode index  every pool body cut by dilution_utils.index_sections, each section encoded as
               "name | description[:300] | section" with a limit of 1,024 tokens: the index of the
-              section-level retriever (Figure 3, Table 8).
+              section-level retriever (Figure 3, Table 9).
 --mode gold   the first gold document of every request, cut by skillrep.measures.split_sections and
               encoded without a prefix (limit 4,096 tokens): the sections s of the dilution loss
               l(q) = cos(q, s*) - cos(q, d).

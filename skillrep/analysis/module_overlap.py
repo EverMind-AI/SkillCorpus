@@ -3,7 +3,7 @@
 
 Reproduces, for SRA-Bench requests on UniPool, dense channel only, on the untuned and the fine-tuned encoder:
   Table 10     all eight combinations of query-side expansion (QE), document-side expansion (DE) and
-               background projection (BP), with MRR@10 and the background gaps of Table 6 (bases estimated
+               background projection (BP), with MRR@10 and the background gaps of Table 8 (bases estimated
                once, in each encoder's bare space). Reported: how much DE and BP narrow the B_Q gap and what
                they gain, alone and after QE, and QE's own narrowing (differences of gaps rounded to two
                decimals, as in the table); the pairwise interactions with 95% paired bootstrap intervals; and
