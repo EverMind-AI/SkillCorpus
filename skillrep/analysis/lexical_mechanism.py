@@ -10,14 +10,14 @@ gold document it pushes out, the mean of
   competitor, the first non-gold document of the dense ranking),
 over all shared words and over the halves and quarters of the shared words split by document frequency.
 
-Part 2, deleting shared words (needs --model). For each request and its first gold document d, S is the
-set of content words the two share whose IDF = log(N / (1 + df)) lies below the vocabulary median, and C
-an equally large control set of other words of d, each matched to a word of S by IDF and number of
-occurrences. Deleting all occurrences of S (or C) from d and re-encoding it (limit 4,096 tokens) gives the
-drop in cos(q, d) (doc_S, doc_C). Deleting them only inside s*, the section of d most similar to q
-(sections cut at headings, at least 200 characters, encoded on their own), gives the drop in the
-section's similarity (sec_S, sec_C) and, with the edited section put back, in the whole document's
-(docin_S, docin_C). Per-request results are appended to <out>.jsonl so that an interrupted run resumes.
+Part 2, deleting shared words (needs --model). For each request and its first gold document d, S is the set
+of content words the two share, and C an equally large control set of other words of d, each matched to a
+word of S by IDF and number of occurrences. Deleting all occurrences of S (or C) from d and re-encoding it
+(limit 4,096 tokens) gives the drop in cos(q, d) (doc_S, doc_C). Deleting them only inside s*, the section
+of d most similar to q (sections cut at headings, at least 200 characters, encoded on their own), gives the
+drop in the section's similarity (sec_S, sec_C) and, with the edited section put back, in the whole
+document's (docin_S, docin_C). Per-request results are appended to <out>.jsonl so that an interrupted run
+resumes.
 
 Example:
   python analysis/lexical_mechanism.py --pool data/unipool/pool.jsonl --requests data/sra/requests.jsonl \
@@ -127,7 +127,6 @@ def word_stats(words, text, idf):
 def deletion_probe(st, queries, r0, r1, idf, enc, work_path, batch_size):
     rr = lambda r: np.where(r <= 10, 1.0 / r, 0.0)
     group = np.where(rr(r1) > rr(r0), "rescued", np.where(rr(r1) < rr(r0), "hurt", "flat"))
-    median_idf = float(np.median(list(idf.values())))
     g0 = st.gold_first
     golds = sorted(set(g0))
     gi = {g: k for k, g in enumerate(golds)}
@@ -148,7 +147,7 @@ def deletion_probe(st, queries, r0, r1, idf, enc, work_path, batch_size):
             g, q = g0[qi], queries[qi]
             t = body(g)
             qw = set(content_words(st.reqs[qi]["query"]))
-            shared = sorted(w for w in qw & set(content_words(t)) if idf.get(w, 99) < median_idf)
+            shared = sorted(qw & set(content_words(t)))
             r = {"qi": qi, "group": str(group[qi]), "nS": len(shared), "cos_doc": float(gold_vec[gi[g]] @ q)}
             m = np.nonzero(sec_of == g)[0]
             s_star = None
@@ -184,7 +183,7 @@ def deletion_probe(st, queries, r0, r1, idf, enc, work_path, batch_size):
 
     with open(work_path) as f:
         rows = [json.loads(line) for line in f]
-    out = {"n_requests": len(rows), "idf_median": median_idf,
+    out = {"n_requests": len(rows),
            "groups": {k: int(sum(r["group"] == k for r in rows)) for k in ("rescued", "hurt", "flat")}}
     for name, sub in (("all", rows), ("rescued", [r for r in rows if r["group"] == "rescued"]),
                       ("hurt", [r for r in rows if r["group"] == "hurt"])):
