@@ -15,6 +15,7 @@ Example (8 GPUs):
 import argparse
 import json
 import logging
+import math
 import os
 import random
 import sys
@@ -93,7 +94,8 @@ class Trainer:
     def train(self, loader):
         a = self.args
         opt = torch.optim.AdamW(self.model.parameters(), lr=a.lr, weight_decay=a.weight_decay)
-        total = len(loader) * a.num_epochs // a.grad_accum_steps
+        n, g = len(loader), a.grad_accum_steps
+        total = math.ceil(n / g) * a.num_epochs  # the last group of an epoch may be shorter than g
         if a.max_steps:
             total = min(total, a.max_steps)
         sched = get_cosine_schedule_with_warmup(opt, int(total * a.warmup_ratio), total)
@@ -107,16 +109,18 @@ class Trainer:
             running = 0.0
             opt.zero_grad()
             for i, (queries, positives, neg_lists) in enumerate(loader):
-                negatives = [n for ns in neg_lists for n in ns]
-                sync = (i + 1) % a.grad_accum_steps == 0
+                negatives = [neg for ns in neg_lists for neg in ns]
+                group_start = i - i % g
+                group_size = min(g, n - group_start)  # the final group of an epoch is flushed too
+                sync = i + 1 == group_start + group_size
                 if self.world_size > 1 and not sync:
                     with self.model.no_sync():
-                        loss = self.loss(queries, positives, negatives) / a.grad_accum_steps
+                        loss = self.loss(queries, positives, negatives) / group_size
                         loss.backward()
                 else:
-                    loss = self.loss(queries, positives, negatives) / a.grad_accum_steps
+                    loss = self.loss(queries, positives, negatives) / group_size
                     loss.backward()
-                running += loss.item() * a.grad_accum_steps
+                running += loss.item() * group_size
                 if not sync:
                     continue
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -131,6 +135,8 @@ class Trainer:
                     self.save(Path(a.output_dir) / f"checkpoint-{step}")
                 if step >= total:
                     break
+            if step >= total:
+                break
         if self.rank == 0:
             self.save(Path(a.output_dir) / "final")
 
@@ -190,7 +196,7 @@ def main():
         data.records = data.records[:a.max_samples]
     if rank == 0:
         log.info("%d training triplets", len(data))
-    sampler = DistributedSampler(data, shuffle=True) if ddp else None
+    sampler = DistributedSampler(data, shuffle=True, seed=a.seed) if ddp else None
     loader = DataLoader(data, batch_size=a.batch_size, shuffle=sampler is None, sampler=sampler,
                         collate_fn=collate, num_workers=4, pin_memory=True)
     Trainer(model, raw, tok, device, a, rank, world_size).train(loader)
