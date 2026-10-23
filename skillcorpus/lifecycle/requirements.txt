@@ -1,0 +1,5 @@
+# Lifecycle tools (skillcorpus/lifecycle). The labels, retire and audit steps and the
+# reproduce/ scripts need only the Python standard library.
+openai>=1.0          # synthesize, judge, capability_items, run_arms
+openpyxl>=3.1.0      # optional: lets the judge read .xlsx deliverables
+# run_arms also needs a Raven checkout (--raven-root) and its own requirements.
