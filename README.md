@@ -37,7 +37,7 @@ SkillCorpus when you want the open-source machinery behind that experience:
 - **Keep control of deployment** — self-host the released retrieval models and connect your own
   agent host instead of using the hosted SkillHub API.
 
-The core code is Apache-2.0 licensed (`match/` and `evaluate/` are MIT); each skill retains its
+The core code is Apache-2.0 licensed (`match/`, `evaluate/` and `lifecycle/` are MIT); each skill retains its
 upstream license. The public 1,000-skill demo, three agent benchmarks, and live SkillHub show the
 result.
 
@@ -268,6 +268,7 @@ skillcorpus/
 ├── export/     corpus writer (parquet + attachments + dataset card)
 ├── match/      the 2 released models + training recipe                 ← isolated deps
 ├── evaluate/   skillsbench · qwenclawbench · gdpval benchmarks          ← isolated deps
+├── lifecycle/  per-model skill retirement on the unaided level
 └── cli.py      build · stats · export
 ```
 
@@ -288,6 +289,11 @@ always runs end to end.
   metrics (nDCG / MRR / Hit / Recall).
 - **Benchmarks** — [`skillcorpus/evaluate/`](skillcorpus/evaluate): `skillsbench`,
   `qwenclawbench`, `gdpval` — each self-contained with its own README and dependencies.
+- **Retirement** — [`skillcorpus/lifecycle/`](skillcorpus/lifecycle) decides, per deployment
+  model, which skills the model has internalized and can retire: it synthesizes a task from each
+  skill, scores the model without and with the skill, and retires on the unaided level instead of
+  the gain. It is the code of the paper *Beyond Gain: Measuring Skill Internalization for Agent
+  Skill Retirement*.
 
 <a name="build-your-own"></a>
 
@@ -327,6 +333,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 
 - [x] Curation pipeline: 16-class taxonomy, 3-facet quality, per-source license audit
 - [x] Fine-tuned retrieval stack + three-benchmark evaluation
+- [x] Per-model skill retirement on the unaided level (`skillcorpus/lifecycle/`)
 - [x] Public SkillHub endpoint
 - [x] Retrieval models (bi-encoder + reranker) and a 1k demo corpus on HuggingFace
 - [ ] Full 114,190-skill corpus on HuggingFace — coming soon
@@ -426,7 +433,7 @@ integrations.
 
 ## License
 
-- **Code** — Apache-2.0 (the `match/` and `evaluate/` toolkits are each MIT — see their own `LICENSE`).
+- **Code** — Apache-2.0 (the `match/`, `evaluate/` and `lifecycle/` toolkits are each MIT — see their own `LICENSE`).
 - **Corpus** — every skill keeps its **original upstream license**; only GREEN
   (MIT / Apache-2.0 / BSD / ISC / …) skills are included, none relicensed. Each row carries
   `source`, `source_url`, and `license`, so downstream use must follow the per-skill terms.

@@ -32,7 +32,7 @@ SkillCorpus 是 EverMind 将公开仓库中散落的 `SKILL.md` 文件转化为�
 - **修改它的行为** —— 修改分类体系、质量与去重规则、检索配方、导出字段、评测套件或宿主插件。
 - **掌控部署方式** —— 自己部署已发布的检索模型，把自己的 agent 接进来，而不是依赖托管的 SkillHub API。
 
-核心代码采用 Apache-2.0 许可（`match/` 和 `evaluate/` 两个工具包为 MIT）；每个技能保留其上游许可。
+核心代码采用 Apache-2.0 许可（`match/`、`evaluate/` 和 `lifecycle/` 三个工具包为 MIT）；每个技能保留其上游许可。
 公开的 1,000 条 demo 语料、三个 agent benchmark 和线上的 SkillHub 展示了结果。
 
 https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
@@ -251,6 +251,7 @@ skillcorpus/
 ├── export/     语料写出（parquet + 附件 + dataset card）
 ├── match/      发布的两个模型 + 训练配方                          ← 依赖独立
 ├── evaluate/   skillsbench · qwenclawbench · gdpval 评测           ← 依赖独立
+├── lifecycle/  按不带技能的水平、逐模型退役技能
 └── cli.py      build · stats · export
 ```
 
@@ -268,6 +269,9 @@ export.corpus`）。当没有可用的模型端点时，LLM 分类与质量打�
   `eval_compare.py`（检索指标 nDCG / MRR / Hit / Recall）。
 - **评测** —— [`skillcorpus/evaluate/`](skillcorpus/evaluate)：`skillsbench`、`qwenclawbench`、
   `gdpval`，各自独立，带自己的 README 和依赖。
+- **退役** —— [`skillcorpus/lifecycle/`](skillcorpus/lifecycle) 针对每个部署模型判断它已经内化、
+  可以退役哪些技能：从每个技能合成任务，分别在不带技能和带技能时给模型打分，按不带技能的水平而非
+  增益退役。它是论文 *Beyond Gain: Measuring Skill Internalization for Agent Skill Retirement* 的代码。
 
 <a name="build-your-own"></a>
 
@@ -306,6 +310,7 @@ python -m pytest skillcorpus/tests -p no:cacheprovider --import-mode=importlib
 
 - [x] 策展管线：16 类体系、三维质量、逐源许可审计
 - [x] 微调检索栈 + 三个 benchmark 的评估
+- [x] 按不带技能的水平、逐模型退役技能（`skillcorpus/lifecycle/`）
 - [x] 公开的 SkillHub 端点
 - [x] 检索模型（bi-encoder + reranker）与 1k demo 语料上 HuggingFace
 - [ ] 完整的 114,190 条语料上 HuggingFace —— 即将发布
@@ -403,7 +408,7 @@ EverMind 将记忆研究、可直接使用的产品与实际集成连接为一�
 
 ## 许可
 
-- **代码** —— Apache-2.0（`match/` 和 `evaluate/` 两个工具包各自为 MIT，见其目录下的 `LICENSE`）。
+- **代码** —— Apache-2.0（`match/`、`evaluate/` 和 `lifecycle/` 三个工具包各自为 MIT，见其目录下的 `LICENSE`）。
 - **语料** —— 每个技能保留其**上游原始许可**；只收录 GREEN（MIT / Apache-2.0 / BSD / ISC / …）
   许可的技能，不做任何重新授权。每行都带 `source`、`source_url`、`license`，下游使用须遵循
   各技能自身的条款。
