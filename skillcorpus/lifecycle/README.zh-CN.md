@@ -108,7 +108,7 @@ python skillcorpus/lifecycle/reproduce/reproduce_audits.py path/to/dataset      
 ```
 
 论文中生成器为 DeepSeek-V4-Flash；批评器、难度门和判官为关闭思考的 Qwen3.6-27B；能力项裁决器为 Qwen3.5-397B；
-智能体最多运行 40 轮。
+智能体最多运行 40 轮。要按论文数据集的方式合成任务，还需设置 `PAPER_CRITIC=1`（见 `synthesize.py`）。
 
 ## 许可
 

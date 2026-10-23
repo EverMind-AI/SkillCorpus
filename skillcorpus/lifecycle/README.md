@@ -112,7 +112,8 @@ python skillcorpus/lifecycle/reproduce/reproduce_audits.py path/to/dataset      
 ```
 
 In the paper the generator is DeepSeek-V4-Flash, the critic, the difficulty gate and the judge are Qwen3.6-27B with
-thinking disabled, the capability-item adjudicator is Qwen3.5-397B, and the agent runs at most 40 turns.
+thinking disabled, the capability-item adjudicator is Qwen3.5-397B, and the agent runs at most 40 turns. To
+synthesize tasks exactly as for the paper's dataset, also set `PAPER_CRITIC=1` (see `synthesize.py`).
 
 ## License
 

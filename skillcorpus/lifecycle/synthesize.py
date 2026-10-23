@@ -18,7 +18,9 @@ Stages:
     conventions may not (library choice, parameters, naming, structure, required steps, prohibited patterns),
     because those are tested secretly by the instruction-following rubric.
   3 critic: leakage (conventions/answers in the task), completeness (all referenced files present, only
-    capabilities the environment has), rubric hardness.
+    capabilities the environment has), rubric hardness. The critic sees the task, its inputs and both rubrics; a
+    task whose critic reply cannot be parsed is rejected. PAPER_CRITIC=1 reproduces the critic that built the
+    paper's dataset instead: it saw the instruction-following rubric only and let such a task through.
   4 difficulty gate: the target model attempts the task unaided (no skill); a judge scores the attempt against the
     task-completion rubric. If it passes more than DIFF_MAX of the items the task is regenerated; if it is still
     too easy after the retries the skill is dropped.
@@ -47,6 +49,8 @@ Environment (endpoints are OpenAI-compatible; the defaults are the settings of t
   NO_DIFF_GATE=1  skip the difficulty gate
   CRITIC_MODE     "full" (default: leakage, completeness and hardness all block) or "completeness" (only missing
                   files and unavailable capabilities block; leakage is left to the difficulty gate)
+  PAPER_CRITIC=1  reproduce the critic of the paper's dataset (instruction-following rubric only, an unparseable
+                  critic reply lets the task through)
   GEN_TRIES       generation attempts per task for the critic and for the difficulty gate (default 2)
   MAX_BODY        characters of SKILL.md shown to the generator and the critic (default 16000)
   CONC            skills processed concurrently (default 4)
@@ -100,6 +104,7 @@ DIFF_MAX = float(os.environ.get("DIFF_MAX", "0.5"))
 # (leakage/difficulty are left to the measured difficulty gate)
 CRITIC_MODE = os.environ.get("CRITIC_MODE", "full")
 NO_DIFF_GATE = os.environ.get("NO_DIFF_GATE", "") == "1"
+PAPER_CRITIC = os.environ.get("PAPER_CRITIC", "") == "1"
 # extra_body of the critic and difficulty-gate calls (thinking disabled, vLLM-style chat_template_kwargs)
 CRITIC_EXTRA = json.loads(_env("CRITIC_EXTRA")) if _env("CRITIC_EXTRA") else NO_THINK
 CONC = int(os.environ.get("CONC", "4"))
@@ -419,6 +424,9 @@ async def validate(cli, row, spec) -> tuple[bool, list, list]:
             f"# Generated inputs\n{json.dumps(spec.get('inputs', []), ensure_ascii=False)[:4000]}\n\n"
             f"# instruction_following_rubric\n"
             f"{json.dumps(spec.get('instruction_following_rubric', []), ensure_ascii=False)}")
+    if not PAPER_CRITIC:  # rules 1, 3 and 4 of VALIDATE_SYS check the task-completion rubric as well
+        user += (f"\n\n# task_completion_rubric\n"
+                 f"{json.dumps(spec.get('task_completion_rubric', []), ensure_ascii=False)}")
     for _ in range(3):
         resp = await cli.chat.completions.create(
             model=CRITIC_MODEL, temperature=0.0, max_tokens=1000, extra_body=CRITIC_EXTRA,
@@ -437,7 +445,9 @@ async def validate(cli, row, spec) -> tuple[bool, list, list]:
             return bool(d.get("pass")), crit, d.get("minor", [])
         except Exception:
             continue
-    return True, [], []  # no parseable critic reply after three attempts: let the task through
+    if PAPER_CRITIC:
+        return True, [], []  # the paper's critic let a task through when it gave no parseable reply
+    return False, ["the critic gave no parseable verdict after three attempts"], []
 
 
 async def dryrun_difficulty(cli, spec) -> float:

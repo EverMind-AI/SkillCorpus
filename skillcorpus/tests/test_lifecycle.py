@@ -257,3 +257,28 @@ def test_reply_json_reads_the_vllm_reasoning_field():
 
     m = types.SimpleNamespace(content=None, reasoning='... so the answer is {"passed": ["a"]}')
     assert _layout.reply_json(m, _layout.is_dict_with("passed")) == {"passed": ["a"]}
+
+
+@pytest.mark.parametrize("paper_critic", [False, True])
+def test_critic_input_and_unparseable_reply(monkeypatch, paper_critic):
+    import asyncio
+    import types
+
+    from skillcorpus.lifecycle import synthesize
+
+    sent = []
+
+    class Completions:
+        async def create(self, **kw):
+            sent.append(kw["messages"][1]["content"])
+            msg = types.SimpleNamespace(content="no verdict here", reasoning_content=None)
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
+
+    cli = types.SimpleNamespace(chat=types.SimpleNamespace(completions=Completions()))
+    monkeypatch.setattr(synthesize, "PAPER_CRITIC", paper_critic)
+    spec = {"task_description": "t", "inputs": [], "instruction_following_rubric": [{"name": "if-item"}],
+            "task_completion_rubric": [{"name": "tc-item"}]}
+    ok, crit, _ = asyncio.run(synthesize.validate(cli, {"body": "skill"}, spec))
+    assert ("tc-item" in sent[0]) is (not paper_critic)
+    assert "if-item" in sent[0]
+    assert ok is paper_critic and bool(crit) is (not paper_critic)
