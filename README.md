@@ -47,6 +47,26 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; Latest Updates
 
+- **2026-10-28** The October corpus version holds **300,473 skills**, **178,173** of them under
+  commercial-safe licenses — same curation pipeline, same schema. Release on HuggingFace **coming soon**.
+- **2026-10-23** **SkillRep** — skill retrieval is hard because a request and the skill that answers it are
+  written in different words, and existing methods each move only one or two dimensions. We give the
+  **first complete formulation of that representation space** (five dimensions; most prior retrievers
+  occupy a single point in it), optimize across the whole of it, and reach **state of the art on both
+  mainstream benchmarks** — a **0.6B** encoder beats the strongest same-size retriever on [SRA-Bench](https://huggingface.co/datasets/WeihangSu/SRA-Bench) by
+  **+7.02 MRR@10** and leads [SkillsBench](https://huggingface.co/datasets/pipizhao/SkillRouter-Eval-Core). We also make the space **interpretable**: three measurable
+  quantities show which part of the gap each dimension closes, and when two of them cancel.
+  **Code and model are open.**
+  [arXiv:2610.32336](https://arxiv.org/abs/2610.32336) | [code](skillrep) | [HF encoder](https://huggingface.co/EverMind-AI/skillrep-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillrep-reranker-0.6b)
+- **2026-10-23** **Beyond Gain** — skill hubs keep growing (ours is past 300K) while the models they serve
+  keep improving, so a hub has to retire, per model, what that model has already internalized. Yet
+  internalization had no reliable measurement: the standard *retire-on-gain* test reads **identically** for
+  a skill the model absorbed and one that never worked for anyone. We give the **first reliable measurement
+  of internalization** — withhold the skill, score the model, and trust a high score only when some other
+  model does gain from it: under the old rule **more than 90% of [SkillsBench](https://huggingface.co/datasets/pipizhao/SkillRouter-Eval-Core) retirements** rest on
+  tasks no run ever solved, while ours loses no reward and reproduces **nearly twice as well**. **Code and
+  data are open.**
+  [arXiv:2610.32322](https://arxiv.org/abs/2610.32322) | [code](skillcorpus/lifecycle) | [HF 1,251 skills × 4 models](https://huggingface.co/datasets/EverMind-AI/skillcorpus-lifecycle)
 - **2026-09-17 · v0.4.0** Adds a **shared skills library** across all six hosts: they read one `~/.evermind-skillsearch/` directory and register their own, so a skill you have in one agent is available in the rest; skills retrieved from a catalog are **kept** instead of discarded at the end of the turn; and changes take effect **on the next turn, with no restart**. Raven and Hermes also gain `skills_dirs` / `SKILLSEARCH_SKILLS_DIRS`.
 - **2026-09-02** Adds OpenClaw 2.0 support and smarter skill delivery: retrieve automatically on every query, or let the main agent call `skill_search` on demand.
 - **2026-08-27** Supports multi-source retrieval across local skills, EverMind SkillHub, ClawHub, and skillhub.cn, with filtering, deduplication, and final 0–2 selection.

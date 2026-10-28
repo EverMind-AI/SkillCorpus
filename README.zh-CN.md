@@ -41,6 +41,20 @@ https://github.com/user-attachments/assets/4d9a3241-df13-4b20-9798-fb7920069995
 
 ## &#128293; 最新动态
 
+- **2026-10-28** 十月版语料已有 **300,473 条**技能，其中商用版 **178,173 条**——策展流水线与 schema 不变。
+  HuggingFace 发布**即将到来**。
+- **2026-10-23** **SkillRep** —— 技能检索难在请求与技能的表述错位，而既有方法各自只动一两个维度。我们
+  **首次完整定义这个表示空间**（五个维度，前人多半只占其中一点），在整个空间上寻优，**在两个主流
+  benchmark 上双双 SOTA**：0.6B 编码器在 [SRA-Bench](https://huggingface.co/datasets/WeihangSu/SRA-Bench) 上 MRR@10 **超出同尺寸最强检索器 7.02 分**，
+  [SkillsBench](https://huggingface.co/datasets/pipizhao/SkillRouter-Eval-Core) 第一。更进一步，我们**让这个空间变得可解释**——三个可测量的量指出每个维度缩小的是错位的
+  哪一部分，以及它们何时相互抵消。**代码与模型均已开源。**
+  [arXiv:2610.32336](https://arxiv.org/abs/2610.32336) | [代码](skillrep) | [HF 编码器](https://huggingface.co/EverMind-AI/skillrep-embedding-0.6b) · [reranker](https://huggingface.co/EverMind-AI/skillrep-reranker-0.6b)
+- **2026-10-23** **Beyond Gain** —— 技能库在持续膨胀（我们十月版已 30 万条），模型又在不断更新，hub
+  必须按模型退役它已经内化的技能。但"内化"此前无法可靠度量：通行的**按增益退役**对"模型已吸收"和
+  "根本没人用得了"读数**完全相同**。我们**首次让内化变得可度量**——扣住技能直接测模型，且只在另有模型
+  确实能从它获益时才采信高分：旧判据下 **[SkillsBench](https://huggingface.co/datasets/pipizhao/SkillRouter-Eval-Core) 九成以上的退役**建立在没人做得出的题上，
+  新判据则无收益损失、可复现性高出**近一倍**。**代码与数据均已开源。**
+  [arXiv:2610.32322](https://arxiv.org/abs/2610.32322) | [代码](skillcorpus/lifecycle) | [HF 1,251 条技能 × 4 个模型](https://huggingface.co/datasets/EverMind-AI/skillcorpus-lifecycle)
 - **2026-09-17 · v0.4.0** 新增**跨 agent 共享技能库**：六个宿主共读同一个 `~/.evermind-skillsearch/` 目录并各自登记，一处拥有的 skill 在其他 agent 里也能用；从目录检索到的 skill **落盘保留**，不再用完即弃；改动**下一轮即生效，无需重启**。Raven 和 Hermes 另外新增 `skills_dirs` / `SKILLSEARCH_SKILLS_DIRS`。
 - **2026-09-02** 支持 OpenClaw 2.0，并新增更智能的 Skill 注入策略：可选择每轮自动检索，或由主 Agent 按需调用 `skill_search`。
 - **2026-08-27** 支持本地 Skill、EverMind SkillHub、ClawHub 和 skillhub.cn 多源检索，并完成过滤、去重和最终 0–2 条选择。
