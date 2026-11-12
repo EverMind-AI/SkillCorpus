@@ -20,9 +20,13 @@ faiss-cpu==1.15.1
     # via skillcorpus (pyproject.toml)
 h11==0.16.0 ; sys_platform != 'emscripten'
     # via httpcore2
-httpcore2==2.16.0 ; sys_platform != 'emscripten'
+httpcore2==2.14.0 ; python_full_version < '3.11' and sys_platform != 'emscripten'
     # via httpx2
-httpx2==2.16.0
+httpcore2==2.16.0 ; python_full_version >= '3.11' and sys_platform != 'emscripten'
+    # via httpx2
+httpx2==2.14.0 ; python_full_version < '3.11'
+    # via openai
+httpx2==2.16.0 ; python_full_version >= '3.11'
     # via openai
 httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
     # via httpx2
@@ -32,13 +36,15 @@ idna==3.20
     #   httpx2
 iniconfig==2.3.1
     # via pytest
-jiter==0.19.0
+jiter==0.18.0 ; python_full_version < '3.11'
+    # via openai
+jiter==0.19.0 ; python_full_version >= '3.11'
     # via openai
 numpy==2.2.6 ; python_full_version < '3.11'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
-numpy==2.5.4 ; python_full_version == '3.11.*'
+numpy==2.4.6 ; python_full_version == '3.11.*'
     # via
     #   skillcorpus (pyproject.toml)
     #   faiss-cpu
@@ -52,11 +58,15 @@ packaging==26.3
     # via
     #   faiss-cpu
     #   pytest
-pillow==13.0.0
+pillow==12.3.0 ; python_full_version < '3.11'
+    # via reportlab
+pillow==13.0.0 ; python_full_version >= '3.11'
     # via reportlab
 pluggy==1.7.0
     # via pytest
-pyarrow==26.0.1
+pyarrow==25.0.1 ; python_full_version < '3.11'
+    # via skillcorpus (pyproject.toml)
+pyarrow==26.0.1 ; python_full_version >= '3.11'
     # via skillcorpus (pyproject.toml)
 pydantic==2.14.3
     # via openai
