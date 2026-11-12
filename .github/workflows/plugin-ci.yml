@@ -23,7 +23,7 @@ jobs:
     outputs:
       plugins: ${{ steps.changed.outputs.plugins }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: changed
@@ -52,8 +52,8 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -72,8 +72,8 @@ jobs:
     name: Python release artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -89,8 +89,8 @@ jobs:
     name: TypeScript engine tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix skillcorpus_plugin/plugin-openclaw
@@ -115,8 +115,8 @@ jobs:
           - name: WorkBuddy
             directory: plugin-workbuddy
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -141,15 +141,15 @@ jobs:
     name: Python host adapters
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements/plugins.txt
       - run: pip install --no-deps -e ./skillcorpus_plugin/engine-python -e ./skillcorpus_plugin/plugin-raven
       - name: Check Hermes compatibility (weekly runs track upstream)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: NousResearch/hermes-agent
           ref: ${{ github.event_name == 'schedule' && 'main' || '22c5684b983eac6a81ee015ae80296c4b3dbf5bb' }}
